@@ -22,23 +22,21 @@ def main():
         return
 
     print("Gathered enough information to emulate the PDM.")
-    print("Please shut down the PDM and ensure it's not turned on whilst the emulator is running")
-    
+    print("Please shut down the PDM and press ENTER to continue")
 
     raw_input()
+    emulator.stopObservation()
 
     print("\n\n\n*** Did you turn off the Omnipod PDM? ***\n\n")
     response = raw_input("Type \'YES\' in capital letters to continue): ")
-    if response != "YES":
-        print("Good bye then")
-        return
 
-    emulator.stopObservation()
+    if response == "YES":
+        while displayMenu():
+            pass
 
-    while self.displayMenu():
-        pass
+    print("Goodbye then.")
 
-def displayMenu(self):
+def displayMenu():
     print("\n\n\n OmniPod PDM Emulator Commands:\n\n")
     print("1 - Deliver bolus")
     print("2 - Stop insulin delivery")
