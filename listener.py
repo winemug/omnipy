@@ -1,11 +1,10 @@
-
 import time
 import datetime
 import threading
 import Queue
 
 from rflib import (RfCat, ChipconUsbTimeoutException, MOD_2FSK, SYNCM_CARRIER_16_of_16,
-    MFMCFG1_NUM_PREAMBLE0, MFMCFG1_NUM_PREAMBLE_2, MFMCFG1_NUM_PREAMBLE_8)
+                    MFMCFG1_NUM_PREAMBLE0, MFMCFG1_NUM_PREAMBLE_2, MFMCFG1_NUM_PREAMBLE_8)
 
 
 class RFListener:
@@ -29,7 +28,7 @@ class RFListener:
         rfc.setMdmModulation(MOD_2FSK)
         rfc.setPktPQT(1)
         rfc.setMdmSyncMode(SYNCM_CARRIER_16_of_16)
-        rfc.makePktFLEN(50)
+        rfc.makePktFLEN(37)
         rfc.setEnableMdmManchester(True)
         rfc.setMdmDRate(40625)
         rfc.setRFRegister(0xdf18, 0x70)
@@ -44,7 +43,7 @@ class RFListener:
             try:
                 if self.stopListeningEvent.wait(0):
                     break
-                rfdata = rfc.RFrecv(timeout=1000)
+                rfdata = rfc.RFrecv(timeout=30000)
                 self.dataQueue.put(rfdata)
             except ChipconUsbTimeoutException:
                 pass
