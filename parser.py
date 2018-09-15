@@ -12,13 +12,26 @@ remainingData = 0
 def main():
     with open(sys.argv[1]) as f:
         for line in f:
-            timestamp = "<date/time unknown>"
-            if len(line) <= 26 or line[26] != ' ':
-                data = line[0:len(line)-1].decode("hex")
-            else:
-                timestamp = line[0:26]
-                data = line[27:len(line)-1].decode("hex")
-            decode(data, timestamp)
+
+            stripped = ""
+            for c in line:
+                if ord(c) < 32 or ord(c) > 127:
+                    break
+                stripped += c
+
+            if len(stripped) == 0:
+                continue
+
+            try:
+                timestamp = "<date/time unknown>"
+                if len(stripped) <= 26 or stripped[26] != ' ':
+                    data = stripped[0:].decode("hex")
+                else:
+                    timestamp = stripped[0:26]
+                    data = stripped[27:].decode("hex")
+                decode(data, timestamp)
+            except:
+                print "Failed to decode line: " + stripped
 
 def decode(data, timestamp):
     global remainingData, lastSequences
@@ -39,52 +52,30 @@ def decode(data, timestamp):
         p_type = bin(p_t)[2:5].zfill(3)
 
     if lastSequences[p_t] == p_seq:
-        print "(%s repeat packet)"
         return
     lastSequences[p_t] = p_seq
 
-    p_seq2 = 0xff
-    b9 = ord(data[9])
-    crcOK = False
+    p_unk1 = "----"
+    p_unk2 = "----"
+    p_addr2 = "--------"
+    p_len = "----"
+
     if p_type == "PDM" or p_type == "POD":
-        m_bodylen = ord(data[10]) | (b9 & 3)<<8
+        b9 = ord(data[9])
+        p_len = "0x%02x" % (ord(data[10]) | (b9 & 3)<<8)
         p_addr2 = binascii.hexlify(data[5:9])
-        p_seq2 = (b9 & 0x3C) >> 2
-
-        #p_bodylen = 
-
-        p_crc16 = ord(data[11+p_bodylen]) << 8 | ord(data[12+p_bodylen])
-        c_crc16 = crc16(data[5:11+p_bodylen])
-
-        crcOK = p_crc16 == c_crc16
-        if (crcOK):
-            p_body = binascii.hexlify(data[11:11+p_bodylen])
-
+        p_unk1 = "0x%02x" % ((b9 & 0x3C) >> 2)
+        p_unk2 = format((b9 >> 6), "#04b")
+        p_body = binascii.hexlify(data[11:])
     elif p_type == "ACK":
         p_addr2 = binascii.hexlify(data[5:9])
-        p_bodylen = 0
-        p_body = ""
+        p_body = binascii.hexlify(data[9:])
     elif p_type == "CON":
-        p_addr2 = ""
-        if remainingData > 31:
-            p_bodylen = 31
-        else:
-            p_bodylen = remainingData
-
-        if p_bodylen > len(data) - 8:
-            p_bodylen = len(data) - 8
-
-        remainingData -= p_bodylen
-        p_body = binascii.hexlify(data[6:6+p_bodylen])
+        p_body = binascii.hexlify(data[5:])
     else:
-        p_body = binascii.hexlify(data)
-        p_bodylen = len(data)
-        print(p_addr1, p_type, "0x%02x" % p_seq,  p_body)
+        p_body = binascii.hexlify(data[5:])
 
-    if crcOK:
-        print("%s %s %s 0x%02x 0x%02x 0x%02x %s" % (timestamp, p_addr1, p_type, p_seq, p_seq2, p_bodylen, p_body))
-    else:
-        print("%s %s %s 0x%02x 0x%02x 0x%02x %s <CRC ERROR>" % (timestamp, p_addr1, p_type, p_seq, p_seq2, p_bodylen, binascii.hexlify(data)))
+    print("%s %s 0x%02x %s %s %s %s %s (0x%02x) %s" % (timestamp, p_type, p_seq, p_addr1, p_addr2, p_unk1, p_unk2, p_len, len(p_body)/2, p_body))
 
 if __name__== "__main__":
   main()
