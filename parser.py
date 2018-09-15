@@ -38,25 +38,25 @@ def decode(data, timestamp):
     else:
         p_type = bin(p_t)[2:5].zfill(3)
 
+    if lastSequences[p_t] == p_seq:
+        print "(%s repeat packet)"
+        return
+    lastSequences[p_t] = p_seq
+
     p_seq2 = 0xff
     b9 = ord(data[9])
     crcOK = False
     if p_type == "PDM" or p_type == "POD":
-        remainingData = 0
-        p_bodylen = ord(data[10]) | (b9 & 3)<<8
+        m_bodylen = ord(data[10]) | (b9 & 3)<<8
         p_addr2 = binascii.hexlify(data[5:9])
         p_seq2 = (b9 & 0x3C) >> 2
-        if (p_bodylen > 23):
-            if p_bodylen == 24:
-                p_body = binascii.hexlify(data[11:35])
-                remainingData = 0
-            else:
-                p_body = binascii.hexlify(data[11:36])
-                remainingData = p_bodylen - 25
-        else:
-            p_crc16 = ord(data[11+p_bodylen]) << 8 | ord(data[12+p_bodylen])
-            c_crc16 = crc16(data[5:11+p_bodylen])
-            crcOK = p_crc16 == c_crc16
+
+        #p_bodylen = 
+
+        p_crc16 = ord(data[11+p_bodylen]) << 8 | ord(data[12+p_bodylen])
+        c_crc16 = crc16(data[5:11+p_bodylen])
+
+        crcOK = p_crc16 == c_crc16
         if (crcOK):
             p_body = binascii.hexlify(data[11:11+p_bodylen])
 
@@ -82,9 +82,6 @@ def decode(data, timestamp):
         print(p_addr1, p_type, "0x%02x" % p_seq,  p_body)
 
     if crcOK:
-        if lastSequences[p_t] == p_seq:
-            return
-        lastSequences[p_t] = p_seq
         print("%s %s %s 0x%02x 0x%02x 0x%02x %s" % (timestamp, p_addr1, p_type, p_seq, p_seq2, p_bodylen, p_body))
     else:
         print("%s %s %s 0x%02x 0x%02x 0x%02x %s <CRC ERROR>" % (timestamp, p_addr1, p_type, p_seq, p_seq2, p_bodylen, binascii.hexlify(data)))
