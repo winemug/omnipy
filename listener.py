@@ -30,9 +30,10 @@ class RFListener:
         rfc = RfCat(self.usbInterface, debug=False)
         rfc.setFreq(433.91e6)
         rfc.setMdmModulation(MOD_2FSK)
+        rfc.setMdmDeviatn(26370)
         rfc.setPktPQT(1)
         rfc.setMdmSyncMode(SYNCM_CARRIER_16_of_16)
-        rfc.makePktFLEN(70)
+        rfc.makePktFLEN(80)
         rfc.setEnableMdmManchester(False)
         rfc.setMdmDRate(40625)
         rfc.setRFRegister(0xdf18, 0x70)
@@ -47,7 +48,7 @@ class RFListener:
             try:
                 if self.stopListeningEvent.wait(0):
                     break
-                rfdata = rfc.RFrecv()
+                rfdata = rfc.RFrecv(timeout = 10000)
                 self.dataQueue.put(rfdata)
             except ChipconUsbTimeoutException:
                 pass
