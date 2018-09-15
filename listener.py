@@ -2,9 +2,12 @@ import time
 import datetime
 import threading
 import Queue
+import array
+import manchester
+import crc
 
 from rflib import (RfCat, ChipconUsbTimeoutException, MOD_2FSK, SYNCM_CARRIER_16_of_16,
-                    MFMCFG1_NUM_PREAMBLE0, MFMCFG1_NUM_PREAMBLE_2, MFMCFG1_NUM_PREAMBLE_8)
+                    MFMCFG1_NUM_PREAMBLE0, MFMCFG1_NUM_PREAMBLE_2)
 
 
 class RFListener:
@@ -13,6 +16,7 @@ class RFListener:
         self.stopListeningEvent = threading.Event()
         self.usbInterface = usbInterface
         self.processDataCallback = processDataCallback
+        self.manchester = manchester.ManchesterCodec()
 
     def startListening(self):
         self.listenerThread = threading.Thread(target = self.listenerLoop)
@@ -28,12 +32,12 @@ class RFListener:
         rfc.setMdmModulation(MOD_2FSK)
         rfc.setPktPQT(1)
         rfc.setMdmSyncMode(SYNCM_CARRIER_16_of_16)
-        rfc.makePktFLEN(37)
-        rfc.setEnableMdmManchester(True)
+        rfc.makePktFLEN(70)
+        rfc.setEnableMdmManchester(False)
         rfc.setMdmDRate(40625)
         rfc.setRFRegister(0xdf18, 0x70)
-        rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE_2)
-        rfc.setMdmSyncWord(0x54c3)
+        rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE0)
+        rfc.setMdmSyncWord(0xa55a)
 
         self.dataQueue = Queue.Queue()
         pp = threading.Thread(target = self.dataProcessor)
@@ -43,7 +47,7 @@ class RFListener:
             try:
                 if self.stopListeningEvent.wait(0):
                     break
-                rfdata = rfc.RFrecv(timeout=30000)
+                rfdata = rfc.RFrecv()
                 self.dataQueue.put(rfdata)
             except ChipconUsbTimeoutException:
                 pass
@@ -59,7 +63,8 @@ class RFListener:
                 break
                 
             data, timestamp = rfdata
-            bytes = map(lambda x: ord(x) ^ 0xff, data)
-            data = bytearray(bytes).__str__()
-
-            self.processDataCallback(data, timestamp)
+            data = self.manchester.Decode(data)
+            if data is not None and len(data) > 1:
+                calc = crc.crc8(data[0:-1])
+                if ord(data[-1]) == calc:
+                    self.processDataCallback(data[0:-1], timestamp)

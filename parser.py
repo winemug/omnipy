@@ -12,14 +12,15 @@ remainingData = 0
 def main():
     with open(sys.argv[1]) as f:
         for line in f:
-            #timestamp = line[0:26]
+            timestamp = "<date/time unknown>"
             if len(line) <= 26 or line[26] != ' ':
                 data = line[0:len(line)-1].decode("hex")
             else:
+                timestamp = line[0:26]
                 data = line[27:len(line)-1].decode("hex")
-            decode(data)
+            decode(data, timestamp)
 
-def decode(data):
+def decode(data, timestamp):
     global remainingData, lastSequences
     p_addr1 = binascii.hexlify(data[0:4])
 
@@ -66,9 +67,6 @@ def decode(data):
 
         if (crcOK):
             p_body = binascii.hexlify(data[11:11+p_bodylen])
-        else:
-            p_body = binascii.hexlify(data)
-            p_bodylen = len(data)
 
     elif p_type == "ACK":
         p_addr2 = binascii.hexlify(data[5:9])
@@ -79,8 +77,6 @@ def decode(data):
         crcOK = p_crc8 == c_crc8
     elif p_type == "CON":
         p_addr2 = ""
-        p_seq2 = (b9 & 0x3C) >> 2
-
         if remainingData > 31:
             p_bodylen = 31
         else:
@@ -98,19 +94,18 @@ def decode(data):
         p_body = binascii.hexlify(data)
         p_bodylen = len(data)
         print(p_addr1, p_type, "0x%02x" % p_seq,  p_body)
-        # for i in range(36, 5, -1):
-        #     if crc8(data[0:i]) == ord(data[i]):
-        #         print "possible crc at #", i
-        #         break
+        for i in range(36, 5, -1):
+            if crc8(data[0:i]) == ord(data[i]):
+                print "possible crc at #", i
+                break
 
     if crcOK:
         if lastSequences[p_t] == p_seq:
             return
-        
         lastSequences[p_t] = p_seq
-        print("%s %s 0x%02x 0x%02x 0x%02x %s" % (p_addr1, p_type, p_seq, p_seq2, p_bodylen, p_body))
+        print("%s %s %s 0x%02x 0x%02x 0x%02x %s" % (timestamp, p_addr1, p_type, p_seq, p_seq2, p_bodylen, p_body))
     else:
-        print("%s %s 0x%02x 0x%02x 0x%02x %s BAD BAD BAD" % (p_addr1, p_type, p_seq, p_seq2, p_bodylen, p_body))
+        print("%s %s %s 0x%02x 0x%02x 0x%02x %s <CRC ERROR>" % (timestamp, p_addr1, p_type, p_seq, p_seq2, p_bodylen, binascii.hexlify(data)))
 
 if __name__== "__main__":
   main()
