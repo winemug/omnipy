@@ -54,7 +54,7 @@ class Radio:
             try:
                 while not self.sendQueue.empty:
                     sendData = self.sendQueue.get()
-                    rfc.RFsend(sendData)
+                    rfc.RFxmit(sendData)
                 recvdata = rfc.RFrecv(timeout = 100)
                 self.recvQueue.put(recvdata)
             except ChipconUsbTimeoutException:
