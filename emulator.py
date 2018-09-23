@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import pdm
+import podcomm/pdm
 import threading
 
 def main():
@@ -13,8 +13,8 @@ def main():
     lot = int(raw_input("Please enter the lot id of the pod: "))
     tid = int(raw_input("Please enter tid of the pod: "))
     print("Starting the PDM emulator")
-    emulator = pdm.pdm(lot, tid)
-    emulator.startObservation()
+    pdm = pdm.Pdm(lot, tid)
+    pdm.start(messageHandlerListenOnly, True)
     print("Perform an insulin delivery related operation within the next 60 seconds on the real pdm")
 
     if not emulator.parametersObserved.wait(60):
@@ -25,15 +25,16 @@ def main():
     print("Please shut down the PDM and press ENTER to continue")
 
     raw_input()
-    emulator.stopObservation()
+    pdm.stop()
 
     print("\n\n\n*** Did you turn off the Omnipod PDM? ***\n\n")
     response = raw_input("Type \'YES\' in capital letters to continue): ")
 
     if response == "YES":
+        pdm.start(messageHandlerOperational)
         while displayMenu():
             pass
-
+        pdm.stop()
     print("Goodbye then.")
 
 def displayMenu():
@@ -52,6 +53,12 @@ def displayMenu():
 
     print("Unknown command!")
     return True
+
+def messageHandlerListenOnly(message):
+    pass
+
+def messageHandlerOperational(message):
+    pass
 
 if __name__== "__main__":
   main()
