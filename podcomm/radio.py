@@ -12,13 +12,13 @@ from rflib import (RfCat, ChipconUsbTimeoutException, MOD_2FSK, SYNCM_CARRIER_16
 
 
 class Radio:
-    def __init__(self, usbInterface, packetReceivedCallback):
+    def __init__(self, usbInterface):
         self.stopRadioEvent = threading.Event()
         self.usbInterface = usbInterface
-        self.packetReceivedCallback = packetReceivedCallback
         self.manchester = manchester.ManchesterCodec()
 
-    def start(self):
+    def start(self, recvCallback):
+        self.recvCallback = recvCallback
         self.recvQueue = Queue.Queue()
         self.sendQueue = Queue.Queue()
         self.radioThread = threading.Thread(target = self.radioLoop)
@@ -29,9 +29,11 @@ class Radio:
         self.radioThread.join()
 
     def send(self, packet):
-        pass
+        data += chr(crc.crc8(data))
+        data = self.manchester.encode(packet.data)
+        self.sendQueue.put(data)
 
-    def listenerLoop(self):
+    def radioLoop(self):
         rfc = RfCat(self.usbInterface, debug=False)
         rfc.setFreq(433.91e6)
         rfc.setMdmModulation(MOD_2FSK)
@@ -48,29 +50,30 @@ class Radio:
         pp = threading.Thread(target = self.recvProcessor)
         pp.start()
 
-        while True:
+        while not self.stopRadioEvent.wait(0):
             try:
-                if self.stopRadioEvent.wait(0):
-                    break
-                rfdata = rfc.RFrecv(timeout = 500)
-                self.recvQueue.put(rfdata)
+                while not self.sendQueue.empty:
+                    sendData = self.sendQueue.get()
+                    rfc.RFsend(sendData)
+                recvdata = rfc.RFrecv(timeout = 100)
+                self.recvQueue.put(recvdata)
             except ChipconUsbTimeoutException:
                 pass
         rfc.cleanup()
-        self.dataQueue.put(None)
-        self.dataQueue.task_done()
+        self.recvQueue.put(None)
+        self.recvQueue.task_done()
         pp.join()
 
     def recvProcessor(self):
         while True:
-            rfdata = self.dataQueue.get(block = True)
+            rfdata = self.recvQueue.get(block = True)
             if rfdata is None:
                 break
                 
             data, timestamp = rfdata
-            data = self.manchester.Decode(data)
+            data = self.manchester.decode(data)
             if data is not None and len(data) > 1:
                 calc = crc.crc8(data[0:-1])
                 if ord(data[-1]) == calc:
                     p = packet.Packet(timestamp, data[:-1])
-                    self.packetReceivedCallback(p)
+                    self.recvCallback(p)

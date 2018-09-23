@@ -47,6 +47,6 @@ class ManchesterCodec:
         self.noiseLines = []
         for x in range(0, 32):
             noiseLine = "f"
-            for i in range(0, 79):
+            for i in range(0, 159):
                 noiseLine += random.choice(noiseNibbles)
             self.noiseLines.apppend(noiseLine.decode("hex"))
