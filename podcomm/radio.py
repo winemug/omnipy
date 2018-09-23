@@ -5,26 +5,31 @@ import Queue
 import array
 import manchester
 import crc
+import packet
 
 from rflib import (RfCat, ChipconUsbTimeoutException, MOD_2FSK, SYNCM_CARRIER_16_of_16,
                     MFMCFG1_NUM_PREAMBLE0, MFMCFG1_NUM_PREAMBLE_2)
 
 
-class RFListener:
-
-    def __init__(self, usbInterface, processDataCallback):
-        self.stopListeningEvent = threading.Event()
+class Radio:
+    def __init__(self, usbInterface, packetReceivedCallback):
+        self.stopRadioEvent = threading.Event()
         self.usbInterface = usbInterface
-        self.processDataCallback = processDataCallback
+        self.packetReceivedCallback = packetReceivedCallback
         self.manchester = manchester.ManchesterCodec()
 
-    def startListening(self):
-        self.listenerThread = threading.Thread(target = self.listenerLoop)
-        self.listenerThread.start()
+    def start(self):
+        self.recvQueue = Queue.Queue()
+        self.sendQueue = Queue.Queue()
+        self.radioThread = threading.Thread(target = self.radioLoop)
+        self.radioThread.start()
 
-    def stopListening(self):
-        self.stopListeningEvent.set()
-        self.listenerThread.join()
+    def stop(self):
+        self.stopRadioEvent.set()
+        self.radioThread.join()
+
+    def send(self, packet):
+        pass
 
     def listenerLoop(self):
         rfc = RfCat(self.usbInterface, debug=False)
@@ -40,16 +45,15 @@ class RFListener:
         rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE0)
         rfc.setMdmSyncWord(0xa55a)
 
-        self.dataQueue = Queue.Queue()
-        pp = threading.Thread(target = self.dataProcessor)
+        pp = threading.Thread(target = self.recvProcessor)
         pp.start()
 
         while True:
             try:
-                if self.stopListeningEvent.wait(0):
+                if self.stopRadioEvent.wait(0):
                     break
-                rfdata = rfc.RFrecv(timeout = 10000)
-                self.dataQueue.put(rfdata)
+                rfdata = rfc.RFrecv(timeout = 500)
+                self.recvQueue.put(rfdata)
             except ChipconUsbTimeoutException:
                 pass
         rfc.cleanup()
@@ -57,7 +61,7 @@ class RFListener:
         self.dataQueue.task_done()
         pp.join()
 
-    def dataProcessor(self):
+    def recvProcessor(self):
         while True:
             rfdata = self.dataQueue.get(block = True)
             if rfdata is None:
@@ -68,4 +72,5 @@ class RFListener:
             if data is not None and len(data) > 1:
                 calc = crc.crc8(data[0:-1])
                 if ord(data[-1]) == calc:
-                    self.processDataCallback(data[0:-1], timestamp)
+                    p = packet.Packet(timestamp, data[:-1])
+                    self.packetReceivedCallback(p)

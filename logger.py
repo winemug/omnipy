@@ -2,15 +2,15 @@
 
 import pdm
 import threading
-import listener
+import podcomm/listener
 import datetime
 
 def main():
     try:
         r = listener.RFListener(0, processData)
-        r.startListening()
+        r.start()
         raw_input()
-        r.stopListening()
+        r.stop()
     except:
         print("something didn't work out quite alright")
 

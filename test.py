@@ -3,8 +3,8 @@
 import sys
 import datetime
 import binascii
-from crc import crc8, crc16
-from manchester import ManchesterCodec
+from podcomm/crc import crc8, crc16
+from podcomm/manchester import ManchesterCodec
 
 m = ManchesterCodec()
 

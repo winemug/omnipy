@@ -5,7 +5,6 @@ import datetime
 import binascii
 from argparse import ArgumentParser
 from decoder import Decoder
-from crc import crc16
 
 def main():
     parser = ArgumentParser(description="parse omnipod packets.")
