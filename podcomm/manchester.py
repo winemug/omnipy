@@ -41,7 +41,7 @@ class ManchesterCodec:
             d = d >> 1
         return chr(e >> 8) + chr(e & 0xff)
 
-    def generateNonManchesterNoise():
+    def generateNonManchesterNoise(self):
         self.noiseSeq = 0
         noiseNibbles = '0123478bcdef'
         self.noiseLines = []
@@ -49,4 +49,4 @@ class ManchesterCodec:
             noiseLine = "f"
             for i in range(0, 159):
                 noiseLine += random.choice(noiseNibbles)
-            self.noiseLines.apppend(noiseLine.decode("hex"))
+            self.noiseLines.append(noiseLine.decode("hex"))

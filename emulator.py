@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import podcomm/pdm
+from podcomm.pdm import Pdm
 import threading
 
 def main():
@@ -13,11 +13,11 @@ def main():
     lot = int(raw_input("Please enter the lot id of the pod: "))
     tid = int(raw_input("Please enter tid of the pod: "))
     print("Starting the PDM emulator")
-    pdm = pdm.Pdm(lot, tid)
+    pdm = Pdm(lot, tid)
     pdm.start(messageHandlerListenOnly, True)
     print("Perform an insulin delivery related operation within the next 60 seconds on the real pdm")
 
-    if not emulator.parametersObserved.wait(60):
+    if not parametersObserved.wait(60):
         print("Error: Necessary parameters for the emulator were NOT observed.")
         return
 
@@ -55,10 +55,12 @@ def displayMenu():
     return True
 
 def messageHandlerListenOnly(message):
-    pass
+    parametersObserved.set()
 
 def messageHandlerOperational(message):
     pass
+
+parametersObserved = threading.Event()
 
 if __name__== "__main__":
   main()

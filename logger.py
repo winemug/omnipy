@@ -1,19 +1,16 @@
 #!/usr/bin/python
 
-import pdm
 import threading
-import podcomm/pdm
-import podcomm/message
 import datetime
+from podcomm import pdm
+from podcomm import message
 
 def main():
-    try:
-        p = pdm.Pdm()
-        p.start(messageHandler, True)
-        raw_input()
-        p.stop()
-    except:
-        print("something didn't work out quite alright")
+    p = pdm.Pdm()
+    p.start(messageHandler, True)
+    
+    raw_input()
+    p.stop()
 
 def messageHandler(message):
     print message

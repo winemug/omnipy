@@ -1,5 +1,6 @@
 import threading
 import radio
+from message import Message, MessageState
 
 class Pdm:
     def __init__(self, lot = None, tid = None, address = None):
@@ -80,3 +81,5 @@ class Pdm:
                         self.message = None
                 else:
                     print "Warning: ACK received without a previous message"
+            if self.message is not None and self.message.state == MessageState.Complete:
+                self.messageHandler(self.message)
