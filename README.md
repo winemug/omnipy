@@ -1,7 +1,10 @@
-# omnipy
-A set of python scripts for communicating with the OmniPod insulin pump using RfCat.
+# About omnipy
+This is a set of python scripts for communicating with the OmniPod insulin pump using RfCat.
 
+## Background
 The code is based on the (seemingly abandoned) [openomni](https://github.com/openaps/openomni/) project and its findings respective to the OmniPod Sub-GHz communication protocol.
+
+For sake of simplicity I kept the choice of language as Python but the code is highly experimental and needless to say dirty. The idea behind this is to provide a diagnostic/testing tool while trying to come up with a reference design for the implementation of the OmniPod protocol to integrate into artificial pancreas systems.
 
 # What you need
 
