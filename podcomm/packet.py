@@ -1,6 +1,26 @@
 import binascii
+from datetime import datetime
 
 class Packet():
+    @staticmethod
+    def Ack(address, sequence, fromPOD):
+        addrInt = address.decode("hex")
+        data = ""
+        data += addrInt >> 24 & 0xff
+        data += addrInt >> 16 & 0xff
+        data += addrInt >> 8 & 0xff
+        data += addrInt & 0xff
+
+        data += chr(sequence | 0b01000000)
+        if fromPOD:
+            addrInt = 0
+
+        data += addrInt >> 24 & 0xff
+        data += addrInt >> 16 & 0xff
+        data += addrInt >> 8 & 0xff
+        data += addrInt & 0xff
+        return Packet(0, data)
+
     def __init__(self, timestamp, data):
         self.timestamp = timestamp
         self.data = data
@@ -62,12 +82,13 @@ class Packet():
             self.valid = True
 
     def __str__(self):
+        timestr = datetime.fromtimestamp(self.timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")
         if self.valid:
             if self.type == "CON":
-                return "%s Packet Type: %s Addr: %s                 Seq: 0x%02x Body: %s" % (self.timestamp, self.type, self.address, self.sequence, binascii.hexlify(self.body))
+                return "%s Pkt %s Addr: %s                 Seq: 0x%02x Body: %s" % (timestr, self.type, self.address, self.sequence, binascii.hexlify(self.body))
             elif self.type == "ACK":
-                return "%s Packet Type: ACK Addr: %s Addr2: %s Seq: 0x%02x" % (self.timestamp, self.address, self.address2, self.sequence)
+                return "%s Pkt ACK Addr: %s Addr2: %s Seq: 0x%02x" % (timestr, self.address, self.address2, self.sequence)
             else:
-                return "%s Packet Type: %s Addr: %s Addr2: %s Seq: 0x%02x Body: %s" % (self.timestamp, self.type, self.address, self.address2, self.sequence, binascii.hexlify(self.body))
+                return "%s Pkt %s Addr: %s Addr2: %s Seq: 0x%02x Body: %s" % (timestr, self.type, self.address, self.address2, self.sequence, binascii.hexlify(self.body))
         else:
-            return "%s Invalid packet. Error: %s Body: %s" % (self.timestamp, self.error, binascii.hexlify(self.data))
+            return "%s Pkt invalid. Error: %s Body: %s" % (timestr, self.error, binascii.hexlify(self.data))

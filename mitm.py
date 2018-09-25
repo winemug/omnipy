@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
-from podcomm.protocol import Protocol, ProtocolEmulation
+from podcomm.sniffer import Sniffer
+from podcomm.pdm import Pdm
 import podcomm.message
 import threading
 
@@ -14,9 +15,9 @@ def main():
     lot = int(raw_input("Please enter the lot id of the pod: "))
     tid = int(raw_input("Please enter tid of the pod: "))
     print("Starting the PDM emulator")
-    sniffer = Protocol(snifferMessageHandler, lot, tid, ProtocolEmulation.Sniffer)
+    sniffer = Sniffer(None, messageHandler, None)
     sniffer.start()
-    print("Perform an insulin delivery related operation within the next 60 seconds on the real pdm")
+    print("Perform an insulin delivery related operation within the next 60 seconds using the pdm")
 
     if not parametersObserved.wait(60):
         print("Error: Necessary parameters for the emulator were NOT observed.")
@@ -32,7 +33,7 @@ def main():
     response = raw_input("Type \'YES\' in capital letters to continue): ")
 
     if response == "YES":
-        pdm = Protocol(pdmMessageHandler, sniffer.lot, sniffer.tid, sniffer.address, ProtocolEmulation.PDM)
+        pdm = Pdm(pdmMessageHandler, sniffer.lot, sniffer.tid, sniffer.address)
         pdm.start()
         while displayMenu():
             pass
@@ -56,8 +57,7 @@ def displayMenu():
     print("Unknown command!")
     return True
 
-def snifferMessageHandler(protocol):
-    #tbd
+def messageHandler(message):
     parametersObserved.set()
 
 def pdmMessageHandler(protocol):
