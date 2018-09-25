@@ -35,11 +35,11 @@ class Message():
         self.acknowledged = False
         self.updateMessageState()
 
-    def getPackets(self, sequence):
+    def getPackets(self, messageSequence):
         if self.state != MessageState.Complete:
             raise ValueError()
-
-        addrInt = self.address.decode("hex")
+        self.sequence = messageSequence
+        addrInt = binascii.a2b_hex(self.address)
         data = ""
         data += addrInt >> 24 & 0xff
         data += addrInt >> 16 & 0xff
@@ -47,9 +47,9 @@ class Message():
         data += addrInt & 0xff
 
         if self.type == "PDM":
-            data += chr(sequence | 0b10100000)
+            data += chr(0b10100000)
         else:
-            data += chr(sequence | 0b11100000)
+            data += chr(0b11100000)
             addrInt = 0
 
         data += addrInt >> 24 & 0xff
@@ -74,7 +74,6 @@ class Message():
         maxLength = 24
         conData = []
         while (len(bodyToWrite) > 0):
-            sequence = (sequence + 1) % 32
             lenToWrite = min(maxLength, len(bodyToWrite))
             addrInt = self.address.decode("hex")
             cond = ""
@@ -82,7 +81,7 @@ class Message():
             cond += chr(addrInt >> 16 & 0xff)
             cond += chr(addrInt >> 8 & 0xff)
             cond += chr(addrInt & 0xff)
-            cond += chr(sequence | 0b10000000)
+            cond += chr(0b10000000)
             cond += bodyToWrite[0:lenToWrite]
             bodyToWrite = bodyToWrite[lenToWrite:]
             conData.append(cond)
@@ -116,6 +115,17 @@ class Message():
         crcBody = a + chr(b0) + chr(b1) + body
         crcVal = crc16(crcBody)
         return chr(crcVal >> 8) + chr (crcVal & 0xff)
+
+    def getContents(self):
+        ptr = 0
+        contents = []
+        while ptr < self.length:
+            contentType = ord(self.bodyWithCrc[ptr])
+            contentLength = ord(self.bodyWithCrc[ptr+1])
+            content = self.bodyWithCrc[ptr+2:ptr+2+contentLength]
+            contents.append((contentType, content))
+            ptr += 2 + contentLength
+        return contents
 
     def __str__(self):
         timestr = datetime.fromtimestamp(self.timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")

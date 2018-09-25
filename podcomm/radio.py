@@ -34,8 +34,9 @@ class Radio:
         self.radioThread.join()
 
     def send(self, packet, responseTimeout = 1000):
+        data = packet.data
         data += chr(crc.crc8(data))
-        data = self.manchester.encode(packet.data)
+        data = self.manchester.encode(data)
         self.sendComplete.wait()
         self.sendComplete.clear()
         self.dataToSend = data

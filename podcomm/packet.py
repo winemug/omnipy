@@ -4,22 +4,19 @@ from datetime import datetime
 class Packet():
     @staticmethod
     def Ack(address, sequence, fromPOD):
-        addrInt = address.decode("hex")
-        data = ""
-        data += addrInt >> 24 & 0xff
-        data += addrInt >> 16 & 0xff
-        data += addrInt >> 8 & 0xff
-        data += addrInt & 0xff
+        data = address.decode("hex")
 
         data += chr(sequence | 0b01000000)
         if fromPOD:
-            addrInt = 0
-
-        data += addrInt >> 24 & 0xff
-        data += addrInt >> 16 & 0xff
-        data += addrInt >> 8 & 0xff
-        data += addrInt & 0xff
+            data += "\0\0\0\0"
+        else:
+            data += address.decode("hex")
         return Packet(0, data)
+
+    def setSequence(self, sequence):
+        self.sequence = sequence
+        data[4] = data[4] & 0b11100000
+        data[4] = data[4] | sequence
 
     def __init__(self, timestamp, data):
         self.timestamp = timestamp
