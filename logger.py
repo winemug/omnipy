@@ -16,7 +16,7 @@ def main():
     print "Done"
 
 def pktHandler(packet):
-    print packet
+    #print packet
     file = open("omni_packets.log","a")
     file.write(str(packet)+"\n") 
     file.close() 
