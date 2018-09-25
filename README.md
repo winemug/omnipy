@@ -1,20 +1,25 @@
-# omnipy
-A set of python scripts for communicating with the OmniPod insulin pump using RfCat.
+# About omnipy
+This is a set of python scripts for communicating with the OmniPod insulin pump using RfCat.
 
+## Background
 The code is based on the (seemingly abandoned) [openomni](https://github.com/openaps/openomni/) project and its findings respective to the OmniPod Sub-GHz communication protocol.
+
+For sake of simplicity I kept the choice of language as Python but the code is highly experimental and needless to say dirty. The idea behind this is to provide a diagnostic/testing tool while trying to come up with a reference design for the implementation of the OmniPod protocol to integrate into artificial pancreas systems.
 
 # What you need
 
 * A supported USB device running [rfcat](https://github.com/atlas0fd00m/rfcat)
-** For example the [CC1111 USB Dongle](http://www.ti.com/tool/CC1111EMK868-915) by Texas Instruments and the [CC Debugger](https://www.ti.com/tool/CC-DEBUGGER) to flash the firmware.
+
+For example the [CC1111 USB Dongle](http://www.ti.com/tool/CC1111EMK868-915) by Texas Instruments and the [CC Debugger](https://www.ti.com/tool/CC-DEBUGGER) to flash the firmware.
 * Python 2.7
 * Linux (unless you can install rfcat on windows)
 * Optional: An OmniPOD PDM (Personal Data Manager) and spare PODs for testing
 
 # Building
 
-* Follow instructions on [rfcat repository] relevant for your USB device.
-** If you're using the CC1111 Dongle, I have found that the latest version (as of 2018 Aug 23rd) of rfcat does have some issues. Clone [this branch](https://github.com/atlas0fd00m/rfcat/tree/651ce73864ebac97590a9cc294aa72f0451350a9) and install the python library using:
+* Follow instructions on [rfcat repository](https://github.com/atlas0fd00m/rfcat) relevant for your USB device.
+
+If you're using the CC1111 Dongle, I have found that the latest version (as of 2018 Aug 23rd) of rfcat does have some issues. Clone [this branch](https://github.com/atlas0fd00m/rfcat/tree/651ce73864ebac97590a9cc294aa72f0451350a9) and install the python library using:
 
 ```
 cd rfcat
@@ -84,4 +89,4 @@ Allows to emulate a PDM to command an actual POD
 ## MITM
 Status: Work in progress
 
-Hijacking a PDM session to take control of the POD.
+A man, a PDM and a POD go to a bar.
