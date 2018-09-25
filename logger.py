@@ -2,12 +2,11 @@
 
 import threading
 import datetime
-from podcomm import pdm
-from podcomm import message
+from podcomm.protocol import Protocol, ProtocolEmulation
 
 def main():
-    p = pdm.Pdm()
-    p.start(messageHandler, True)
+    p = Protocol(messageHandler, protocolEmulation = ProtocolEmulation.Sniffer)
+    p.start()
     
     raw_input()
     p.stop()

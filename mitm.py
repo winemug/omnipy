@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
-from podcomm.pdm import Pdm
+from podcomm.protocol import Protocol, ProtocolEmulation
+import podcomm.message
 import threading
 
 def main():
@@ -13,8 +14,8 @@ def main():
     lot = int(raw_input("Please enter the lot id of the pod: "))
     tid = int(raw_input("Please enter tid of the pod: "))
     print("Starting the PDM emulator")
-    pdm = Pdm(lot, tid)
-    pdm.start(messageHandlerListenOnly, True)
+    sniffer = Protocol(snifferMessageHandler, lot, tid, ProtocolEmulation.Sniffer)
+    sniffer.start()
     print("Perform an insulin delivery related operation within the next 60 seconds on the real pdm")
 
     if not parametersObserved.wait(60):
@@ -25,13 +26,14 @@ def main():
     print("Please shut down the PDM and press ENTER to continue")
 
     raw_input()
-    pdm.stop()
+    sniffer.stop()
 
     print("\n\n\n*** Did you turn off the Omnipod PDM? ***\n\n")
     response = raw_input("Type \'YES\' in capital letters to continue): ")
 
     if response == "YES":
-        pdm.start(messageHandlerOperational)
+        pdm = Protocol(pdmMessageHandler, sniffer.lot, sniffer.tid, sniffer.address, ProtocolEmulation.PDM)
+        pdm.start()
         while displayMenu():
             pass
         pdm.stop()
@@ -54,10 +56,11 @@ def displayMenu():
     print("Unknown command!")
     return True
 
-def messageHandlerListenOnly(message):
+def snifferMessageHandler(protocol):
+    #tbd
     parametersObserved.set()
 
-def messageHandlerOperational(message):
+def pdmMessageHandler(protocol):
     pass
 
 parametersObserved = threading.Event()

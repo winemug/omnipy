@@ -1,9 +1,16 @@
 import threading
 import radio
 from message import Message, MessageState
+from enum import Enum
 
-class Pdm:
-    def __init__(self, lot = None, tid = None, address = None):
+class ProtocolEmulation(Enum):
+    PDM = 0,
+    POD = 1,
+    Sniffer = 2,
+
+class Protocol:
+    def __init__(self, msgHandler, lot = None, tid = None, address = None, protocolEmulation = ProtocolEmulation.Sniffer):
+        self.messageHandler = msgHandler
         self.lot = lot
         self.tid = tid
         self.address = address
@@ -13,12 +20,8 @@ class Pdm:
         self.message = None
         self.radio = radio.Radio(0)
 
-    def start(self, messageHandler, listenOnly = False):
-        self.messageHandler = messageHandler
-        if listenOnly:
-            self.radio.start(self.recvListenOnlyProtocolHandler)
-        else:
-            self.radio.start(self.recvProtocolHandler)
+    def start(self):
+        self.radio.start(self.recvProtocolHandler)
 
     def stop(self):
         self.radio.stop()
@@ -26,10 +29,7 @@ class Pdm:
     def sendMessage(self, message):
         pass
 
-    def recvProtocolHandler(self):
-        pass
-
-    def recvListenOnlyProtocolHandler(self, packet):
+    def recvProtocolHandler(self, packet):
         if packet.valid:
             if packet.type in self.packetSequences:
                 lastSeq = self.packetSequences[packet.type]
@@ -40,7 +40,7 @@ class Pdm:
             if self.nextPacketSequence is None:
                 self.nextPacketSequence = packet.sequence
             if self.nextPacketSequence != packet.sequence:
-                print "Warning: Sequencing error. Expected sequence: 0x%2x Received: 0x%2x" % (self.nextSequence, packet.sequence)
+                print "Warning: Sequencing error. Expected sequence: 0x%2x Received: 0x%2x" % (self.nextPacketSequence, packet.sequence)
             self.nextPacketSequence = (packet.sequence + 1) % 32
 
             if self.address is None:
