@@ -6,15 +6,17 @@ The code is based on the (seemingly abandoned) [openomni](https://github.com/ope
 # What you need
 
 * A supported USB device running [rfcat](https://github.com/atlas0fd00m/rfcat)
-** For example the [CC1111 USB Dongle](http://www.ti.com/tool/CC1111EMK868-915) by Texas Instruments and the [CC Debugger](https://www.ti.com/tool/CC-DEBUGGER) to flash the firmware.
+
+For example the [CC1111 USB Dongle](http://www.ti.com/tool/CC1111EMK868-915) by Texas Instruments and the [CC Debugger](https://www.ti.com/tool/CC-DEBUGGER) to flash the firmware.
 * Python 2.7
 * Linux (unless you can install rfcat on windows)
 * Optional: An OmniPOD PDM (Personal Data Manager) and spare PODs for testing
 
 # Building
 
-* Follow instructions on [rfcat repository] relevant for your USB device.
-** If you're using the CC1111 Dongle, I have found that the latest version (as of 2018 Aug 23rd) of rfcat does have some issues. Clone [this branch](https://github.com/atlas0fd00m/rfcat/tree/651ce73864ebac97590a9cc294aa72f0451350a9) and install the python library using:
+* Follow instructions on [rfcat repository](https://github.com/atlas0fd00m/rfcat) relevant for your USB device.
+
+If you're using the CC1111 Dongle, I have found that the latest version (as of 2018 Aug 23rd) of rfcat does have some issues. Clone [this branch](https://github.com/atlas0fd00m/rfcat/tree/651ce73864ebac97590a9cc294aa72f0451350a9) and install the python library using:
 
 ```
 cd rfcat
@@ -84,4 +86,4 @@ Allows to emulate a PDM to command an actual POD
 ## MITM
 Status: Work in progress
 
-Hijacking a PDM session to take control of the POD.
+A man, a PDM and a POD go to a bar.
