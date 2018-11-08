@@ -1,5 +1,5 @@
 import threading
-import radio
+from radio import Radio, RadioMode
 from message import Message, MessageState
 from enum import Enum
 from packet import Packet
@@ -22,7 +22,7 @@ class Pod:
         self.responsePacket = None
         self.responseQueue = Queue.Queue()
         self.lastReceivedPacketSequence = None
-        self.radio.start(self.protocolHandler, listenAlways = True)
+        self.radio.start(self.protocolHandler, radioMode = RadioMode.Pod)
 
     def stop(self):
         self.radio.stop()
