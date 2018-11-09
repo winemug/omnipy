@@ -56,40 +56,50 @@ class Radio:
         rfc.setEnableMdmManchester(False)
         rfc.setMdmDRate(40625)
         rfc.setRFRegister(0xdf18, 0x70)
-        rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE0)
+        rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE_2)
         rfc.setMdmSyncWord(0xa55a)
         return rfc
 
     def radioLoop(self):
         while not self.stopRadioEvent.wait(0):
+            self.rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE_2)
+            self.rfc.setMdmSyncWord(0xa55a)
             self.rfc.setModeRX()
             rfdata = self.receive(receiveTimeout = 100)
             if rfdata is not None:
                 p = self.getPacket(rfdata)
-                while p is not None:
-                    if self.lastPacketReceived is None or \
-                        (self.lastPacketReceived.sequence != p.sequence and self.lastPacketReceived.address != p.address):
-                        logging.debug("Received packet data over radio %s", p)
+                if p is not None:
+                    if self.lastPacketReceived is None or self.lastPacketReceived.sequence != p.sequence:
                         self.lastPacketReceived = p
                         self.recvCallback(p)
             self.sendLock.acquire()
             if self.dataToSend is not None:
-                if self.sendUntil < time.clock():
+                logging.debug("seems we have data to send")
+                if self.sendTimes > 0:
+                    self.rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE0)
+                    self.rfc.setMdmSyncWord(0xabab)
                     self.rfc.setModeTX()
-                    logging.debug("sending packet via radio: %s", self.packetToSend)
-                    rfc.RFxmit(data)
+                    logging.debug("sending packet via radio")
+                    self.rfc.RFxmit(self.dataToSend)
+                    self.sendTimes -= 1
                 else:
+                    logging.debug("timed out bro")
                     self.dataToSend = None
             self.sendLock.release()
 
-    def send(self, packetToSend, sendFor = 10000):
+    def send(self, packetToSend, sendTimes = 30):
+        logging.debug("acquiring lock")
         self.sendLock.acquire()
-        data = packetToSend.data
+        logging.debug("done")
+        data = chr(0xab) * 10
+        data += packetToSend.data
         data += chr(crc.crc8(data))
         data = self.manchester.encode(data)
         self.dataToSend = data
-        self.sendUntil = time.clock() + sendFor
+        self.sendTimes = sendTimes
+        logging.debug("releasing")
         self.sendLock.release()
+        logging.debug("done")
 
     def receive(self, receiveTimeout):
         try:

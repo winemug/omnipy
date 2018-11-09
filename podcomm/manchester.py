@@ -23,7 +23,7 @@ class ManchesterCodec:
         encoded += self.noiseLines[self.noiseSeq]
         self.noiseSeq += 1
         self.noiseSeq %= 32
-        return encoded[:80]
+        return encoded[:200]
 
     def initializeLookupTables(self):
         self.decodeDict = dict()
