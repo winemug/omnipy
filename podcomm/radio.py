@@ -8,6 +8,7 @@ import crc
 import packet
 from enum import Enum
 import logging
+import threading
 
 from rflib import (RfCat, ChipconUsbTimeoutException, MOD_2FSK, SYNCM_CARRIER_16_of_16,
                     MFMCFG1_NUM_PREAMBLE0, MFMCFG1_NUM_PREAMBLE_2)
@@ -26,18 +27,21 @@ class Radio:
     def start(self, recvCallback = None, radioMode = RadioMode.Sniffer):
         logging.debug("starting radio with %s", radioMode)
         self.recvCallback = recvCallback
-        self.recvQueue = Queue.Queue()
+        self.lastPacketReceived = None
+        self.addressToCheck = None
         self.responseTimeout = 1000
         self.radioMode = radioMode
         self.rfc = self.initializeRfCat()
-        if self.radioMode != RadioMode.Pdm:
-            self.radioThread = threading.Thread(target = self.radioLoop)
-            self.radioThread.start()
+        self.sendLock = threading.Lock()
+        self.dataToSend = None
+
+        self.radioThread = threading.Thread(target = self.radioLoop)
+        self.radioThread.start()
+
 
     def stop(self):
-        if self.radioMode != RadioMode.Pdm:
-            self.stopRadioEvent.set()
-            self.radioThread.join()
+        self.stopRadioEvent.set()
+        self.radioThread.join()
         self.rfc.cleanup()
 
     def initializeRfCat(self):
@@ -57,63 +61,35 @@ class Radio:
         return rfc
 
     def radioLoop(self):
-        self.rfc.setModeRX()
         while not self.stopRadioEvent.wait(0):
-            if self.radioMode == RadioMode.Pod:
-                rfdata = self.receive(receiveTimeout = 3000)
-                if rfdata is not None:
-                    p = self.getPacket(rfdata)
-                    while p is not None:
+            self.rfc.setModeRX()
+            rfdata = self.receive(receiveTimeout = 100)
+            if rfdata is not None:
+                p = self.getPacket(rfdata)
+                while p is not None:
+                    if self.lastPacketReceived is None or \
+                        (self.lastPacketReceived.sequence != p.sequence and self.lastPacketReceived.address != p.address):
                         logging.debug("Received packet data over radio %s", p)
-                        self.packetToSend = self.recvCallback(p)
-                        self.responseTimeout = 30000
-                        p = self.sendAndReceive(packetToSend)
-            else:
-                rfdata = self.receive(receiveTimeout = 3000)
-                if rfdata is not None:
-                    p = self.getPacket(rfdata)
-                    if p is not None and self.recvCallback is not None:
+                        self.lastPacketReceived = p
                         self.recvCallback(p)
+            self.sendLock.acquire()
+            if self.dataToSend is not None:
+                if self.sendUntil < time.clock():
+                    self.rfc.setModeTX()
+                    logging.debug("sending packet via radio: %s", self.packetToSend)
+                    rfc.RFxmit(data)
+                else:
+                    self.dataToSend = None
+            self.sendLock.release()
 
-    def sendAndReceive(self, packetToSend, timeout = 30000):
+    def send(self, packetToSend, sendFor = 10000):
+        self.sendLock.acquire()
         data = packetToSend.data
         data += chr(crc.crc8(data))
         data = self.manchester.encode(data)
-        expectedSequence = (packet.sequence + 1) % 32
-        logging.debug("sending packet over radio with sequence %d and will be expecting %d" % (packet.sequence, expectedSequence))
-        start = time.clock()
-        noResponseCount = 0
-        retries = 1
-        while time.clock() - start < self.responseTimeout:
-            try:
-                self.rfc.setModeTX()
-                logging.debug("retry %d: sending packet via radio")
-                rfc.RFxmit(data)
-                logging.debug("retry %d: waiting for packet on radio")
-                self.rfc.setModeRX()
-                rfdata = rfc.RFrecv(timeout = 100)
-                if rfdata is not None:
-                    receivedPacket = self.getPacket(rfdata)
-                    if receivedPacket is not None and receivedPacket.address == packet.address:
-                        if receivedPacket.sequence == expectedSequence:
-                            logging.debug("retry %d: received expected packet %s, handing over" % (retries, packet))
-                            return receivedPacket
-                        else:
-                            logging.debug("retry %d: received unexpected packet %s" % (retries, packet))
-                            noResponseCount = -1
-                    else:
-                            logging.debug("retry %d: received data is invalid" % (retries))
-                else:
-                    logging.debug("retry %d: nothing received" % retries)
-            except ChipconUsbTimeoutException:
-                logging.debug("retry %d: usb timeout" % retries)
-                pass
-
-            noResponseCount += 1
-            if noResponseCount > 5:
-                logging.debug("retry %d: received %d times no response" % (retries, noResponseCount))
-                return None
-        raise RuntimeError()
+        self.dataToSend = data
+        self.sendUntil = time.clock() + sendFor
+        self.sendLock.release()
 
     def receive(self, receiveTimeout):
         try:

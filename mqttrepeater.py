@@ -29,51 +29,25 @@ def on_mqtt_message_receive(client, userdata, msg):
     global correspondance
 
     logging.debug("Received over mqtt: %s", msg.payload)
-    if str(msg.payload) == "----":
-        p = None
-    else:
-        p = packet.Packet(0, msg.payload.decode("hex"))
-
-    if args.RELAY_MODE == "PDM":
-        correspondance = p
-        messageEvent.set()
-    else:
-        logging.debug("Starting correspondance")
-        received = radio.sendAndReceive(p)
-        publishPacket(received)
+    p = packet.Packet(0, msg.payload.decode("hex"))
+    logging.debug("Sending packet over radio: %s", msg.payload)
+    radio.send(p)
 
 def on_mqtt_message_publish(client, userdata, mid):
     pass    
 
 def radioCallback(packet):
     global mqttClient
-    global messageEvent
-    global correspondance
     global radio
 
-    correspondance = None
-    messageEvent.clear()
-    logging.debug("Radio message callback received: %s" % packet)
-    publishPacket(packet)
-    logging.debug("Published to mqtt, waiting for response")
-    messageEvent.wait(timeout = 30000)
-    logging.debug("Got mqtt response, returning to radio")
-    return correspondance
-
-def publishPacket(packet):
+    logging.debug("Publishing to mqtt: %s" % packet)
     if args.RELAY_MODE == "PDM":
         publishTarget = args.MQTT_TOPIC + "/" + PDM_SUBTOPIC
     else:
         publishTarget = args.MQTT_TOPIC + "/" + POD_SUBTOPIC
 
-    if packet is not None:
-        logging.debug("Publishing to mqtt: %s" % packet)
-        mqttClient.publish(publishTarget, payload = packet.data.encode("hex"))
-    else:
-        mqttClient.publish(publishTarget, payload = "!!!!")
+    mqttClient.publish(publishTarget, payload = packet.data.encode("hex"), qos=2)
 
-messageEvent = threading.Event()
-correspondance = None
 exitEvent = threading.Event()
 mqttClient = None
 args = None
