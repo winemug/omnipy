@@ -22,30 +22,20 @@ class Radio:
         self.usbInterface = usbInterface
         self.manchester = manchester.ManchesterCodec()
 
-    def start(self, recvCallback, radioMode = RadioMode.Sniffer):
+    def start(self, recvCallback = None, radioMode = RadioMode.Sniffer):
         self.recvCallback = recvCallback
-        self.sendRequested = threading.Event()
-        self.sendComplete = threading.Event()
         self.recvQueue = Queue.Queue()
         self.responseTimeout = 1000
         self.radioMode = radioMode
-        self.radioThread = threading.Thread(target = self.radioLoop)
-        self.radioThread.start()
+        self.rfc = initializeRfCat()
+        if radioMode != RadioMode.Pdm:
+            self.radioThread = threading.Thread(target = self.radioLoop)
+            self.radioThread.start()
 
     def stop(self):
-        self.stopRadioEvent.set()
-        self.radioThread.join()
-
-    def sendAndReceive(self, packet, expectResponse, responseTimeout = 10000):
-        self.packetToSend = packet
-        self.responseTimeout = responseTimeout
-        self.expectResponse = expectResponse
-        self.sendRequested.set()
-        self.sendComplete.wait()
-        self.sendComplete.clear()
-        self.sendRequested.clear()
-        if expectResponse:
-            return self.response
+        if radioMode != RadioMode.Pdm:
+            self.stopRadioEvent.set()
+            self.radioThread.join()
 
     def initializeRfCat(self):
         rfc = RfCat(self.usbInterface, debug=False)
@@ -64,40 +54,50 @@ class Radio:
         return rfc
 
     def radioLoop(self):
-        rfc = self.initializeRfCat()
-
-        if self.radioMode == RadioMode.Sniffer:
-            pp = threading.Thread(target = self.recvProcessor)
-            pp.start()
-
         while not self.stopRadioEvent.wait(0):
-            if self.radioMode == RadioMode.Pdm:
-                if self.sendRequested.wait(3000):
-                    data = self.packetToSend.data
-                    data += chr(crc.crc8(data))
-                    data = self.manchester.encode(data)
-
-                    rfc.RFxmit(data)
-                    recvdata = rfc.RFrecv(timeout = self.responseTimeout)
-
-                    self.sendComplete.set()
-
-                pass
-            elif self.radioMode == RadioMode.Pod:
-                self.receive(timeout = 3000)
-                if recvdata is not None:
-                    self.recvQueue.put(recvdata)
+            if self.radioMode == RadioMode.Pod:
+                rfdata = self.receive(timeout = 3000)
+                if rfdata is not None:
+                    p = self.getPacket(rfdata)
+                    while p is not None:
+                        self.packetToSend = self.recvCallback(p)
+                        self.responseTimeout = 30000
+                        p = self.sendAndReceive(packetToSend)
             else:
-                self.receive(timeout = 3000)
-                if recvdata is not None:
-                    self.recvQueue.put(recvdata)
+                rfdata = self.receive(timeout = 3000)
+                if rfdata is not None:
+                p = self.getPacket(rfdata)
+                if p is not None and self.recvCallback is not None:
+                self.recvCallback(p)
 
         rfc.cleanup()
 
-        if self.radioMode == RadioMode.Sniffer:
-            self.recvQueue.put(None)
-            self.recvQueue.task_done()
-            pp.join()
+    def sendAndReceive(self, packetToSend, timeout = 30000):
+        data = packetToSend.data
+        data += chr(crc.crc8(data))
+        data = self.manchester.encode(data)
+        expectedSequence = (packet.sequence + 1) % 32
+
+        start = time.clock()
+        noResponseCount = 0
+        while time.clock() - start < self.responseTimeout:
+            try:
+                rfc.RFxmit(data)
+                rfdata = rfc.RFrecv(timeout = 100)
+                if rfdata is not None:
+                    receivedPacket = self.getPacket(rfdata)
+                    if receivedPacket is not None and receivedPacket.address == packet.address:
+                        if receivedPacket.sequence == expectedSequence:
+                            return receivedPacket
+                        else:
+                            noResponseCount = -1
+            except ChipconUsbTimeoutException:
+                pass
+
+            noResponseCount += 1
+            if noResponseCount > 5:
+                return None
+        raise RuntimeError()
 
     def receive(self, receiveTimeout):
         try:
@@ -106,17 +106,11 @@ class Radio:
             return None
         return data
 
-    def recvProcessor(self):
-        while True:
-            rfdata = self.recvQueue.get(block = True)
-            if rfdata is None:
-                break
-                
-            data, timestamp = rfdata
-            data = self.manchester.decode(data)
-            if data is not None and len(data) > 1:
-                calc = crc.crc8(data[0:-1])
-                if ord(data[-1]) == calc:
-                    p = packet.Packet(timestamp, data[:-1])
-                    self.recvCallback(p)
-
+    def getPacket(self, rfdata):
+        data, timestamp = rfdata
+        data = self.manchester.decode(data)
+        if data is not None and len(data) > 1:
+            calc = crc.crc8(data[0:-1])
+            if ord(data[-1]) == calc:
+                return packet.Packet(timestamp, data[:-1])
+        return None
