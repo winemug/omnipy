@@ -64,7 +64,7 @@ class Radio:
                 if rfdata is not None:
                     p = self.getPacket(rfdata)
                     while p is not None:
-                        logging.debug("Received packet data %s", p)
+                        logging.debug("Received packet data over radio %s", p)
                         self.packetToSend = self.recvCallback(p)
                         self.responseTimeout = 30000
                         p = self.sendAndReceive(packetToSend)
@@ -80,27 +80,38 @@ class Radio:
         data += chr(crc.crc8(data))
         data = self.manchester.encode(data)
         expectedSequence = (packet.sequence + 1) % 32
-
+        logging.debug("sending packet over radio with sequence %d and will be expecting %d" % (packet.sequence, expectedSequence))
         start = time.clock()
         noResponseCount = 0
+        retries = 1
         while time.clock() - start < self.responseTimeout:
             try:
                 self.rfc.setModeTX()
+                logging.debug("retry %d: sending packet via radio")
                 rfc.RFxmit(data)
+                logging.debug("retry %d: waiting for packet on radio")
                 self.rfc.setModeRX()
                 rfdata = rfc.RFrecv(timeout = 100)
                 if rfdata is not None:
                     receivedPacket = self.getPacket(rfdata)
                     if receivedPacket is not None and receivedPacket.address == packet.address:
                         if receivedPacket.sequence == expectedSequence:
+                            logging.debug("retry %d: received expected packet %s, handing over" % (retries, packet))
                             return receivedPacket
                         else:
+                            logging.debug("retry %d: received unexpected packet %s" % (retries, packet))
                             noResponseCount = -1
+                    else:
+                            logging.debug("retry %d: received data is invalid" % (retries))
+                else:
+                    logging.debug("retry %d: nothing received" % retries)
             except ChipconUsbTimeoutException:
+                logging.debug("retry %d: usb timeout" % retries)
                 pass
 
             noResponseCount += 1
             if noResponseCount > 5:
+                logging.debug("retry %d: received %d times no response" % (retries, noResponseCount))
                 return None
         raise RuntimeError()
 

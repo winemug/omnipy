@@ -38,6 +38,7 @@ def on_mqtt_message_receive(client, userdata, msg):
         correspondance = p
         messageEvent.set()
     else:
+        logging.debug("Starting correspondance")
         received = radio.sendAndReceive(p)
         publishPacket(received)
 
@@ -52,9 +53,11 @@ def radioCallback(packet):
 
     correspondance = None
     messageEvent.clear()
-    logging.debug("Received over radio: %s" % packet)
+    logging.debug("Radio message callback received: %s" % packet)
     publishPacket(packet)
+    logging.debug("Published to mqtt, waiting for response")
     messageEvent.wait(timeout = 30000)
+    logging.debug("Got mqtt response, returning to radio")
     return correspondance
 
 def publishPacket(packet):
