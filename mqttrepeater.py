@@ -22,6 +22,7 @@ def on_mqtt_message_receive(client, userdata, msg):
     global radio
     global mqttClient
     global args
+    global correspondance
 
     if str(msg.payload) == "----":
         return
