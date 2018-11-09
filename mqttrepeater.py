@@ -1,22 +1,26 @@
-#!/bin/python
+#!/usr/bin/python
 
-import paho.mqtt.client as mqtt
+import paho.mqtt.client as mqttc
+import ssl
 from podcomm.radio import Radio, RadioMode
 import podcomm.packet as packet
+import threading
+import argparse
+import logging
 
 POD_SUBTOPIC = "podsez"
 PDM_SUBTOPIC = "pdmsez"
 
 def on_mqtt_connect(client, userdata, flags, rc):
     global args
-    print("Connected with result code "+str(rc))
+    logging.debug("Connected with result code "+str(rc))
     if args.RELAY_MODE == "PDM":
         client.subscribe(args.MQTT_TOPIC + "/" + POD_SUBTOPIC)
     else:
         client.subscribe(args.MQTT_TOPIC + "/" + PDM_SUBTOPIC)
 
 def on_mqtt_disconnect(client, userdata, rc):
-    pass
+    logging.debug("disconnected from mqtt")
 
 def on_mqtt_message_receive(client, userdata, msg):
     global radio
@@ -24,21 +28,13 @@ def on_mqtt_message_receive(client, userdata, msg):
     global args
     global correspondance
 
+    logging.debug("Received message: %s", msg.payload)
     if str(msg.payload) == "----":
         return
 
     p = packet.Packet(0, msg.payload.decode("hex"))
     received = radio.sendAndReceive(p)
-
-    if args.RELAY_MODE == "PDM":
-        publishTarget = args.MQTT_TOPIC + "/" + PDM_SUBTOPIC
-    else:
-        publishTarget = args.MQTT_TOPIC + "/" + POD_SUBTOPIC
-
-    if received is not None:
-        mqttClient.publish(publishTarget, payload = packet.data.encode("hex"))
-    else:
-        mqttClient.publish(publishTarget, payload = "!!!!")
+    publishPacket(p)
 
 def on_mqtt_message_publish(client, userdata, mid):
     pass    
@@ -51,9 +47,21 @@ def radioCallback(packet):
 
     correspondance = None
     messageEvent.clear()
-    mqttClient.publish(source, payload = packet.data.encode("hex"))
+    logging.debug("Received packet: %s", packet)
+    publishPacket(packet)
     messageEvent.wait(timeout = 30000)
     return correspondance
+
+def publishPacket(packet):
+    if args.RELAY_MODE == "PDM":
+        publishTarget = args.MQTT_TOPIC + "/" + PDM_SUBTOPIC
+    else:
+        publishTarget = args.MQTT_TOPIC + "/" + POD_SUBTOPIC
+
+    if packet is not None:
+        mqttClient.publish(publishTarget, payload = packet.data.encode("hex"))
+    else:
+        mqttClient.publish(publishTarget, payload = "!!!!")
 
 messageEvent = threading.Event()
 correspondance = None
@@ -74,10 +82,13 @@ def main():
     parser.add_argument("--MQTT-CLIENTID", required=True) 
     parser.add_argument("--MQTT-TOPIC", required=True)
     parser.add_argument("--RELAY-MODE", required = True, choices=["PDM", "POD"])
+    parser.add_argument("--LOG-LEVEL", required = False, choices=["DEBUG", "INFO"], default="INFO")
 
     args = parser.parse_args()
 
-    mqttClient = mqttc.Client(client_id=args.MQTT_CLIENTID, clean_session=True, protocol=MQTTv311, transport="tcp")
+    logging.basicConfig(level=args.LOG_LEVEL)
+
+    mqttClient = mqttc.Client(client_id=args.MQTT_CLIENTID, clean_session=True, transport="tcp")
     if args.MQTT_SSL != "":
         mqttClient.tls_set(certfile=None,
                                     keyfile=None, cert_reqs=ssl.CERT_REQUIRED,
@@ -104,9 +115,6 @@ def main():
         pass
 
     exitEvent.clear()
-
-    print "press any key to quit"
-    raw_input()
 
     radio.stop()
     mqttClient.loop_stop()
