@@ -28,13 +28,18 @@ def on_mqtt_message_receive(client, userdata, msg):
     global args
     global correspondance
 
-    logging.debug("Received message: %s", msg.payload)
+    logging.debug("Received over mqtt: %s", msg.payload)
     if str(msg.payload) == "----":
-        return
+        p = None
+    else:
+        p = packet.Packet(0, msg.payload.decode("hex"))
 
-    p = packet.Packet(0, msg.payload.decode("hex"))
-    received = radio.sendAndReceive(p)
-    publishPacket(p)
+    if args.RELAY_MODE == "PDM":
+        correspondance = p
+        messageEvent.set()
+    else:
+        received = radio.sendAndReceive(p)
+        publishPacket(received)
 
 def on_mqtt_message_publish(client, userdata, mid):
     pass    
@@ -47,7 +52,7 @@ def radioCallback(packet):
 
     correspondance = None
     messageEvent.clear()
-    logging.debug("Received packet: %s", packet)
+    logging.debug("Received over radio: %s" % packet)
     publishPacket(packet)
     messageEvent.wait(timeout = 30000)
     return correspondance
@@ -59,6 +64,7 @@ def publishPacket(packet):
         publishTarget = args.MQTT_TOPIC + "/" + POD_SUBTOPIC
 
     if packet is not None:
+        logging.debug("Publishing to mqtt: %s" % packet)
         mqttClient.publish(publishTarget, payload = packet.data.encode("hex"))
     else:
         mqttClient.publish(publishTarget, payload = "!!!!")
