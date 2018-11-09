@@ -49,12 +49,13 @@ class Radio:
 
     def initializeRfCat(self):
         rfc = RfCat(self.usbInterface, debug=False)
+        rfc.setModeIDLE()
         rfc.setFreq(433.91e6)
         rfc.setMdmModulation(MOD_2FSK)
         rfc.setMdmDeviatn(26370)
         rfc.setPktPQT(1)
         rfc.setMdmSyncMode(SYNCM_CARRIER_16_of_16)
-        rfc.makePktFLEN(80)
+        rfc.makePktFLEN(74)
         rfc.setEnableMdmManchester(False)
         rfc.setMdmDRate(40625)
         rfc.setRFRegister(0xdf18, 0x70)
