@@ -77,7 +77,6 @@ class Radio:
                 logging.debug("seems we have data to send")
                 if self.sendTimes > 0:
                     self.rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE0)
-                    self.rfc.setMdmSyncWord(0xabab)
                     self.rfc.setModeTX()
                     logging.debug("sending packet via radio")
                     self.rfc.RFxmit(self.dataToSend)
@@ -91,7 +90,7 @@ class Radio:
         logging.debug("acquiring lock")
         self.sendLock.acquire()
         logging.debug("done")
-        data = chr(0xab) * 10
+        data = chr(0xab) + chr(0x3c)
         data += packetToSend.data
         data += chr(crc.crc8(data))
         data = self.manchester.encode(data)
