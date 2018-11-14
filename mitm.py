@@ -2,7 +2,6 @@
 
 from podcomm.sniffer import Sniffer
 from podcomm.pdm import Pdm
-import podcomm.message
 import threading
 
 def main():
@@ -12,8 +11,8 @@ def main():
     # 2) choose existing pdm session on disk
     # 3) .. previously paired pod
 
-    lot = int(raw_input("Please enter the lot id of the pod: "))
-    tid = int(raw_input("Please enter tid of the pod: "))
+    #lot = int(raw_input("Please enter the lot id of the pod: "))
+    #tid = int(raw_input("Please enter tid of the pod: "))
     print("Starting the PDM emulator")
     sniffer = Sniffer(None, messageHandler, None)
     sniffer.start()

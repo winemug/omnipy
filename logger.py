@@ -1,10 +1,6 @@
 #!/usr/bin/python
 
-import threading
-import datetime
 from podcomm.sniffer import Sniffer
-import sys
-
 
 def main():
     p = Sniffer(pktHandler, messageHandler, errorHandler)

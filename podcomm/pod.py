@@ -1,7 +1,5 @@
-import threading
 from radio import Radio, RadioMode
 from message import Message, MessageState
-from enum import Enum
 from packet import Packet
 import Queue
 
@@ -13,7 +11,7 @@ class Pod:
         self.tid = tid
         self.address = address
         self.pdmMessage = None
-        self.radio = radio.Radio(0)
+        self.radio = Radio(0)
 
     def start(self):
         self.messageSequence = None
@@ -62,7 +60,7 @@ class Pod:
                         self.responseQueue = Queue.Queue() # reset queue
                         # continue with message
                     else:
-                        self.responsePacket = responseQueue.get()
+                        self.responsePacket = self.responseQueue.get()
                         self.respondToPacket = packet
                         self.responsePacket.setSequence(self.getNextSequence(packet.sequence))
                         self.radio.send(self.responsePacket)
