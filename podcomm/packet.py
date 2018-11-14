@@ -5,14 +5,18 @@ from datetime import datetime
 class Packet():
     @staticmethod
     def Ack(address, sequence, fromPOD):
-        data = address.decode("hex")
-
+        data = struct.pack(">I", address)
         data += chr(sequence | 0b01000000)
         if fromPOD:
             data += "\0\0\0\0"
         else:
-            data += address.decode("hex")
+            data += struct.pack(">I", address)
         return Packet(0, data)
+
+    def setSequence(self, sequence):
+        self.sequence = sequence
+        b4 = ord(self.data[4]) & 0b11100000 | sequence
+        self.data = self.data[0:4] + chr(b4) + self.data[5:]
 
     def __init__(self, timestamp, data):
         self.timestamp = timestamp
@@ -23,7 +27,7 @@ class Packet():
             self.error = "Packet length too small"
             return
 
-        self.address = struct.unpack(">I", data[0:4])
+        self.address = struct.unpack(">I", data[0:4])[0]
 
         t = ord(data[4]) >> 5
         self.sequence = ord(data[4]) & 0b00011111
@@ -45,7 +49,7 @@ class Packet():
                 self.error = "Packet length too small for type " + self.type
                 return
             self.body = data[9:]
-            self.address2 = struct.unpack(">I", data[5:9])
+            self.address2 = struct.unpack(">I", data[5:9])[0]
             if self.address2 == self.address:
                 self.ackFinal = False
             elif self.address2 == 0:
@@ -58,7 +62,7 @@ class Packet():
             if len(data) != 9:
                 self.error = "Incorrect packet length for type ACK"
                 return
-            self.address2 = struct.unpack(">I", data[5:9])
+            self.address2 = struct.unpack(">I", data[5:9])[0]
             if self.address2 == self.address:
                 self.ackFinal = False
             elif self.address2 == 0:

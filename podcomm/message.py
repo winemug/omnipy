@@ -11,24 +11,25 @@ class MessageState(Enum):
     Complete = 2
 
 class Message():
-    def __init__(self, mtype, address, unknownBits, sequence):
-        self.timestamp = datetime.utcnow().time()
+    def __init__(self, timestamp, mtype, address, unknownBits, sequence):
+        self.timestamp = timestamp
         self.type = mtype
         self.address = address
         self.unknownBits = unknownBits
         self.sequence = sequence
         self.length = 0
         self.body = chr(0) + chr(0)
+        self.acknowledged = False
         self.state = MessageState.Incomplete
 
     def addContent(self, ctype, cbody, clen = -1):
         if clen < 0:
             clen = len(cbody)
-        self.body = self.body[0:-2]
-        self.body += chr(ctype) + chr(clen) + cbody
-        self.length = len(self.body)
-        self.body += self.calculateChecksum(self.body)
-        self.updateMessageState()
+        copy = self.body[0:-2]
+        copy += chr(ctype) + chr(clen) + cbody
+        self.length = len(copy)
+        self.body = copy + self.calculateChecksum(copy)
+        self.state = MessageState.Complete
 
     @staticmethod
     def fromPacket(packet):
@@ -64,7 +65,7 @@ class Message():
             data += chr(0b11100000)
             data += struct.pack(">I", 0)
 
-        data += chr((self.unknownBits << 6) | (self.sequence << 2) | ((self.length << 8) & 0xff))
+        data += chr((self.unknownBits << 6) | (self.sequence << 2) | ((self.length >> 8) & 0x03))
         data += chr(self.length & 0xff)
 
         # max first packet 31 - 11 = 20bytes with crc -- 18 without

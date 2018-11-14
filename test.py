@@ -9,14 +9,15 @@
 from podcomm.radio import Radio, RadioMode
 from podcomm.message import Message
 
-radio = Radio(0)
+radio = Radio(0, msgSequence=10, pktSequence=18)
 radio.start(radioMode = RadioMode.Pod)
 
 
-msg = Message("PDM", 0x1f10fc4b, 0x00, 0x00)
-msg.addContent(0x0e, "\00")
-response = radio.sendPdmMessageAndGetPodResponse(msg)
-print(response)
+for i in range(0,10):
+    msg = Message(0, "PDM", 0x1f10fc4b, 0x00, 0x00)
+    msg.addContent(0x0e, "\00")
+    response = radio.sendPdmMessageAndGetPodResponse(msg)
+    print("here's your response: %s", response)
 
 # m = ManchesterCodec()
 

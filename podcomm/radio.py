@@ -21,12 +21,12 @@ class RadioMode(Enum):
     Pod = 2
 
 class Radio:
-    def __init__(self, usbInterface):
+    def __init__(self, usbInterface, msgSequence = 0, pktSequence = 0):
         self.stopRadioEvent = threading.Event()
         self.usbInterface = usbInterface
         self.manchester = manchester.ManchesterCodec()
-        self.messageSequence = 0
-        self.packetSequence = 0
+        self.messageSequence = msgSequence
+        self.packetSequence = pktSequence
 
     def __logPacket(self, p):
         logging.debug("Packet received: %s", p)
@@ -41,7 +41,8 @@ class Radio:
         self.addressToCheck = address
         self.responseTimeout = 1000
         self.radioMode = radioMode
-        self.__initializeRfCat(sendPacketLength)
+        self.radioPacketLength = sendPacketLength
+        self.__initializeRfCat()
 
         if packetReceivedCallback is None:
             self.packetReceivedCallback = self.__logPacket
@@ -66,8 +67,7 @@ class Radio:
             self.radioThread.join()
         self.rfc.cleanup()
 
-    def __initializeRfCat(self, sendPacketLength):
-        self.sendPacketLength = sendPacketLength
+    def __initializeRfCat(self):
         rfc = RfCat(self.usbInterface, debug=False)
         rfc.setModeIDLE()
         rfc.setFreq(433.91e6)
@@ -84,7 +84,7 @@ class Radio:
         while not success:
             try:
                 self.rfc.setMdmSyncMode(SYNCM_NONE)
-                self.rfc.makePktFLEN(self.sendPacketLength)
+                self.rfc.makePktFLEN(self.radioPacketLength)
                 self.rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE0)
                 self.rfc.setModeTX()
                 success = True
@@ -148,7 +148,7 @@ class Radio:
     def __receive(self, timeout):
         rfdata = None
         try:
-            rfdata = self.rfc.RFrecv(timeout = 1000)
+            rfdata = self.rfc.RFrecv(timeout = timeout)
         except ChipconUsbTimeoutException:
             rfdata = None
         return rfdata
@@ -163,13 +163,13 @@ class Radio:
 
     def sendPdmMessageAndGetPodResponse(self, message):
         packets = message.getPackets()
-        self.messageSequence = (message.sequence + 1) % 32
+        self.messageSequence = (message.sequence + 1) % 16
         received = None
         for i in range(0, len(packets)):
             packet = packets[i]
-            packet.sequence = self.packetSequence
+            packet.setSequence(self.packetSequence)
             self.packetSequence = (self.packetSequence + 2) % 32
-            received = self.__sendPacketAndGetPacketResponse(packet, 30)
+            received = self.__sendPacketAndGetPacketResponse(packet)
             if received is None:
                 raise CommunicationError()
             if i < len(packets) -1:
@@ -197,11 +197,11 @@ class Radio:
             raise ProtocolError()
 
         ackPacket = Packet.Ack(message.address, self.packetSequence, False)
-        self.__sendPacket(self, ackPacket, 15)
+        self.__sendPacket(ackPacket)
 
         return podResponse
 
-    def __sendPacket(self, packetToSend, sendTimes = 30):
+    def __sendPacket(self, packetToSend, sendTimes = 20):
         data = packetToSend.data
         data += chr(crc.crc8(data))
         data = self.manchester.encode(data, self.radioPacketLength)
@@ -210,7 +210,7 @@ class Radio:
             self.__send(data)
             sendTimes -= 1
 
-    def __sendPacketAndGetPacketResponse(self, packetToSend, sendTimes = 30):
+    def __sendPacketAndGetPacketResponse(self, packetToSend, sendTimes = 20):
         data = packetToSend.data
         data += chr(crc.crc8(data))
         data = self.manchester.encode(data, self.radioPacketLength)
@@ -218,12 +218,16 @@ class Radio:
         expectedSequence = (packetToSend.sequence + 1) % 32
         expectedAddress = packetToSend.address
         while retries < sendTimes:
+            retries += 1
             self.__rfEnterTX()
             self.__send(data)
             self.__rfEnterRX()
-            received = self.__receive(timeout = 200)
-            if received is not None and received.sequence == expectedSequence and received.address == expectedAddress:
-                return received
+            rfData = self.__receive(timeout = 100)
+            if rfData is not None:
+                p = self.__getPacket(rfData)
+                if p is not None:
+                    if p.sequence == expectedSequence and p.address == expectedAddress:
+                        return p
         return None
 
     def __getPacket(self, rfdata):
