@@ -16,16 +16,25 @@ class ManchesterCodec:
                 break
         return decoded
     
-    def encode(self, data):
-        encoded = ""
+    def encode(self, data, radioPacketSize):
+        encoded = self.preamble
         for i in data:
             encoded += self.encodeDict[i]
         encoded += self.noiseLines[self.noiseSeq]
         self.noiseSeq += 1
         self.noiseSeq %= 32
-        return encoded[:200]
+
+        minPreamble = 4
+        minNoise = 2
+        available = radioPacketSize - len(data) - minPreamble - minNoise
+        dataIndex = len(self.preamble)
+        portion = int(available / 2)
+        preambleIncluded = minPreamble + portion
+        noiseIncluded = minNoise + available - portion
+        return encoded[dataIndex - preambleIncluded: dataIndex + noiseIncluded ]
 
     def initializeLookupTables(self):
+        self.preamble = (chr(0x66) + chr(0x65))*200 + chr(0xa5) + chr(0x5a)
         self.decodeDict = dict()
         self.encodeDict = dict()
         for i in range(0, 256):

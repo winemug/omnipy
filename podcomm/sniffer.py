@@ -1,7 +1,5 @@
-import threading
 from radio import Radio, RadioMode
 from message import Message, MessageState
-from enum import Enum
 
 class Sniffer:
     def __init__(self, pktHandler, msgHandler, errHandler, lot = None, tid = None, address = None):
@@ -15,10 +13,10 @@ class Sniffer:
         self.packetSequences = dict()
         self.address = None
         self.message = None
-        self.radio = radio.Radio(0)
+        self.radio = Radio(0)
 
     def start(self):
-        self.radio.start(self.protocolHandler, radioMode = RadioMode.Sniffer)
+        self.radio.start(packetReceivedCallback = self.protocolHandler, radioMode = RadioMode.Sniffer)
 
     def stop(self):
         self.radio.stop()
