@@ -1,18 +1,34 @@
 #!/usr/bin/python
 
-from podcomm.manchester import ManchesterCodec
+#from podcomm.manchester import ManchesterCodec
 
-m = ManchesterCodec()
+# PDM says: 0e0100
+# POD says: 1d2803a5a800002d5bff
+# PDM acks
 
-data = "AB3C"
-data = data.decode("hex")
-print m.encode(data).encode("hex")
+from podcomm.radio import Radio, RadioMode
+from podcomm.message import Message
 
-data = "555555555555555566a65555555555555555aa9aaa96aa95aa9aa955a9aa555a9a69aaaa99699596fbc26cd6f67809558218506175c239d5c2d94602c615d5db4d0f58485241"
-data = data.decode("hex")
+radio = Radio(0)
+radio.start(radioMode = RadioMode.Pod)
 
-data = m.decode(data)
-print data.encode("hex")
+
+msg = Message("PDM", 0x1f10fc4b, 0x00, 0x00)
+msg.addContent(0x0e, "\00")
+response = radio.sendPdmMessageAndGetPodResponse(msg)
+print(response)
+
+# m = ManchesterCodec()
+
+# data = "AB3C"
+# data = data.decode("hex")
+# print m.encode(data).encode("hex")
+
+# data = "555555555555555566a65555555555555555aa9aaa96aa95aa9aa955a9aa555a9a69aaaa99699596fbc26cd6f67809558218506175c239d5c2d94602c615d5db4d0f58485241"
+# data = data.decode("hex")
+
+# data = m.decode(data)
+# print data.encode("hex")
 
 # for i in range(len(data)-1, 5, -1):
 #     computedValue = crc8(data[0:i])
