@@ -10,7 +10,7 @@ import time
 #nc = Nonce(43962, 991134)
 #nc.sync(0x3c350421)
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 
 radio = Radio(0, msgSequence=0x00, pktSequence=0x00)
 radio.start(radioMode = RadioMode.Pdm)

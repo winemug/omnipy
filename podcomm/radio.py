@@ -37,7 +37,7 @@ class Radio:
         logging.debug("Message received: %s", msg)
         return None
 
-    def start(self, packetReceivedCallback = None, messageCallback = None, radioMode = RadioMode.Sniffer, address = None, sendPacketLength = 255):
+    def start(self, packetReceivedCallback = None, messageCallback = None, radioMode = RadioMode.Sniffer, address = None, sendPacketLength = 512):
         logging.debug("starting radio in %s", radioMode)
         self.lastPacketReceived = None
         self.addressToCheck = address
@@ -219,11 +219,11 @@ class Radio:
         data += chr(crc.crc8(data))
         data = self.manchester.encode(data, self.radioPacketLength)
         sendTimes = 0
-        while sendTimes < 20:
+        for i in range(0, 10):
             self.__rfEnterTX()
             self.__send(data)
             self.__rfEnterRX()
-            rfData = self.__receive(timeout = 2500)
+            rfData = self.__receive(timeout = 500)
             if rfData is None:
                 self.packetSequence = (self.packetSequence + 1) % 32
                 return
