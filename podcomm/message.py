@@ -11,7 +11,7 @@ class MessageState(Enum):
     Complete = 2
 
 class Message():
-    def __init__(self, timestamp, mtype, address, unknownBits, sequence):
+    def __init__(self, timestamp, mtype, address, unknownBits, sequence = 0):
         self.timestamp = timestamp
         self.type = mtype
         self.address = address
@@ -56,6 +56,9 @@ class Message():
     def getPackets(self):
         if self.state != MessageState.Complete:
             raise ValueError()
+
+        self.body = self.body[0:-2] + self.calculateChecksum(self.body[0:-2])
+
         data = struct.pack(">I", self.address)
 
         if self.type == "PDM":
@@ -113,7 +116,7 @@ class Message():
 
     def calculateChecksum(self, body):
         a = struct.pack(">I", self.address)
-        b0 = self.unknownBits << 6 | (len(body) >> 8 & 3) | (self.sequence & 0x0f) << 2
+        b0 = (self.unknownBits << 6) | (len(body) >> 8 & 0x03) | (self.sequence & 0x0f) << 2
         b1 = len(body) & 0xff
         crcBody = a + chr(b0) + chr(b1) + body
         crcVal = crc16(crcBody)

@@ -1,25 +1,28 @@
 #!/usr/bin/python
-
-#from podcomm.manchester import ManchesterCodec
-
-# PDM says: 0e0100
-# POD says: 1d2803a5a800002d5bff
-# PDM acks
+from __future__ import absolute_import
 
 from podcomm.radio import Radio, RadioMode
 from podcomm.message import Message
+from podcomm.nonce import Nonce
+import logging
+import time
 
-radio = Radio(0, msgSequence=0, pktSequence=0)
-radio.start(radioMode = RadioMode.Pod)
+#nc = Nonce(43962, 991134)
+#nc.sync(0x3c350421)
 
+logging.basicConfig(level=logging.DEBUG)
+
+radio = Radio(0, msgSequence=0x00, pktSequence=0x00)
+radio.start(radioMode = RadioMode.Pdm)
 
 try:
-    while True:
-        raw_input()
-        msg = Message(0, "PDM", 0x1f10fc4b, 0x00, 0x00)
+    for i in range(0, 20):
+        msg = Message(0, "PDM", 0x1f10fc49, 0)
         msg.addContent(0x0e, "\00")
+        print("Sending status request\n%s\n" % msg)
         response = radio.sendPdmMessageAndGetPodResponse(msg)
-        print("here's your response: %s" % response)
+        print("Gotten response\n%s\n" % response)
+        time.sleep(10)
 except EOFError:
     pass
 except KeyboardInterrupt:

@@ -4,10 +4,10 @@ from datetime import datetime
 
 class Packet():
     @staticmethod
-    def Ack(address, sequence, fromPOD):
+    def Ack(address, finalAck):
         data = struct.pack(">I", address)
-        data += chr(sequence | 0b01000000)
-        if fromPOD:
+        data +=  chr(0b01000000)
+        if finalAck:
             data += "\0\0\0\0"
         else:
             data += struct.pack(">I", address)
