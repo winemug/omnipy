@@ -1,102 +1,112 @@
-from radio import Radio, RadioMode
-from message import Message, MessageState
-from packet import Packet
-import Queue
+from enum import Enum
+from message import Message
+import struct
+from datetime import datetime
+
+class BolusState(Enum):
+    NotRunning = 0,
+    Extended = 1,
+    Immediate = 2
+
+class BasalState(Enum):
+    NotRunning = 0,
+    TempBasal = 1,
+    Program = 2
+
+class PodProgress(Enum):
+    InitialState = 0,
+    TankPowerActivated = 1,
+    TankFillCompleted = 2,
+    PairingSuccess = 3,
+    Purging = 4,
+    ReadyForInjection = 5,
+    InjectionDone = 6,
+    Priming = 7,
+    Running = 8,
+    RunningLow = 9,
+    ErrorShuttingDown = 13,
+    AlertExpiredShuttingDown = 14,
+    Inactive = 15
+
+class PodAlarm(Enum):
+    Event14 = 0,
+    PodExpired = 1,
+    InsulinSuspendPeriodEnded = 2,
+    InsulinSuspended = 3,
+    LessThan50ULeft = 4,
+    PodExpiresInAnHour = 5,
+    PodDeactivated = 6
+
+class PodStatus:
+    def __init__(self):
+        self.bolusState = BolusState.NotRunning
+        self.basalState = BasalState.NotRunning
+        self.podState = PodProgress.InitialState
+        self.podReservoir = 0
+        self.msgSequence = 0
+        self.podAlarms = []
+        self.totalInsulin = 0
+        self.canceledInsulin = 0
+        self.podActiveMinutes = 0
+        self.lastUpdated = None
 
 class Pod:
-    def __init__(self, msgHandler, errHandler, lot, tid, address = None):
-        self.messageHandler = msgHandler
-        self.errorHandler = errHandler
+    def __init__(self, lot, tid, address = None):
         self.lot = lot
         self.tid = tid
         self.address = address
-        self.pdmMessage = None
-        self.radio = Radio(0)
+        self.status = PodStatus()
 
-    def start(self):
-        self.messageSequence = None
-        self.responding = False
-        self.respondToPacket = None
-        self.responsePacket = None
-        self.responseQueue = Queue.Queue()
-        self.lastReceivedPacketSequence = None
-        self.radio.start(self.protocolHandler, radioMode = RadioMode.Pod)
+    def isInitialized(self):
+        return not(self.lot is None or self.tid is None or self.address is None)
 
-    def stop(self):
-        self.radio.stop()
+    def updateStatus(self, statusMessageBody):
+        s = struct.unpack(">BII", statusMessageBody)
+        delivery = s[0]
+        insulinPulses = (s[1] & 0x0FFF8000) >> 15
+        msgSequence = (s[1] & 0x00007800) >> 11
+        canceledPulses = s[1] & 0x000007FF
 
-    def getNextSequence(self, sequence):
-        return (sequence + 1) % 32
+        podAlarm = s[2] & 0xFF000000 >> 25
+        podActiveTime = s[2] & 0x007FFC00 >> 10
+        podReservoir = s[2] & 0x000003FF
 
-    def sendAckPacket(self, respondToPacket):
-        ackPacket = Packet.Ack(self.address, self.getNextSequence(respondToPacket.sequence), True)
-        self.respondToPacket = respondToPacket
-        self.responsePacket = ackPacket
-        self.radio.send(ackPacket)
-
-    def sendMessage(self, respondToPacket, message):
-        packets = message.getPackets(self.getNextSequence(self.messageSequence))
-        if len(packets) > 1:
-            for packet in packets[1:]:
-                self.responseQueue.put(packet)
-
-        self.respondToPacket = respondToPacket
-        self.responsePacket = packets[0]
-        self.responsePacket.setSequence(self.getNextSequence(respondToPacket.sequence))
-        self.radio.send(self.responsePacket)
-
-    def protocolHandler(self, packet):
-        if not packet.valid:
-            return
-
-        if self.responding:
-            if packet.sequence == self.respondToPacket.sequence and packet.type == self.respondToPacket.type:
-                self.radio.send(self.responsePacket)
-                return
-            else:
-                if not self.responseQueue.empty:
-                    if packet.type != "ACK":
-                        self.errorHandler() #tbd
-                        self.responseQueue = Queue.Queue() # reset queue
-                        # continue with message
-                    else:
-                        self.responsePacket = self.responseQueue.get()
-                        self.respondToPacket = packet
-                        self.responsePacket.setSequence(self.getNextSequence(packet.sequence))
-                        self.radio.send(self.responsePacket)
-                        return
-
-            self.responding = False
-
-        if self.lastReceivedPacketSequence == None:
-            self.lastReceivedPacketSequence = packet.sequence
-        elif packet.sequence == self.lastReceivedPacketSequence:
-            return
-
-        if self.address is None:
-            self.address = packet.address
-        elif self.address != packet.address:
-            self.errorHandler() #tbd
-            self.address = packet.address
-
-        if self.pdmMessage is None and packet.type == "PDM":
-            self.pdmMessage = Message.fromPacket(packet)
-            self.messageSequence = self.pdmMessage.sequence
-        elif self.pdmMessage is not None and self.pdmMessage.state == MessageState.Incomplete and packet.type == "CON":
-            self.pdmMessage.addConPacket(packet)
+        if delivery & 0x80 > 0:
+            self.status.bolusState = BolusState.Extended
+        elif delivery & 0x40 > 0:
+            self.status.bolusState = BolusState.Immediate
         else:
-            self.errorHandler() #tbd
-            self.pdmMessage = None
-            return
+            self.status.bolusState = BolusState.NotRunning
 
-        if self.pdmMessage.state == MessageState.Incomplete:
-            #auto ack partial pdm message
-            self.sendAckPacket(packet)
+        if delivery & 0x20 > 0:
+            self.status.basalState = BasalState.TempBasal
+        elif delivery & 0x10 > 0:
+            self.status.basalState = BasalState.Program
+        else:
+            self.status.basalState = BasalState.NotRunning
 
-        elif self.pdmMessage.state == MessageState.Complete:
-            #we have a complete pdm message, either respond with ACK or POD message
-            podMessage = self.messageHandler(self.pdmMessage)
-            if podMessage is None:
-                self.sendAckPacket(packet)
-            else:
-                self.sendMessage(packet, podMessage)
+        self.status.podState = delivery & 0xF
+
+        alarms = []
+        if podAlarm & 0x40 > 0:
+            alarms.append(PodAlarm.Event14)
+        if podAlarm & 0x20 > 0:
+            alarms.append(PodAlarm.PodExpired)
+        if podAlarm & 0x10 > 0:
+            alarms.append(PodAlarm.InsulinSuspendPeriodEnded)
+        if podAlarm & 0x08 > 0:
+            alarms.append(PodAlarm.InsulinSuspended)
+        if podAlarm & 0x04 > 0:
+            alarms.append(PodAlarm.LessThan50ULeft)
+        if podAlarm & 0x02 > 0:
+            alarms.append(PodAlarm.PodExpiresInAnHour)
+        if podAlarm & 0x01 > 0:
+            alarms.append(PodAlarm.PodDeactivated)
+
+        self.status.podAlarms = alarms        
+        self.status.podReservoir = podReservoir * 0.05
+        self.status.msgSequence = msgSequence
+        self.status.totalInsulin = insulinPulses * 0.05
+        self.status.canceledInsulin = canceledPulses * 0.05
+        self.status.podActiveMinutes = podActiveTime
+        self.status.lastUpdated = datetime.utcnow()

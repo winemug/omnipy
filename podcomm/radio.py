@@ -23,7 +23,7 @@ class RadioMode(Enum):
     Pod = 2
 
 class Radio:
-    def __init__(self, usbInterface, msgSequence = 0, pktSequence = 0):
+    def __init__(self, usbInterface = 0, msgSequence = 0, pktSequence = 0):
         self.stopRadioEvent = threading.Event()
         self.usbInterface = usbInterface
         self.manchester = manchester.ManchesterCodec()
@@ -54,7 +54,7 @@ class Radio:
         if messageCallback is None:
             self.messageCallback = self.__logMessage
         else:
-            self.messageCallback = packetReceivedCallback
+            self.messageCallback = messageCallback
 
         if radioMode == RadioMode.Sniffer:
             self.radioThread = threading.Thread(target = self.__snifferLoop)
@@ -99,43 +99,9 @@ class Radio:
 # 0x656665a55a
 # 0x66656665a55a
 # etc..
-    def __rfEnterTX(self):
-        success = False
-        while not success:
-            try:
-                #self.rfc.setMdmSyncMode(SYNCM_NONE)
-                #self.rfc.makePktFLEN(self.radioPacketLength)
-                #self.rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE0)
-                #self.rfc.setModeTX()
-                success = True
-            except ChipconUsbTimeoutException:
-                success = False
-
-    def __rfEnterRX(self):
-        success = False
-        while not success:
-            try:
-                # self.rfc.setMdmSyncMode(SYNCM_CARRIER_16_of_16)
-                # self.rfc.makePktFLEN(80)
-                # self.rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE_2)
-                # self.rfc.setMdmSyncWord(0xa55a)
-                #self.rfc.setModeRX()
-                success = True
-            except ChipconUsbTimeoutException:
-                success = False
-
-    def __rfEnterIdle(self):
-        success = False
-        while not success:
-            try:
-                #self.rfc.setModeIDLE()
-                success = True
-            except ChipconUsbTimeoutException:
-                success = False
 
 
     def __snifferLoop(self):
-        self.__rfEnterRX()
         q = Queue(4096)
         while not self.stopRadioEvent.wait(0):
             try:
@@ -176,41 +142,47 @@ class Radio:
             pass
         return success
 
-    def sendPdmMessageAndGetPodResponse(self, message):
-        message.sequence = self.messageSequence
-        #logging.debug("SENDING: %s" % message)
-        packets = message.getPackets()
-        received = None
+    def sendRequestToPod(self, message, responseHandler = None):
+        while True:
+            message.sequence = self.messageSequence
+            #logging.debug("SENDING: %s" % message)
+            packets = message.getPackets()
+            received = None
 
-        for i in range(0, len(packets)):
-            packet = packets[i]
-            if i == len(packets)-1:
-                exp = "POD"
+            for i in range(0, len(packets)):
+                packet = packets[i]
+                if i == len(packets)-1:
+                    exp = "POD"
+                else:
+                    exp = "ACK"
+                received = self.__sendPacketAndGetPacketResponse(packet, exp)
+                if received is None:
+                    raise CommunicationError()
+
+            podResponse = Message.fromPacket(received)
+            if podResponse is None:
+                raise ProtocolError()
+
+            while podResponse.state == MessageState.Incomplete:
+                ackPacket = Packet.Ack(message.address, False)
+                received = self.__sendPacketAndGetPacketResponse(ackPacket, "CON")
+                podResponse.addConPacket(received)
+
+            if podResponse.state == MessageState.Invalid:
+                raise ProtocolError()
+
+            #logging.debug("RECEIVED: %s" % podResponse)
+            respondResult = None
+            if responseHandler is not None:
+                respondResult = responseHandler(message, podResponse)
+
+            if respondResult is None:
+                ackPacket = Packet.Ack(message.address, True)
+                self.__sendPacketUntilQuiet(ackPacket)
+                self.messageSequence = (podResponse.sequence + 1) % 16
+                return podResponse
             else:
-                exp = "ACK"
-            received = self.__sendPacketAndGetPacketResponse(packet, exp)
-            if received is None:
-                raise CommunicationError()
-            else:
-                break
-
-        podResponse = Message.fromPacket(received)
-        if podResponse is None:
-            raise ProtocolError()
-
-        while podResponse.state == MessageState.Incomplete:
-            ackPacket = Packet.Ack(message.address, False)
-            received = self.__sendPacketAndGetPacketResponse(ackPacket, "CON")
-            podResponse.addConPacket(received)
-
-        if podResponse.state == MessageState.Invalid:
-            raise ProtocolError()
-
-        #logging.debug("RECEIVED: %s" % podResponse)
-        ackPacket = Packet.Ack(message.address, True)
-        self.__sendPacketUntilQuiet(ackPacket)
-        self.messageSequence = (podResponse.sequence + 1) % 16
-        return podResponse
+                message = respondResult
 
     def __sendPacketUntilQuiet(self, packetToSend):
         packetToSend.setSequence(self.packetSequence)
@@ -220,9 +192,7 @@ class Radio:
         data = self.manchester.encode(data, self.radioPacketLength)
         sendTimes = 0
         for i in range(0, 10):
-            self.__rfEnterTX()
             self.__send(data)
-            self.__rfEnterRX()
             rfData = self.__receive(timeout = 500)
             if rfData is None:
                 self.packetSequence = (self.packetSequence + 1) % 32
@@ -243,9 +213,7 @@ class Radio:
             expectedSequence = (packetToSend.sequence + 1) % 32
             while retries < 20:
                 retries += 1
-                self.__rfEnterTX()
                 self.__send(data)
-                self.__rfEnterRX()
                 if longTimeout == 0:
                     tmout = randint(1000, 1300)
                 else:

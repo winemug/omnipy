@@ -10,8 +10,12 @@ class MessageState(Enum):
     Invalid = 1,
     Complete = 2
 
+class MessageType(Enum):
+    PDM = 0,
+    POD = 1
+
 class Message():
-    def __init__(self, timestamp, mtype, address, unknownBits, sequence = 0):
+    def __init__(self, timestamp, mtype, address, unknownBits = 0, sequence = 0):
         self.timestamp = timestamp
         self.type = mtype
         self.address = address
@@ -22,24 +26,30 @@ class Message():
         self.acknowledged = False
         self.state = MessageState.Incomplete
 
-    def addContent(self, ctype, cbody, clen = -1):
-        if clen < 0:
-            clen = len(cbody)
+    def addCommand(self, cmdtype, cmdbody, cmdlen = -1):
+        if cmdlen < 0:
+            cmdlen = len(cmdbody)
         copy = self.body[0:-2]
-        copy += chr(ctype) + chr(clen) + cbody
+        copy += chr(cmdtype) + chr(cmdlen) + cmdbody
         self.length = len(copy)
         self.body = copy + self.calculateChecksum(copy)
         self.state = MessageState.Complete
 
     @staticmethod
     def fromPacket(packet):
-        if packet.type != "PDM" and packet.type != "POD":
+        if packet.type == "PDM":
+            mType = MessageType.PDM
+        elif packet.type == "POD":
+            mType = MessageType.POD
+        else:
             raise ValueError()
+
         b0 = ord(packet.body[0])
         b1 = ord(packet.body[1])
         unknownBits = b0 >> 6
         sequence = (b0 & 0x3C) >> 2
-        m = Message(packet.timestamp, packet.type, packet.address, unknownBits, sequence)
+
+        m = Message(packet.timestamp, mType, packet.address, unknownBits, sequence)
         m.length = ((b0 & 3) <<8) | b1
         m.body = packet.body[2:]
         m.updateMessageState()
@@ -54,14 +64,11 @@ class Message():
         self.updateMessageState()
 
     def getPackets(self):
-        if self.state != MessageState.Complete:
-            raise ValueError()
-
         self.body = self.body[0:-2] + self.calculateChecksum(self.body[0:-2])
 
         data = struct.pack(">I", self.address)
 
-        if self.type == "PDM":
+        if self.type == MessageType.PDM:
             data += chr(0b10100000)
             data += struct.pack(">I", self.address)
         else:
@@ -127,7 +134,11 @@ class Message():
         contents = []
         while ptr < self.length:
             contentType = ord(self.body[ptr])
-            contentLength = ord(self.body[ptr+1])
+            if contentType == 0x1d:
+                contentLength = len(self.body) - 3
+                ptr -= 1
+            else:
+                contentLength = ord(self.body[ptr+1])
             content = self.body[ptr+2:ptr+2+contentLength]
             contents.append((contentType, content))
             ptr += 2 + contentLength

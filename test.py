@@ -1,6 +1,8 @@
 #!/usr/bin/python
 from __future__ import absolute_import
 
+from podcomm.pod import Pod
+from podcomm.pdm import Pdm
 from podcomm.radio import Radio, RadioMode
 from podcomm.message import Message
 from podcomm.nonce import Nonce
@@ -10,24 +12,40 @@ import time
 #nc = Nonce(43962, 991134)
 #nc.sync(0x3c350421)
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 
-radio = Radio(0, msgSequence=0x00, pktSequence=0x00)
-radio.start(radioMode = RadioMode.Pdm)
+pod = Pod(43962, 991134, 0x1f10fc49)
+pdm = Pdm(pod)
 
 try:
     for i in range(0, 20):
-        msg = Message(0, "PDM", 0x1f10fc49, 0)
-        msg.addContent(0x0e, "\00")
-        print("Sending status request\n%s\n" % msg)
-        response = radio.sendPdmMessageAndGetPodResponse(msg)
-        print("Gotten response\n%s\n" % response)
+        pdm.updatePodStatus()
+        print(pdm.pod.status)
         time.sleep(10)
 except EOFError:
     pass
 except KeyboardInterrupt:
     pass
+finally:
+    pdm.cleanUp()
 
+# radio = Radio(0, msgSequence=0x00, pktSequence=0x00)
+# radio.start(radioMode = RadioMode.Pdm)
+
+# try:
+#     for i in range(0, 20):
+#         msg = Message(0, "PDM", 0x1f10fc49, 0)
+#         msg.addContent(0x0e, "\00")
+#         print("Sending status request\n%s\n" % msg)
+#         response = radio.sendRequestToPod(msg, handleStatusMessage)
+#         print("Gotten response\n%s\n" % response)
+#         time.sleep(10)
+# except EOFError:1f10fc49a01f10fc490000005b
+#     pass
+# except KeyboardInterrupt:
+#     pass
+
+# radio.stop()
 
 # m = ManchesterCodec()
 
