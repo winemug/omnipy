@@ -35,6 +35,13 @@ class Message():
         self.body = copy + self.calculateChecksum(copy)
         self.state = MessageState.Complete
 
+    def resetNonce(self, nonce):
+        copy = self.body[0:2]
+        copy += struct.pack(">I", nonce)
+        copy += self.body[6:-2]
+        self.body = copy + self.calculateChecksum(copy)
+        self.state = MessageState.Complete
+
     @staticmethod
     def fromPacket(packet):
         if packet.type == "PDM":
@@ -81,7 +88,7 @@ class Message():
         # max first packet 31 - 11 = 20bytes with crc -- 18 without
         # max con packet: 31 - 5 = 26 bytes with crc -- 24 without
 
-        maxLength = 18
+        maxLength = 25
         bodyToWrite = self.body[:-2]
         crc = self.body[-2:]
 
@@ -89,7 +96,7 @@ class Message():
         data += bodyToWrite[0:lenToWrite]
         bodyToWrite = bodyToWrite[lenToWrite:]
 
-        maxLength = 24
+        maxLength = 31
         conData = []
         while (len(bodyToWrite) > 0):
             lenToWrite = min(maxLength, len(bodyToWrite))

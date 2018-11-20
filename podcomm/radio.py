@@ -224,8 +224,8 @@ class Radio:
                     p = self.__getPacket(rfData)
                     if p is not None and p.address == expectedAddress:
                         logging.debug("RECEIVED: %s" % p)
-                        if p.type == expectedType:
-                            self.packetSequence = (p.sequence + 1) % 32
+                        if p.type == expectedType and p.sequence == expectedSequence:
+                            self.packetSequence = (expectedSequence + 1) % 32
                             return p
                         loopies += 1
                         if loopies == 1:
