@@ -59,7 +59,7 @@ class Pdm:
             msg = self.createMessage(commandType, commandBody)
             self.radio.sendRequestToPod(msg, self.handlePodResponse)
 
-    def normalBolus(self, bolusAmount, cancelEvent, confidenceReminder = True, unitsPerHour = 90):
+    def normalBolus(self, bolusAmount, cancelEvent, confidenceReminder = True):
         with self.commandLock:
             if self.pod is None or not self.pod.isInitialized():
                 raise PdmError()
@@ -67,12 +67,7 @@ class Pdm:
                 raise PdmError()
 
             pulseCount = int(round(bolusAmount / 0.05))
-            pulseWaitInterval8th = int(round(1440 / unitsPerHour))
-
-            if pulseWaitInterval8th < 8:
-                raise PdmError()
-
-            pulseSpan = pulseCount * pulseWaitInterval8th
+            pulseSpan = pulseCount * 16
             if pulseSpan > 0x3840:
                 raise PdmError()
 
@@ -119,7 +114,7 @@ class Pdm:
             if self.pod.status.bolusState != BolusState.Immediate:
                 raise PdmError()
 
-            if cancelEvent.wait(pulseSpan * 0.125):
+            if cancelEvent.wait(pulseCount * 2):
                 self.cancelDelivery()
                 return
 
