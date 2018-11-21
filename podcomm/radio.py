@@ -103,7 +103,7 @@ class Radio:
                 pass
 
     def waitForPacket(self, timeout = 2000):
-        rfdata = self.rfc.RFrecv(timeout = timeout)
+        rfdata = self.__receive(timeout = timeout)
         if rfdata is not None:
             p = self.__getPacket(rfdata)
             if p is not None and p.address == self.addressToCheck and \

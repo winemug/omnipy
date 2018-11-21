@@ -37,18 +37,6 @@ def on_mqtt_message_arrived(client, userdata, msg):
     mqttPacket = packet.Packet(0, msg.payload.decode("hex"))
     mqttMessageEvent.set()
 
-def relayPacket(packet):
-    global mqttClient
-    global radio
-
-    logging.debug("Publishing to mqtt: %s" % packet)
-    if args.RELAY_MODE == "PDM":
-        publishTarget = args.MQTT_TOPIC + "/" + PDM_SUBTOPIC
-    else:
-        publishTarget = args.MQTT_TOPIC + "/" + POD_SUBTOPIC
-
-    mqttClient.publish(publishTarget, payload = packet.data.encode("hex"), qos=2)
-
 exitEvent = threading.Event()
 mqttClient = None
 args = None
@@ -93,14 +81,18 @@ def main():
 
     radio = Radio(0)
     addr = int(args.POD_ADDRESS, 16)
-    radio.start(radioMode = RadioMode.Relay, address = args.POD_ADDRESS)
+    radio.start(radioMode = RadioMode.Relay, address = addr)
     mqttClient.on_message = on_mqtt_message_arrived
     mqttClient.loop_start()
 
     if args.RELAY_MODE == "PDM":
         logging.debug("Waiting for PDM to initiate communication")
-        pdmPacket = radio.waitForPacket()
-        publishTarget = args.MQTT_TOPIC + "/" + PDM_SUBTOPIC
+        publishTarget = args.MQTT_TOPIC + "/" + POD_SUBTOPIC
+        while True:
+            pdmPacket = radio.waitForPacket(timeout= 1500)
+            if pdmPacket is not None:
+                break
+
         while True:
             mqttMessageReceivedEvent.clear()
             mqttClient.publish(publishTarget, payload = pdmPacket.data.encode("hex"), qos=2)
@@ -117,7 +109,7 @@ def main():
 
     else:
         logging.debug("Waiting for mqtt message to relay to POD")
-        publishTarget = args.MQTT_TOPIC + "/" + POD_SUBTOPIC
+        publishTarget = args.MQTT_TOPIC + "/" + PDM_SUBTOPIC
 
         while True:
             mqttReadyToReceiveEvent.set()
