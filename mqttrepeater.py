@@ -107,7 +107,7 @@ def main():
             mqttClient.publish(publishTarget, payload = pdmPacket.data.encode("hex"), qos=2)
             logging.debug("PDM packet received and published to mqtt: %s" % packet)
 
-            if pdmPacket.type == "ACK" and p.address2 = 0:
+            if pdmPacket.type == "ACK" and p.address2 == 0:
                 logging.debug("POD need not respond to packet" % packet)
                 break
             else:

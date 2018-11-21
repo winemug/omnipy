@@ -109,11 +109,11 @@ class Radio:
         rfdata = self.rfc.RFrecv(timeout = timeout)
         if rfdata is not None:
             p = self.__getPacket(rfdata)
-            if p is not None and p.address = self.addressToCheck and \
+            if p is not None and p.address == self.addressToCheck and \
                     (self.lastPacketReceived is None or self.lastPacketReceived.data != p.data):
                 self.lastPacketReceived = p
                 return p
-        else
+        else:
             return None
 
     def sendPacketForRelay(self, packetToSend):
@@ -230,7 +230,7 @@ class Radio:
                     p = self.__getPacket(rfData)
                     if p is not None and p.address == expectedAddress:
                         logging.debug("RECEIVED PACKET: %s" % p)
-                        if (expectedType is None and (self.lastPacketReceived is None or self.lastPacketReceived.data != p.data))
+                        if (expectedType is None and (self.lastPacketReceived is None or self.lastPacketReceived.data != p.data)) \
                             or (expectedType is not None and p.type == expectedType and p.sequence == expectedSequence):
                             logging.debug("received packet accepted" % p)
                             if trackSequencing:
