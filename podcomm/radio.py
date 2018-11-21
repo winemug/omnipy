@@ -36,36 +36,11 @@ class Radio:
     def __logMessage(self, msg):
         logging.debug("Message received: %s" % msg)
 
-    def start(self, packetReceivedCallback = None, messageCallback = None, radioMode = RadioMode.Sniffer, address = None, sendPacketLength = 512):
+    def start(self):
         logging.debug("starting radio in %s" % radioMode)
         self.lastPacketReceived = None
-        self.addressToCheck = address
         self.responseTimeout = 1000
         self.radioMode = radioMode
-        self.radioPacketLength = sendPacketLength
-        self.__initializeRfCat()
-
-        if packetReceivedCallback is None:
-            self.packetReceivedCallback = self.__logPacket
-        else:
-            self.packetReceivedCallback = packetReceivedCallback
-
-        if messageCallback is None:
-            self.messageCallback = self.__logMessage
-        else:
-            self.messageCallback = messageCallback
-
-        if radioMode == RadioMode.Sniffer:
-            self.radioThread = threading.Thread(target = self.__snifferLoop)
-            self.radioThread.start()
-
-    def stop(self):
-        if self.radioMode == RadioMode.Sniffer or self.radioMode == RadioMode.Pod:
-            self.stopRadioEvent.set()
-            self.radioThread.join()
-        self.rfc.cleanup()
-
-    def __initializeRfCat(self):
         self.rfc = RfCat(self.usbInterface, debug=False)
         self.rfc.setFreq(433.91e6)
         self.rfc.setMdmModulation(MOD_2FSK)
@@ -74,50 +49,13 @@ class Radio:
         self.rfc.setEnableMdmManchester(False)
         self.rfc.setMdmDRate(40625)
         self.rfc.setRFRegister(0xdf18, 0x70)
-
         self.rfc.setMdmSyncMode(SYNCM_CARRIER_16_of_16)
         self.rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE_2)
         self.rfc.setMdmSyncWord(0xa55a)
         self.rfc.makePktFLEN(80)
 
-    def __snifferLoop(self):
-        q = Queue(4096)
-        while not self.stopRadioEvent.wait(0):
-            try:
-                while True:
-                    rfdata = self.rfc.RFrecv(timeout = 1500)
-                    if rfdata is None:
-                        break
-                    q.put(rfdata)
-            except:
-                pass
-
-            try:
-                while True:
-                    rfd = q.get_nowait()
-                    p = self.__getPacket(rfd)
-                    if p is not None and (self.lastPacketReceived is None or self.lastPacketReceived.sequence != p.sequence):
-                        self.lastPacketReceived = p
-                        self.packetReceivedCallback(p)
-            except Empty:
-                pass
-
-    def waitForPacket(self, timeout = 2000):
-        rfdata = self.__receive(timeout = timeout)
-        if rfdata is not None:
-            p = self.__getPacket(rfdata)
-            if p is not None and p.address == self.addressToCheck and \
-                    (self.lastPacketReceived is None or self.lastPacketReceived.data != p.data):
-                self.lastPacketReceived = p
-                return p
-        else:
-            return None
-
-    def sendPacketForRelay(self, packetToSend):
-        if packetToSend.type == "ACK" and packetToSend.address2 == 0:
-            return self.__sendPacketUntilQuiet(packetToSend, trackSequencing=False)
-        else:
-            return self.__sendPacketAndGetPacketResponse(packetToSend, None, trackSequencing=False)
+    def stop(self):
+        self.rfc.cleanup()
 
     def __receive(self, timeout):
         rfdata = None
@@ -183,7 +121,7 @@ class Radio:
         logging.debug("SENDING PACKET expecting quiet: %s" % packetToSend)
         data = packetToSend.data
         data += chr(crc.crc8(data))
-        data = self.manchester.encode(data, self.radioPacketLength)
+        data = self.manchester.encode(data)
         sendTimes = 0
         for i in range(0, 10):
             self.__send(data)
@@ -206,7 +144,7 @@ class Radio:
             logging.debug("SENDING PACKET expecting response: %s" % packetToSend)
             data = packetToSend.data
             data += chr(crc.crc8(data))
-            data = self.manchester.encode(data, self.radioPacketLength)
+            data = self.manchester.encode(data)
             retries = 0
 
             if trackSequencing:

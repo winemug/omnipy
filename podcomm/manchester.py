@@ -16,7 +16,7 @@ class ManchesterCodec:
                 break
         return decoded
     
-    def encode(self, data, radioPacketSize):
+    def encode(self, data):
         encoded = self.preamble
         for i in data:
             encoded += self.encodeDict[i]
@@ -26,7 +26,7 @@ class ManchesterCodec:
 
         minPreamble = 4
         minNoise = 2
-        available = radioPacketSize - len(data) - minPreamble - minNoise
+        available = 512 - len(data) - minPreamble - minNoise
         dataIndex = len(self.preamble)
         portion = int(available / 2)
         preambleIncluded = minPreamble + portion
