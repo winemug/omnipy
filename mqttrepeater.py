@@ -87,7 +87,7 @@ def main():
 
     if args.RELAY_MODE == "PDM":
         logging.debug("Waiting for PDM to initiate communication")
-        publishTarget = args.MQTT_TOPIC + "/" + POD_SUBTOPIC
+        publishTarget = args.MQTT_TOPIC + "/" + PDM_SUBTOPIC
         while True:
             pdmPacket = radio.waitForPacket(timeout= 1500)
             if pdmPacket is not None:
@@ -109,7 +109,7 @@ def main():
 
     else:
         logging.debug("Waiting for mqtt message to relay to POD")
-        publishTarget = args.MQTT_TOPIC + "/" + PDM_SUBTOPIC
+        publishTarget = args.MQTT_TOPIC + "/" + POD_SUBTOPIC
 
         while True:
             mqttReadyToReceiveEvent.set()

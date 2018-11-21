@@ -31,13 +31,13 @@ class Radio:
         self.packetSequence = pktSequence
 
     def __logPacket(self, p):
-        logging.debug("Packet received: %s", p)
+        logging.debug("Packet received: %s" % p)
 
     def __logMessage(self, msg):
-        logging.debug("Message received: %s", msg)
+        logging.debug("Message received: %s" % msg)
 
     def start(self, packetReceivedCallback = None, messageCallback = None, radioMode = RadioMode.Sniffer, address = None, sendPacketLength = 512):
-        logging.debug("starting radio in %s", radioMode)
+        logging.debug("starting radio in %s" % radioMode)
         self.lastPacketReceived = None
         self.addressToCheck = address
         self.responseTimeout = 1000
