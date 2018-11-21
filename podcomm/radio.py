@@ -58,9 +58,6 @@ class Radio:
         if radioMode == RadioMode.Sniffer:
             self.radioThread = threading.Thread(target = self.__snifferLoop)
             self.radioThread.start()
-        elif radioMode == RadioMode.Relay:
-            self.radioThread = threading.Thread(target = self.__relayLoop)
-            self.radioThread.start()
 
     def stop(self):
         if self.radioMode == RadioMode.Sniffer or self.radioMode == RadioMode.Pod:
