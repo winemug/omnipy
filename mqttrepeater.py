@@ -22,21 +22,22 @@ def on_mqtt_connect(client, userdata, flags, rc):
 def on_mqtt_disconnect(client, userdata, rc):
     logging.debug("disconnected from mqtt")
 
-def on_mqtt_message_receive(client, userdata, msg):
+def on_mqtt_message_arrived(client, userdata, msg):
     global radio
     global mqttClient
     global args
-    global correspondance
+    global mqttPacket
+    global mqttMessageReceivedEvent
+
+    mqttReadyToReceiveEvent.wait()
 
     logging.debug("Received over mqtt: %s", msg.payload)
-    p = packet.Packet(0, msg.payload.decode("hex"))
-    logging.debug("Sending packet over radio: %s", msg.payload)
-    radio.send(p)
 
-def on_mqtt_message_publish(client, userdata, mid):
-    pass    
+    mqttReadyToReceiveEvent.clear()
+    mqttPacket = packet.Packet(0, msg.payload.decode("hex"))
+    mqttMessageEvent.set()
 
-def radioCallback(packet):
+def relayPacket(packet):
     global mqttClient
     global radio
 
@@ -52,13 +53,18 @@ exitEvent = threading.Event()
 mqttClient = None
 args = None
 radio = None
+mqttMessageReceivedEvent = threading.Event()
+mqttReadyToReceiveEvent = threading.Event()
+mqttPacket = None
 
 def main():
     global mqttClient
     global args
     global radio
+    global mqttMessageEvent
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--POD-ADDRESS", required=True) 
     parser.add_argument("--MQTT-SERVER", required=True) 
     parser.add_argument("--MQTT-PORT", required=False, default="1881", nargs="?") 
     parser.add_argument("--MQTT-SSL", required=False, default="", nargs="?") 
@@ -80,24 +86,66 @@ def main():
 
     mqttClient.on_connect = on_mqtt_connect
     mqttClient.on_disconnect = on_mqtt_disconnect
-    mqttClient.on_message = on_mqtt_message_receive
-    mqttClient.on_publish = on_mqtt_message_publish
 
     mqttClient.reconnect_delay_set(min_delay=15, max_delay=120)
     mqttClient.connect_async(args.MQTT_SERVER, port=args.MQTT_PORT, keepalive=60)
     mqttClient.retry_first_connection=True
 
     radio = Radio(0)
+    addr = int(args.POD_ADDRESS, 16)
+    radio.start(radioMode = RadioMode.Relay, address = args.POD_ADDRESS)
+    mqttClient.on_message = on_mqtt_message_arrived
     mqttClient.loop_start()
-    radio.start(recvCallback = radioCallback, radioMode = RadioMode.Pdm if args.RELAY_MODE == "POD" else RadioMode.Pod)
 
-    try:
-        while not exitEvent.wait(timeout = 1000):
-            pass
-    except KeyboardInterrupt:
-        pass
+    if args.RELAY_MODE == "PDM":
+        logging.debug("Waiting for PDM to initiate communication")
+        pdmPacket = radio.waitForPacket()
+        publishTarget = args.MQTT_TOPIC + "/" + PDM_SUBTOPIC
 
-    exitEvent.clear()
+        while True:
+            mqttMessageReceivedEvent.clear()
+            mqttClient.publish(publishTarget, payload = pdmPacket.data.encode("hex"), qos=2)
+            logging.debug("PDM packet received and published to mqtt: %s" % packet)
+
+            if pdmPacket.type == "ACK" and p.address2 = 0:
+                logging.debug("POD need not respond to packet" % packet)
+                break
+            else:
+                logging.debug("Waiting for POD packet on mqtt: %s" % packet)
+                mqttReadyToReceiveEvent.set()
+                mqttMessageReceivedEvent.wait()
+                pdmPacket = radio.sendPacketForRelay(mqttPacket)
+
+    else:
+        logging.debug("Waiting for mqtt message to relay to POD")
+        publishTarget = args.MQTT_TOPIC + "/" + POD_SUBTOPIC
+
+        while True:
+            mqttReadyToReceiveEvent.set()
+            mqttMessageReceivedEvent.wait()
+            logging.debug("PDM packet received over mqtt: %s" % mqttPacket)
+            logging.debug("Relaying packet to pod")
+            while True:
+                podPacket = radio.sendPacketForRelay(mqttPacket)
+
+                if podPacket is None:
+                    if mqttPacket.type == "ACK" and mqttPacket.address2 == 0:
+                        logging.debug("Pod need not respond")
+                        break
+                    else:
+                        logging.debug("No response from pod, retrying")
+                else:
+                    mqttClient.publish(publishTarget, payload = podPacket.data.encode("hex"), qos=2)
+                    logging.debug("Pod packet received over radio and published to mqtt: %s" % packet)
+            mqttMessageReceivedEvent.clear()
+
+    # try:
+    #     while not exitEvent.wait(timeout = 1000):
+    #         pass
+    # except KeyboardInterrupt:
+    #     pass
+
+    # exitEvent.clear()
 
     radio.stop()
     mqttClient.loop_stop()

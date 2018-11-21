@@ -20,7 +20,7 @@ class ProtocolError(Exception):
 class RadioMode(Enum):
     Sniffer = 0,
     Pdm = 1,
-    Pod = 2
+    Relay = 2
 
 class Radio:
     def __init__(self, usbInterface = 0, msgSequence = 0, pktSequence = 0):
@@ -35,7 +35,6 @@ class Radio:
 
     def __logMessage(self, msg):
         logging.debug("Message received: %s", msg)
-        return None
 
     def start(self, packetReceivedCallback = None, messageCallback = None, radioMode = RadioMode.Sniffer, address = None, sendPacketLength = 512):
         logging.debug("starting radio in %s", radioMode)
@@ -59,8 +58,8 @@ class Radio:
         if radioMode == RadioMode.Sniffer:
             self.radioThread = threading.Thread(target = self.__snifferLoop)
             self.radioThread.start()
-        elif radioMode == RadioMode.Pod:
-            self.radioThread = threading.Thread(target = self.__podLoop)
+        elif radioMode == RadioMode.Relay:
+            self.radioThread = threading.Thread(target = self.__relayLoop)
             self.radioThread.start()
 
     def stop(self):
@@ -71,7 +70,6 @@ class Radio:
 
     def __initializeRfCat(self):
         self.rfc = RfCat(self.usbInterface, debug=False)
-        #rfc.setModeIDLE()
         self.rfc.setFreq(433.91e6)
         self.rfc.setMdmModulation(MOD_2FSK)
         self.rfc.setMdmDeviatn(26370)
@@ -84,22 +82,6 @@ class Radio:
         self.rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE_2)
         self.rfc.setMdmSyncWord(0xa55a)
         self.rfc.makePktFLEN(80)
-
-# AB3C actual sync word before manchester encoding
-# after encoding: 6665a55a
-# actual encoded packet looks like this:
-
-# 0x6665 (repeated > 200 times) 0xa55a 
-
-# possible syncwords:
-# 0x5a
-# 0xa55a
-# 0x65a55a
-# 0x6665a55a
-# 0x656665a55a
-# 0x66656665a55a
-# etc..
-
 
     def __snifferLoop(self):
         q = Queue(4096)
@@ -123,8 +105,22 @@ class Radio:
             except Empty:
                 pass
 
-    def __podLoop(self):
-        pass
+    def waitForPacket(self, timeout = 2000):
+        rfdata = self.rfc.RFrecv(timeout = timeout)
+        if rfdata is not None:
+            p = self.__getPacket(rfdata)
+            if p is not None and p.address = self.addressToCheck and \
+                    (self.lastPacketReceived is None or self.lastPacketReceived.data != p.data):
+                self.lastPacketReceived = p
+                return p
+        else
+            return None
+
+    def sendPacketForRelay(self, packetToSend):
+        if packetToSend.type == "ACK" and packetToSend.address2 == 0:
+            return self.__sendPacketUntilQuiet(packetToSend, trackSequencing=False)
+        else:
+            return self.__sendPacketAndGetPacketResponse(packetToSend, None, trackSequencing=False)
 
     def __receive(self, timeout):
         rfdata = None
@@ -145,7 +141,7 @@ class Radio:
     def sendRequestToPod(self, message, responseHandler = None):
         while True:
             message.sequence = self.messageSequence
-            #logging.debug("SENDING: %s" % message)
+            logging.debug("SENDING MSG: %s" % message)
             packets = message.getPackets()
             received = None
 
@@ -171,7 +167,7 @@ class Radio:
             if podResponse.state == MessageState.Invalid:
                 raise ProtocolError()
 
-            #logging.debug("RECEIVED: %s" % podResponse)
+            logging.debug("RECEIVED MSG: %s" % podResponse)
             respondResult = None
             if responseHandler is not None:
                 respondResult = responseHandler(message, podResponse)
@@ -184,9 +180,10 @@ class Radio:
             else:
                 message = respondResult
 
-    def __sendPacketUntilQuiet(self, packetToSend):
-        packetToSend.setSequence(self.packetSequence)
-        logging.debug("SENDING: %s" % packetToSend)
+    def __sendPacketUntilQuiet(self, packetToSend, trackSequencing = True):
+        if trackSequencing:
+            packetToSend.setSequence(self.packetSequence)
+        logging.debug("SENDING PACKET expecting quiet: %s" % packetToSend)
         data = packetToSend.data
         data += chr(crc.crc8(data))
         data = self.manchester.encode(data, self.radioPacketLength)
@@ -194,23 +191,32 @@ class Radio:
         for i in range(0, 10):
             self.__send(data)
             rfData = self.__receive(timeout = 500)
-            if rfData is None:
-                self.packetSequence = (self.packetSequence + 1) % 32
-                return
             sendTimes += 1
+            if rfData is not None:
+                p = self.__getPacket(rfData)
+                if p is not None and p.address == packetToSend.address:
+                    continue
+            if trackSequencing:
+                self.packetSequence = (self.packetSequence + 1) % 32
+            return
 
-    def __sendPacketAndGetPacketResponse(self, packetToSend, expectedType):
+
+
+    def __sendPacketAndGetPacketResponse(self, packetToSend, expectedType, trackSequencing = True):
         expectedAddress = packetToSend.address
         longTimeout = 0
         loopies = 0
         while loopies < 3:
-            packetToSend.setSequence(self.packetSequence)
-            logging.debug("SENDING: %s" % packetToSend)
+            if trackSequencing:
+                packetToSend.setSequence(self.packetSequence)
+            logging.debug("SENDING PACKET expecting response: %s" % packetToSend)
             data = packetToSend.data
             data += chr(crc.crc8(data))
             data = self.manchester.encode(data, self.radioPacketLength)
             retries = 0
-            expectedSequence = (packetToSend.sequence + 1) % 32
+
+            if trackSequencing:
+                expectedSequence = (packetToSend.sequence + 1) % 32
             while retries < 20:
                 retries += 1
                 self.__send(data)
@@ -223,16 +229,24 @@ class Radio:
                 if rfData is not None:
                     p = self.__getPacket(rfData)
                     if p is not None and p.address == expectedAddress:
-                        logging.debug("RECEIVED: %s" % p)
-                        if p.type == expectedType and p.sequence == expectedSequence:
-                            self.packetSequence = (expectedSequence + 1) % 32
+                        logging.debug("RECEIVED PACKET: %s" % p)
+                        if (expectedType is None and (self.lastPacketReceived is None or self.lastPacketReceived.data != p.data))
+                            or (expectedType is not None and p.type == expectedType and p.sequence == expectedSequence):
+                            logging.debug("received packet accepted" % p)
+                            if trackSequencing:
+                                self.packetSequence = (p.sequence + 1) % 32
+                            self.lastPacketReceived = p
                             return p
+                        else:
+                            logging.debug("received packet does not match expected criteria" % p)
                         loopies += 1
                         if loopies == 1:
                             longTimeout = randint(4700,5300)
                         else:
                             longTimeout = randint(9700, 10300)
-                            self.packetSequence = (self.packetSequence + 31) % 32
+                            if trackSequencing:
+                                logging.debug("moving sequence backwards as there seems to be a problem")
+                                self.packetSequence = (self.packetSequence + 31) % 32
                         break
         raise ProtocolError()
 
