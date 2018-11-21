@@ -6,7 +6,7 @@ from packet import Packet
 from enum import Enum
 import logging
 from message import Message, MessageState
-from queue import Queue, Empty
+from Queue import Queue, Empty
 
 from rflib import (RfCat, ChipconUsbTimeoutException, MOD_2FSK, SYNCM_CARRIER_16_of_16, SYNCM_NONE,
                     MFMCFG1_NUM_PREAMBLE0, MFMCFG1_NUM_PREAMBLE_2, SYNCM_CARRIER)
@@ -199,9 +199,6 @@ class Radio:
             if trackSequencing:
                 self.packetSequence = (self.packetSequence + 1) % 32
             return
-
-
-
     def __sendPacketAndGetPacketResponse(self, packetToSend, expectedType, trackSequencing = True):
         expectedAddress = packetToSend.address
         longTimeout = 0

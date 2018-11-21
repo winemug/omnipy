@@ -101,7 +101,6 @@ def main():
         logging.debug("Waiting for PDM to initiate communication")
         pdmPacket = radio.waitForPacket()
         publishTarget = args.MQTT_TOPIC + "/" + PDM_SUBTOPIC
-
         while True:
             mqttMessageReceivedEvent.clear()
             mqttClient.publish(publishTarget, payload = pdmPacket.data.encode("hex"), qos=2)
