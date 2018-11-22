@@ -15,8 +15,7 @@ class MessageType(Enum):
     POD = 1
 
 class Message():
-    def __init__(self, timestamp, mtype, address, unknownBits = 0, sequence = 0):
-        self.timestamp = timestamp
+    def __init__(self, mtype, address, unknownBits = 0, sequence = 0):
         self.type = mtype
         self.address = address
         self.unknownBits = unknownBits
@@ -56,7 +55,7 @@ class Message():
         unknownBits = b0 >> 6
         sequence = (b0 & 0x3C) >> 2
 
-        m = Message(packet.timestamp, mType, packet.address, unknownBits, sequence)
+        m = Message(mType, packet.address, unknownBits, sequence)
         m.length = ((b0 & 3) <<8) | b1
         m.body = packet.body[2:]
         m.updateMessageState()
@@ -84,9 +83,6 @@ class Message():
 
         data += chr((self.unknownBits << 6) | (self.sequence << 2) | ((self.length >> 8) & 0x03))
         data += chr(self.length & 0xff)
-
-        # max first packet 31 - 11 = 20bytes with crc -- 18 without
-        # max con packet: 31 - 5 = 26 bytes with crc -- 24 without
 
         maxLength = 25
         bodyToWrite = self.body[:-2]
@@ -152,8 +148,6 @@ class Message():
         return contents
 
     def __str__(self):
-        timestr = datetime.fromtimestamp(self.timestamp).strftime("%Y-%m-%d %H:%M:%S.%f")
-        #return "%s From: %s Addr: %s Seq: 0x%02x Len: 0x%02x Msg: %s Ack: %s (%s)" % (self.timestamp, self.type, self.address, self.sequence, self.length, binascii.hexlify(self.body[:-2]), self.acknowledged, self.state)
-        return "%s Msg %s: %s (%s, %s) (seq: 0x%02x, unkn.: 0x%02x)" % (timestr, self.type, binascii.hexlify(self.body[:-2]),
+        return "Msg %s: %s (%s, %s) (seq: 0x%02x, unkn.: 0x%02x)" % (self.type, binascii.hexlify(self.body[:-2]),
             "OK" if self.state == MessageState.Complete else "ERROR", "ACK'd" if self.acknowledged else "NOACK",
             self.sequence, self.unknownBits)

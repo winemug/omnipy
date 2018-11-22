@@ -17,11 +17,6 @@ class CommunicationError(Exception):
 class ProtocolError(Exception):
     pass
 
-class RadioMode(Enum):
-    Sniffer = 0,
-    Pdm = 1,
-    Relay = 2
-
 class Radio:
     def __init__(self, usbInterface = 0, msgSequence = 0, pktSequence = 0):
         self.stopRadioEvent = threading.Event()
@@ -37,10 +32,8 @@ class Radio:
         logging.debug("Message received: %s" % msg)
 
     def start(self):
-        logging.debug("starting radio in %s" % radioMode)
         self.lastPacketReceived = None
         self.responseTimeout = 1000
-        self.radioMode = radioMode
         self.rfc = RfCat(self.usbInterface, debug=False)
         self.rfc.setFreq(433.91e6)
         self.rfc.setMdmModulation(MOD_2FSK)

@@ -61,7 +61,7 @@ class Pod:
         self.address = address
         self.status = PodStatus()
         self.maximumBolus = 15.0
-
+        self.maximumTempBasal = 10.0
         
     def isInitialized(self):
         return not(self.lot is None or self.tid is None or self.address is None)
