@@ -63,11 +63,11 @@ crc16_table = [0x0000,0x8005,0x800f,0x000a,0x801b,0x001e,0x0014,0x8011,0x8033,
 def crc16(msg):
     crc = 0x0000
     for x in msg:
-        crc = (crc >> 8) ^ crc16_table[(crc ^ ord(x)) & 0xff]
+        crc = (crc >> 8) ^ crc16_table[(crc ^ x) & 0xff]
     return crc
 
 def crc8(msg):
     crc = 0x0000
     for x in msg:
-        crc = (crc >> 8) ^ crc8_table[(crc ^ ord(x)) & 0xff]
+        crc = (crc >> 8) ^ crc8_table[(crc ^ x) & 0xff]
     return crc

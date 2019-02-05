@@ -1,6 +1,6 @@
-from packet import Packet
+from .packet import Packet
 from enum import Enum
-from crc import crc16
+from .crc import crc16
 import binascii
 import struct
 from datetime import datetime
@@ -21,7 +21,7 @@ class Message():
         self.unknownBits = unknownBits
         self.sequence = sequence
         self.length = 0
-        self.body = chr(0) + chr(0)
+        self.body = b"\x00\x00"
         self.acknowledged = False
         self.state = MessageState.Incomplete
 
@@ -29,7 +29,7 @@ class Message():
         if cmdlen < 0:
             cmdlen = len(cmdbody)
         copy = self.body[0:-2]
-        copy += chr(cmdtype) + chr(cmdlen) + cmdbody
+        copy += bytes([cmdtype, cmdlen]) + cmdbody
         self.length = len(copy)
         self.body = copy + self.calculateChecksum(copy)
         self.state = MessageState.Complete
@@ -50,8 +50,8 @@ class Message():
         else:
             raise ValueError()
 
-        b0 = ord(packet.body[0])
-        b1 = ord(packet.body[1])
+        b0 = packet.body[0]
+        b1 = packet.body[1]
         unknownBits = b0 >> 6
         sequence = (b0 & 0x3C) >> 2
 
@@ -75,14 +75,14 @@ class Message():
         data = struct.pack(">I", self.address)
 
         if self.type == MessageType.PDM:
-            data += chr(0b10100000)
+            data += b"\xA0"
             data += struct.pack(">I", self.address)
         else:
-            data += chr(0b11100000)
+            data += b"\xE0"
             data += struct.pack(">I", 0)
 
-        data += chr((self.unknownBits << 6) | (self.sequence << 2) | ((self.length >> 8) & 0x03))
-        data += chr(self.length & 0xff)
+        data += bytes([(self.unknownBits << 6) | (self.sequence << 2) | ((self.length >> 8) & 0x03)])
+        data += bytes([(self.length & 0xff)])
 
         maxLength = 25
         bodyToWrite = self.body[:-2]
@@ -97,7 +97,7 @@ class Message():
         while (len(bodyToWrite) > 0):
             lenToWrite = min(maxLength, len(bodyToWrite))
             cond = struct.pack(">I", self.address)
-            cond += chr(0b10000000)
+            cond += b"\x80"
             cond += bodyToWrite[0:lenToWrite]
             bodyToWrite = bodyToWrite[lenToWrite:]
             conData.append(cond)
@@ -128,26 +128,57 @@ class Message():
         a = struct.pack(">I", self.address)
         b0 = (self.unknownBits << 6) | (len(body) >> 8 & 0x03) | (self.sequence & 0x0f) << 2
         b1 = len(body) & 0xff
-        crcBody = a + chr(b0) + chr(b1) + body
+        crcBody = a + bytes([b0, b1]) + body
         crcVal = crc16(crcBody)
-        return chr(crcVal >> 8) + chr (crcVal & 0xff)
+        return bytes([crcVal >> 8, crcVal & 0xff])
 
     def getContents(self):
         ptr = 0
         contents = []
         while ptr < self.length:
-            contentType = ord(self.body[ptr])
+            contentType = self.body[ptr]
             if contentType == 0x1d:
                 contentLength = len(self.body) - 3
                 ptr -= 1
             else:
-                contentLength = ord(self.body[ptr+1])
+                contentLength = self.body[ptr+1]
             content = self.body[ptr+2:ptr+2+contentLength]
             contents.append((contentType, content))
             ptr += 2 + contentLength
         return contents
 
     def __str__(self):
-        return "Msg %s: %s (%s, %s) (seq: 0x%02x, unkn.: 0x%02x)" % (self.type, binascii.hexlify(self.body[:-2]),
-            "OK" if self.state == MessageState.Complete else "ERROR", "ACK'd" if self.acknowledged else "NOACK",
-            self.sequence, self.unknownBits)
+        return self.prettyPrint()
+        # return "Msg %s: %s (%s, %s) (seq: 0x%02x, unkn.: 0x%02x)" % (self.type, binascii.hexlify(self.body[:-2]),
+        #     "OK" if self.state == MessageState.Complete else "ERROR", "ACK'd" if self.acknowledged else "NOACK",
+        #     self.sequence, self.unknownBits)
+
+    def prettyPrint(self):
+        s = "%s %s %s\n" % (self.type, self.sequence, self.unknownBits)
+        for contentType, content in self.getContents():
+            s += "Type: %02x " % contentType
+            if contentType == 0x1a:
+                s += separate(content, [4,1,2,1,2]) + "\n"
+            elif contentType == 0x16:
+                s += separate(content, [1,1,2,4,2,4]) + "\n"
+            else:
+                s += "Type: %02x Body: %s\n" % (contentType, content.hex())
+        return s
+
+def separate(content, separations):
+    r = ""
+    ptr = 0
+    for s in separations:
+        if r != "":
+            r += " "
+        r += content[ptr:ptr+s].hex()
+        ptr += s
+    else:
+        while ptr<len(content)-1:
+            r += " "
+            r += content[ptr:ptr+s].hex()
+            ptr += s
+    return r
+
+
+

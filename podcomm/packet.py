@@ -6,17 +6,17 @@ class Packet():
     @staticmethod
     def Ack(address, finalAck):
         data = struct.pack(">I", address)
-        data +=  chr(0b01000000)
+        data +=  b"\x40"
         if finalAck:
-            data += "\0\0\0\0"
+            data += b"\x00\x00\x00\x00"
         else:
             data += struct.pack(">I", address)
         return Packet(0, data)
 
     def setSequence(self, sequence):
         self.sequence = sequence
-        b4 = ord(self.data[4]) & 0b11100000 | sequence
-        self.data = self.data[0:4] + chr(b4) + self.data[5:]
+        b4 = self.data[4] & 0b11100000 | sequence
+        self.data = self.data[0:4] + bytes([b4]) + self.data[5:]
 
     def __init__(self, timestamp, data):
         self.timestamp = timestamp
@@ -29,8 +29,8 @@ class Packet():
 
         self.address = struct.unpack(">I", data[0:4])[0]
 
-        t = ord(data[4]) >> 5
-        self.sequence = ord(data[4]) & 0b00011111
+        t = data[4] >> 5
+        self.sequence = data[4] & 0b00011111
 
         if t == 5:
             self.type = "PDM"
