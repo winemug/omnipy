@@ -60,8 +60,6 @@ def main():
 
     try:
         while not exit_event.wait(timeout=10):
-            if processor.last_comm is None or time.time() - processor.last_comm > 420:
-                mqtt_client.publish(args.MQTT_TOPIC + "/command", payload="%.0f999|STATUS|||" % time.time(), retain=False, qos=2)
             pass
     except KeyboardInterrupt:
         pass
