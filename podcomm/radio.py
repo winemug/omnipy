@@ -1,101 +1,161 @@
-import time
-import datetime
+from random import randint
 import threading
-import Queue
-import array
-import manchester
-import crc
-import packet
 
-from rflib import (RfCat, ChipconUsbTimeoutException, MOD_2FSK, SYNCM_CARRIER_16_of_16,
-                    MFMCFG1_NUM_PREAMBLE0, MFMCFG1_NUM_PREAMBLE_2)
+from podcomm import crc
+from podcomm.rileylink import RileyLink, RileyLinkError, Response
+from .packet import Packet
+import logging
+from .message import Message, MessageState
+import time
+
+class CommunicationError(Exception):
+    pass
+
+
+class ProtocolError(Exception):
+    pass
 
 
 class Radio:
-    def __init__(self, usbInterface):
+    def __init__(self, msg_sequence = 0, pkt_sequence = 0):
         self.stopRadioEvent = threading.Event()
-        self.usbInterface = usbInterface
-        self.manchester = manchester.ManchesterCodec()
-
-    def start(self, recvCallback, listenAlways = True):
-        self.recvCallback = recvCallback
-        self.sendRequested = threading.Event()
-        self.sendComplete = threading.Event()
-        self.dataToSend = None
-        self.recvQueue = Queue.Queue()
+        self.messageSequence = msg_sequence
+        self.packetSequence = pkt_sequence
+        self.lastPacketReceived = None
         self.responseTimeout = 1000
-        self.listenAlways = listenAlways
-        self.radioThread = threading.Thread(target = self.radioLoop)
-        self.radioThread.start()
-        self.sendComplete.set()
+        self.rileyLink = RileyLink()
+
+    def __logPacket(self, p):
+        logging.debug("Packet received: %s" % p)
+
+    def __logMessage(self, msg):
+        logging.debug("Message received: %s" % msg)
+
+    def start(self):
+        self.lastPacketReceived = None
+        self.responseTimeout = 1000
+        self.rileyLink.connect()
+        self.rileyLink.init_radio()
+        self.rileyLink.disconnect()
 
     def stop(self):
-        self.stopRadioEvent.set()
-        self.radioThread.join()
+        pass
 
-    def send(self, packet, responseTimeout = 1000):
-        data = packet.data
-        data += chr(crc.crc8(data))
-        data = self.manchester.encode(data)
-        self.sendComplete.wait()
-        self.sendComplete.clear()
-        self.dataToSend = data
-        self.responseTimeout = responseTimeout
-        self.sendRequested.set()
-        self.sendComplete.wait()
+    def listenForAnyPacket(self, timeout):
+        pass
 
-    def initializeRfCat(self):
-        rfc = RfCat(self.usbInterface, debug=False)
-        rfc.setFreq(433.91e6)
-        rfc.setMdmModulation(MOD_2FSK)
-        rfc.setMdmDeviatn(26370)
-        rfc.setPktPQT(1)
-        rfc.setMdmSyncMode(SYNCM_CARRIER_16_of_16)
-        rfc.makePktFLEN(80)
-        rfc.setEnableMdmManchester(False)
-        rfc.setMdmDRate(40625)
-        rfc.setRFRegister(0xdf18, 0x70)
-        rfc.setMdmNumPreamble(MFMCFG1_NUM_PREAMBLE0)
-        rfc.setMdmSyncWord(0xa55a)
-        return rfc
+    def sendRequestToPod(self, message, responseHandler = None):
+        try:
+            self.rileyLink.connect()
+            self.rileyLink.init_radio()
+            while True:
+                time.sleep(3)
+                message.sequence = self.messageSequence
+                logging.debug("SENDING MSG: %s" % message)
+                packets = message.getPackets()
+                received = None
 
-    def radioLoop(self):
-        rfc = self.initializeRfCat()
+                for i in range(0, len(packets)):
+                    packet = packets[i]
+                    if i == len(packets)-1:
+                        exp = "POD"
+                    else:
+                        exp = "ACK"
+                    received = self.__sendPacketAndGetPacketResponse(packet, exp)
+                    if received is None:
+                        raise CommunicationError()
 
-        pp = threading.Thread(target = self.recvProcessor)
-        pp.start()
-        waitForSend = 0 if self.listenAlways else 3000
-        while not self.stopRadioEvent.wait(0):
-            try:
-                if self.sendRequested.wait(waitForSend):
-                    rfc.RFxmit(self.dataToSend)
-                    self.sendRequested.clear()
-                    self.sendComplete.set()
-                    recvdata = rfc.RFrecv(timeout = self.responseTimeout)
-                elif self.listenAlways:
-                    recvdata = rfc.RFrecv(timeout = 3000)
-                if recvdata is not None:
-                    self.recvQueue.put(recvdata)
-            except ChipconUsbTimeoutException:
-                pass
+                podResponse = Message.fromPacket(received)
+                if podResponse is None:
+                    raise ProtocolError()
 
-        rfc.cleanup()
-        self.recvQueue.put(None)
-        self.recvQueue.task_done()
+                while podResponse.state == MessageState.Incomplete:
+                    ackPacket = Packet.Ack(message.address, False)
+                    received = self.__sendPacketAndGetPacketResponse(ackPacket, "CON")
+                    podResponse.addConPacket(received)
 
-        pp.join()
+                if podResponse.state == MessageState.Invalid:
+                    raise ProtocolError()
 
-    def recvProcessor(self):
+                logging.debug("RECEIVED MSG: %s" % podResponse)
+                respondResult = None
+                if responseHandler is not None:
+                    respondResult = responseHandler(message, podResponse)
+
+                if respondResult is None:
+                    ackPacket = Packet.Ack(message.address, True)
+                    self.__sendPacketUntilQuiet(ackPacket)
+                    self.messageSequence = (podResponse.sequence + 1) % 16
+                    return podResponse
+                else:
+                    message = respondResult
+        finally:
+            self.rileyLink.disconnect()
+
+    def __sendPacketUntilQuiet(self, packetToSend, trackSequencing = True):
+        if trackSequencing:
+            packetToSend.setSequence(self.packetSequence)
+        logging.debug("SENDING PACKET expecting quiet: %s" % packetToSend)
+        data = packetToSend.data
+        data += bytes([crc.crc8(data)])
+
         while True:
-            rfdata = self.recvQueue.get(block = True)
-            if rfdata is None:
-                break
-                
-            data, timestamp = rfdata
-            data = self.manchester.decode(data)
-            if data is not None and len(data) > 1:
-                calc = crc.crc8(data[0:-1])
-                if ord(data[-1]) == calc:
-                    p = packet.Packet(timestamp, data[:-1])
-                    self.recvCallback(p)
+            self.rileyLink.send_final_packet(data, 10, 25, 42)
+            timed_out = False
+            try:
+                received = self.rileyLink.get_packet(300)
+            except RileyLinkError as rle:
+                if rle.response_code != Response.RX_TIMEOUT:
+                    raise rle
+                else:
+                    timed_out = True
 
+            if not timed_out:
+                p = self.__getPacket(received)
+                if p is not None:
+                    continue
+
+            if trackSequencing:
+                self.packetSequence = (self.packetSequence + 1) % 32
+            return
+
+    def __sendPacketAndGetPacketResponse(self, packetToSend, expectedType, trackSequencing = True):
+        expectedAddress = packetToSend.address
+        while True:
+            if trackSequencing:
+                packetToSend.setSequence(self.packetSequence)
+            logging.debug("SENDING PACKET expecting response: %s" % packetToSend)
+            data = packetToSend.data
+            data += bytes([crc.crc8(data)])
+            received = self.rileyLink.send_and_receive_packet(data, 0, 0, 300, 30, 127)
+            p = self.__getPacket(received)
+            if p is not None and p.address == expectedAddress:
+                logging.debug("RECEIVED PACKET: %s" % p)
+                packet_accepted = False
+                if expectedType is None:
+                    if self.lastPacketReceived is None:
+                        packet_accepted = True
+                    else:
+                        if self.lastPacketReceived.data != p.data:
+                            packet_accepted = True
+                else:
+                    if p.type == expectedType:
+                        packet_accepted = True
+
+                if packet_accepted:
+                    logging.debug("received packet accepted. %s" % p)
+                    if trackSequencing:
+                        self.packetSequence = (p.sequence + 1) % 32
+                    self.lastPacketReceived = p
+                    return p
+                else:
+                    logging.debug("received packet does not match expected criteria. %s" % p)
+                    if trackSequencing:
+                        self.packetSequence = (p.sequence + 1) % 32
+
+    def __getPacket(self, data):
+        if data is not None and len(data) > 2:
+            calc = crc.crc8(data[2:-1])
+            if data[-1] == calc:
+                return Packet(0, data[2:-1])
+        return None
