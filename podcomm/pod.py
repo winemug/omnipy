@@ -54,7 +54,7 @@ class Pod:
         self.progress=PodProgress.InitialState
         self.basalState=BasalState.NotRunning
         self.bolusState=BolusState.NotRunning
-        self.alarms=[]
+        self.alarm=0
         self.reservoir=0
         self.activeMinutes=0
         self.faulted = False
@@ -87,7 +87,7 @@ class Pod:
                 "Progress": p.progress,
                 "Basal": p.basalState,
                 "Bolus": p.bolusState,
-                "Alarms": p.alarms,
+                "Alarm": p.alarm,
                 "Reservoir": p.reservoir,
                 "ActiveMinutes":p.activeMinutes,
                 "Faulted":p.faulted
@@ -133,7 +133,7 @@ class Pod:
         p.progress=d["Status"]["Progress"]
         p.basalState=d["Status"]["Basal"]
         p.bolusState=d["Status"]["Bolus"]
-        p.alarms=d["Status"]["Alarms"]
+        p.alarm=d["Status"]["Alarm"]
         p.reservoir=d["Status"]["Reservoir"]
         p.activeMinutes=d["Status"]["ActiveMinutes"]
         p.faulted=d["Status"]["Faulted"]
@@ -200,23 +200,7 @@ class Pod:
 
         p.progress = delivery & 0xF
 
-        alarms = []
-        # if podAlarm & 0x40 > 0:
-        #     alarms.append(PodAlarm.Event14)
-        # if podAlarm & 0x20 > 0:
-        #     alarms.append(PodAlarm.PodExpired)
-        # if podAlarm & 0x10 > 0:
-        #     alarms.append(PodAlarm.InsulinSuspendPeriodEnded)
-        # if podAlarm & 0x08 > 0:
-        #     alarms.append(PodAlarm.InsulinSuspended)
-        # if podAlarm & 0x04 > 0:
-        #     alarms.append(PodAlarm.LessThan50ULeft)
-        # if podAlarm & 0x02 > 0:
-        #     alarms.append(PodAlarm.PodExpiresInAnHour)
-        # if podAlarm & 0x01 > 0:
-        #     alarms.append(PodAlarm.PodDeactivated)
-
-        p.alarms = alarms        
+        p.alarm = podAlarm
         p.reservoir = podReservoir * 0.05
         p.msgSequence = msgSequence
         p.totalInsulin = insulinPulses * 0.05
@@ -229,7 +213,7 @@ class Pod:
 
         logLine = "%d\t%s\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\n" % \
             (p.lastUpdated, ds, p.totalInsulin, p.canceledInsulin, p.activeMinutes, p.progress, \
-            p.bolusState, p.basalState, p.reservoir, p.alarms, p.faulted, p.lot, p.tid)
+            p.bolusState, p.basalState, p.reservoir, p.alarm, p.faulted, p.lot, p.tid)
 
         mode = "w"
         logFilePath = self.path + ".log"
@@ -241,12 +225,11 @@ class Pod:
         stream.write(logLine)
         stream.close()
 
-
         self.Save()
 
     def __str__(self):
         p = self
         state = "Lot %d Tid %d Address 0x%8X Faulted: %s\n" % (p.lot, p.tid, p.address, p.faulted)
-        state += "Updated %s\nState: %s\nAlarms: %s\nBasal: %s\nBolus: %s\nReservoir: %dU\nInsulin delivered: %fU canceled: %fU\nTime active: %s" % (p.lastUpdated, p.progress, p.alarms, p.basalState, p.bolusState,
+        state += "Updated %s\nState: %s\nAlarm: %s\nBasal: %s\nBolus: %s\nReservoir: %dU\nInsulin delivered: %fU canceled: %fU\nTime active: %s" % (p.lastUpdated, p.progress, p.alarm, p.basalState, p.bolusState,
                 p.reservoir, p.totalInsulin, p.canceledInsulin, timedelta(minutes=p.activeMinutes))
         return state

@@ -91,9 +91,9 @@ class Processor:
 
         pod = self.pdm.pod
 
-        msg += "%d|%d|%f|%f|%d|%d|%d|%d|%s|%s|%d|%d" % \
+        msg += "%d|%d|%f|%f|%d|%d|%d|%d|%d|%s|%d|%d" % \
                (pod.lastUpdated, pod.activeMinutes, pod.totalInsulin, pod.canceledInsulin, pod.progress,
-                pod.bolusState, pod.basalState, pod.reservoir, pod.alarms, pod.faulted, pod.lot, pod.tid)
+                pod.bolusState, pod.basalState, pod.reservoir, pod.alarm, pod.faulted, pod.lot, pod.tid)
 
         logging.debug("Sending response: " + msg)
 
