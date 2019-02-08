@@ -21,6 +21,7 @@ Please click on the [wiki link](https://github.com/winemug/omnipy/wiki) for info
   
 # What's next?
 
-This was intended to be a throw-away prototype and I want to keep it that way. Python is not my language of choice and the raspberry pi and android are redundant, as both have enough processing power to perform the operations.
+This was intended to be a throw-away prototype and I want to keep it that way. Python is not my language of choice and the raspberry pi and android are redundant, as both have enough processing power to perform the operations. My focus on Omnipod related development is on the [OmniCore](https://github.com/winemug/OmniCore) project, which will be ready for public testing by end of February 2019.
 
-I will however fix any issues that gets reported and please do report anything that you find.
+In the mean time, please do report any issues you find and I will do my best to get it fixed.
+
