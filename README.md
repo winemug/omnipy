@@ -16,12 +16,11 @@ You are welcome to test it and report issues, but be aware you are doing this on
 i.e., these:
 ![rileylink android raspberrypi](https://i.imgur.com/5eJU85Z.jpg)
 
-<tba links and more info>
-
-# How it works
-<tbd>
+# How it works and how to set it up
+Please click on the [wiki link](https://github.com/winemug/omnipy/wiki) for information on how it works and how to set it up.
   
-# How to set it up
-<tbd>
+# What's next?
 
-<tba credits>
+This was intended to be a throw-away prototype and I want to keep it that way. Python is not my language of choice and the raspberry pi and android are redundant, as both have enough processing power to perform the operations.
+
+I will however fix any issues that gets reported and please do report anything that you find.
