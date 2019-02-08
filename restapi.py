@@ -69,5 +69,31 @@ def bolus():
     except:
         return respond_error(msg = sys.exc_info()[0])
 
+@app.route("/pdm/cancelbolus")
+def cancelbolus():
+    try:
+        self.pdm.cancelbolus()
+        return respond(True, pdm.pod.__dict__)
+    except:
+        return respond_error(msg = sys.exc_info()[0])
+
+@app.route("/pdm/tempbasal")
+def tempbasal():
+    try:
+        amount = Decimal(request.args.get('amount'))
+        hours = Decimal(request.args.get('hours'))
+        pdm.setTempBasal(amount, hours, False)
+        return respond(True, pdm.pod.__dict__)
+    except:
+        return respond_error(msg = sys.exc_info()[0])
+
+@app.route("/pdm/canceltempbasal")
+def canceltempbasal():
+    try:
+        pdm.cancelTempBasal()
+        return respond(True, pdm.pod.__dict__)
+    except:
+        return respond_error(msg = sys.exc_info()[0])
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=4444)
