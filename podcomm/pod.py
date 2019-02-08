@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-import json
+import simplejson as json
 import struct
 from datetime import datetime, timedelta
 import os
@@ -73,51 +73,15 @@ class Pod:
         self.nonceSeed=0
 
         self.maximumBolus=15
-        self.maximumTempBasal=10
+        self.maximumTempBasal=15
         self.utcOffset=0
         self.path = "omni.json"
 
     def Save(self, save_as = None):
-        p = self
-        d = {
-            "Lot": p.lot,
-            "Tid": p.tid,
-            "Status":{
-                "LastUpdated": p.lastUpdated,
-                "Progress": p.progress,
-                "Basal": p.basalState,
-                "Bolus": p.bolusState,
-                "Alarm": p.alarm,
-                "Reservoir": p.reservoir,
-                "ActiveMinutes":p.activeMinutes,
-                "Faulted":p.faulted
-            },
-            "Insulin":{
-                "Given": p.totalInsulin,
-                "Canceled": p.canceledInsulin,
-            },
-            "Schedules":{
-                "Basal":p.basalSchedule,
-                "TempBasal":p.tempBasal,
-                "ExtendedBolus":p.extendedBolus
-            },
-            "Radio":{
-                "Address":"0x%8X" % p.address,
-                "PacketSequence":p.packetSequence,
-                "MessageSequence":p.msgSequence,
-                "Nonce":p.lastNonce,
-                "Seed":p.nonceSeed,
-            },
-            "Settings":{
-                "MaximumBolus":p.maximumBolus,
-                "MaximumTempBasal":p.maximumTempBasal,
-                "UTCOffset":p.utcOffset
-            }
-        }
         if save_as is not None:
             self.path = save_as
         stream = open(self.path, "w")
-        json.dump(d, stream, indent=4, sort_keys=True)
+        json.dump(self.__dict__, stream, indent=4, sort_keys=True)
         stream.close()
 
     @staticmethod
@@ -126,34 +90,34 @@ class Pod:
         d = json.load(stream)
         p = Pod()
         p.path = path
-        p.lot=d["Lot"]
-        p.tid=d["Tid"]
-        
-        p.lastUpdated=d["Status"]["LastUpdated"]
-        p.progress=d["Status"]["Progress"]
-        p.basalState=d["Status"]["Basal"]
-        p.bolusState=d["Status"]["Bolus"]
-        p.alarm=d["Status"]["Alarm"]
-        p.reservoir=d["Status"]["Reservoir"]
-        p.activeMinutes=d["Status"]["ActiveMinutes"]
-        p.faulted=d["Status"]["Faulted"]
+        p.lot=d["lot"]
+        p.tid=d["tid"]
+       
+        p.lastUpdated=d["lastUpdated"]
+        p.progress=d["progress"]
+        p.basalState=d["basalState"]
+        p.bolusState=d["bolusState"]
+        p.alarm=d["alarm"]
+        p.reservoir=d["reservoir"]
+        p.activeMinutes=d["activeMinutes"]
+        p.faulted=d["faulted"]
 
-        p.totalInsulin=d["Insulin"]["Given"]
-        p.canceledInsulin=d["Insulin"]["Canceled"]
+        p.totalInsulin=d["totalInsulin"]
+        p.canceledInsulin=d["canceledInsulin"]
 
-        p.basalSchedule=d["Schedules"]["Basal"]
-        p.tempBasal=d["Schedules"]["TempBasal"]
-        p.extendedBolus=d["Schedules"]["ExtendedBolus"]
+        p.basalSchedule=d["basalSchedule"]
+        p.tempBasal=d["tempBasal"]
+        p.extendedBolus=d["extendedBolus"]
 
-        p.address=int(d["Radio"]["Address"], 16)
-        p.packetSequence=d["Radio"]["PacketSequence"]
-        p.msgSequence=d["Radio"]["MessageSequence"]
-        p.lastNonce=d["Radio"]["Nonce"]
-        p.nonceSeed=d["Radio"]["Seed"]
+        p.address=d["address"]
+        p.packetSequence=d["packetSequence"]
+        p.msgSequence=d["msgSequence"]
+        p.lastNonce=d["lastNonce"]
+        p.nonceSeed=d["nonceSeed"]
 
-        p.maximumBolus=d["Settings"]["MaximumBolus"]
-        p.maximumTempBasal=d["Settings"]["MaximumTempBasal"]
-        p.utcOffset=d["Settings"]["UTCOffset"]
+        p.maximumBolus=d["maximumBolus"]
+        p.maximumTempBasal=d["maximumTempBasal"]
+        p.utcOffset=d["utcOffset"]
 
         return p
 
@@ -168,7 +132,6 @@ class Pod:
             self.progress = errMessageBody[1]
 
     def setupPod(self, messageBody):
-        # struct.unpack(">B")
         pass
 
     def updateStatus(self, statusMessageBody):
