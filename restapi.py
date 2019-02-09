@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import logging
 import os
 import sys
 import simplejson as json
@@ -10,6 +11,10 @@ from podcomm.rileylink import RileyLink
 from podcomm.crc import crc8
 from decimal import *
 import base64
+from Crypto.Cipher import AES
+
+TOKENS_FILE = ".tokens"
+KEY_FILE = ".key"
 
 app = Flask(__name__)
 
@@ -19,26 +24,32 @@ def get_pdm():
     return pdm
 
 def respond_ok(d = {}):
-    return json.dumps({ "success": True, "result:": d})
+    return json.dumps({ "success": True, "result": d})
 
 def respond_error(msg = "Unknown"):
-    return json.dumps({ "success": False, "error:": msg})
+    return json.dumps({ "success": False, "error": msg})
 
 def verify_auth(request):
-    t = request.args.get('token')
-    if t is not None:
-        token = base64.b64decode(t)
-        delete_token(token)
-        return
-    raise ValueError("Authentication failed")
+    i = request.args.get("i")
+    a = request.args.get("auth")
+    if i is None or a is None:
+        raise ValueError("Authentication failed")
+    
+    iv = base64.b64decode(i)
+    auth = base64.b64decode(a)
 
-def delete_token(token):
-    with open(".tokens", "a+b") as tokens:
+    with open(KEY_FILE, "rb") as keyfile:
+        key = keyfile.read(32)
+
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    token = cipher.decrypt(auth)
+
+    with open(TOKENS_FILE, "a+b") as tokens:
         tokens.seek(0, 0)
         found = False
         while True:
-            read_token = tokens.read(32)
-            if len(read_token) < 32:
+            read_token = tokens.read(16)
+            if len(read_token) < 16:
                 break
             if read_token == token:
                 found = True
@@ -46,35 +57,27 @@ def delete_token(token):
 
         if found:
             while True:
-                read_token = tokens.read(32)
-                if len(read_token) < 32:
-                    tokens.seek(-32 - len(read_token), 1)
+                read_token = tokens.read(16)
+                if len(read_token) < 16:
+                    tokens.seek(-16 - len(read_token), 1)
                     break
-                tokens.seek(-64, 1)
+                tokens.seek(-32, 1)
                 tokens.write(read_token)
-                tokens.seek(32, 1)
+                tokens.seek(16, 1)
             tokens.truncate()
 
     if not found:
-        raise ValueError("Invalid token")
+        raise ValueError("Invalid authentication token")
 
-@app.route("/pdm/test")
-def test():
-    try:
-        verify_auth(request)
-        return respond_ok("goooood")
-    except:
-        return respond_error(msg = str(sys.exc_info()))
-
-@app.route("/pdm/token")
+@app.route("/omnipy/token")
 def create_token():
     try:
-        with open(".tokens", "a+b") as tokens:
-            token = bytes(os.urandom(32))
+        with open(TOKENS_FILE, "a+b") as tokens:
+            token = bytes(os.urandom(16))
             tokens.write(token)
         return respond_ok(base64.b64encode(token))
-    except:
-        return respond_error(msg = str(sys.exc_info()))
+    except Exception as e:
+        return respond_error(msg = str(e))
 
 @app.route("/pdm/status")
 def get_status():
@@ -82,17 +85,17 @@ def get_status():
         verify_auth(request)
         pdm = get_pdm()
         pdm.updatePodStatus()
-        return respond(True, pdm.pod.__dict__)
-    except:
-        return respond_error(msg = sys.exc_info()[0])
+        return respond_ok(pdm.pod.__dict__)
+    except Exception as e:
+        return respond_error(msg = str(e))
 
 @app.route("/pdm/newpod")
 def grab_pod():
     try:
-        verify_auth(request, g)
+        verify_auth(request)
         pod = Pod()
-        pod.lot = request.args.get('lot')
-        pod.tid = request.args.get('tid')
+        pod.lot = int(request.args.get('lot'))
+        pod.tid = int(request.args.get('tid'))
 
         r = RileyLink()
         r.connect()
@@ -113,51 +116,53 @@ def grab_pod():
         pod.address = p.address
         pod.Save("pod.json")
         return respond_ok({"address": p.address})
-    except:
-        return respond_error(msg = sys.exc_info()[0])
+    except Exception as e:
+        return respond_error(msg = str(e))
 
 @app.route("/pdm/bolus")
 def bolus():
     try:
-        verify_auth(request, g)
+        verify_auth(request)
+
         pdm = get_pdm()
         amount = Decimal(request.args.get('amount'))
         pdm.bolus(amount, False)
-        return respond(True, pdm.pod.__dict__)
-    except:
-        return respond_error(msg = sys.exc_info()[0])
+        return respond_ok(pdm.pod.__dict__)
+    except Exception as e:
+        return respond_error(msg = str(e))
 
 @app.route("/pdm/cancelbolus")
 def cancelbolus():
     try:
-        verify_auth(request, g)
+        verify_auth(request)
+
         pdm = get_pdm()
         pdm.cancelbolus()
-        return respond(True, pdm.pod.__dict__)
-    except:
-        return respond_error(msg = sys.exc_info()[0])
+        return respond_ok(pdm.pod.__dict__)
+    except Exception as e:
+        return respond_error(msg = str(e))
 
 @app.route("/pdm/tempbasal")
 def tempbasal():
     try:
-        verify_auth(request, g)
+        verify_auth(request)
         pdm = get_pdm()
         amount = Decimal(request.args.get('amount'))
         hours = Decimal(request.args.get('hours'))
         pdm.setTempBasal(amount, hours, False)
-        return respond(True, pdm.pod.__dict__)
-    except:
-        return respond_error(msg = sys.exc_info()[0])
+        return respond_ok(pdm.pod.__dict__)
+    except Exception as e:
+        return respond_error(msg = str(e))
 
 @app.route("/pdm/canceltempbasal")
 def canceltempbasal():
     try:
-        verify_auth(request, g)
+        verify_auth(request)
         pdm = get_pdm()
         pdm.cancelTempBasal()
-        return respond(True, pdm.pod.__dict__)
-    except:
-        return respond_error(msg = sys.exc_info()[0])
+        return respond_ok(pdm.pod.__dict__)
+    except Exception as e:
+        return respond_error(msg = str(e))
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=4444)
