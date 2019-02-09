@@ -63,8 +63,9 @@ def grab_pod():
 @app.route("/pdm/bolus")
 def bolus():
     try:
+        pdm = get_pdm()
         amount = Decimal(request.args.get('amount'))
-        self.pdm.bolus(amount, False)
+        pdm.bolus(amount, False)
         return respond(True, pdm.pod.__dict__)
     except:
         return respond_error(msg = sys.exc_info()[0])
@@ -72,7 +73,8 @@ def bolus():
 @app.route("/pdm/cancelbolus")
 def cancelbolus():
     try:
-        self.pdm.cancelbolus()
+        pdm = get_pdm()
+        pdm.cancelbolus()
         return respond(True, pdm.pod.__dict__)
     except:
         return respond_error(msg = sys.exc_info()[0])
@@ -80,6 +82,7 @@ def cancelbolus():
 @app.route("/pdm/tempbasal")
 def tempbasal():
     try:
+        pdm = get_pdm()
         amount = Decimal(request.args.get('amount'))
         hours = Decimal(request.args.get('hours'))
         pdm.setTempBasal(amount, hours, False)
@@ -90,6 +93,7 @@ def tempbasal():
 @app.route("/pdm/canceltempbasal")
 def canceltempbasal():
     try:
+        pdm = get_pdm()
         pdm.cancelTempBasal()
         return respond(True, pdm.pod.__dict__)
     except:
