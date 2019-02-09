@@ -69,7 +69,7 @@ class Pod:
         self.address=0xffffffff
         self.packetSequence=0
         self.msgSequence=0
-        self.lastNonce=0
+        self.lastNonce=None
         self.nonceSeed=0
 
         self.maximumBolus=15
@@ -80,44 +80,43 @@ class Pod:
     def Save(self, save_as = None):
         if save_as is not None:
             self.path = save_as
-        stream = open(self.path, "w")
-        json.dump(self.__dict__, stream, indent=4, sort_keys=True)
-        stream.close()
+        with open(self.path, "w") as stream:
+            json.dump(self.__dict__, stream, indent=4, sort_keys=True)
 
     @staticmethod
     def Load(path):
-        stream =  open(path, "r")
-        d = json.load(stream)
-        p = Pod()
-        p.path = path
-        p.lot=d["lot"]
-        p.tid=d["tid"]
-       
-        p.lastUpdated=d["lastUpdated"]
-        p.progress=d["progress"]
-        p.basalState=d["basalState"]
-        p.bolusState=d["bolusState"]
-        p.alarm=d["alarm"]
-        p.reservoir=d["reservoir"]
-        p.activeMinutes=d["activeMinutes"]
-        p.faulted=d["faulted"]
+        with open(path, "r") as stream:
+            d = json.load(stream)
+            p = Pod()
+            p.path = path
+            p.lot=d["lot"]
+            p.tid=d["tid"]
+        
+            p.lastUpdated=d["lastUpdated"]
+            p.progress=d["progress"]
+            p.basalState=d["basalState"]
+            p.bolusState=d["bolusState"]
+            p.alarm=d["alarm"]
+            p.reservoir=d["reservoir"]
+            p.activeMinutes=d["activeMinutes"]
+            p.faulted=d["faulted"]
 
-        p.totalInsulin=d["totalInsulin"]
-        p.canceledInsulin=d["canceledInsulin"]
+            p.totalInsulin=d["totalInsulin"]
+            p.canceledInsulin=d["canceledInsulin"]
 
-        p.basalSchedule=d["basalSchedule"]
-        p.tempBasal=d["tempBasal"]
-        p.extendedBolus=d["extendedBolus"]
+            p.basalSchedule=d["basalSchedule"]
+            p.tempBasal=d["tempBasal"]
+            p.extendedBolus=d["extendedBolus"]
 
-        p.address=d["address"]
-        p.packetSequence=d["packetSequence"]
-        p.msgSequence=d["msgSequence"]
-        p.lastNonce=d["lastNonce"]
-        p.nonceSeed=d["nonceSeed"]
+            p.address=d["address"]
+            p.packetSequence=d["packetSequence"]
+            p.msgSequence=d["msgSequence"]
+            p.lastNonce=d["lastNonce"]
+            p.nonceSeed=d["nonceSeed"]
 
-        p.maximumBolus=d["maximumBolus"]
-        p.maximumTempBasal=d["maximumTempBasal"]
-        p.utcOffset=d["utcOffset"]
+            p.maximumBolus=d["maximumBolus"]
+            p.maximumTempBasal=d["maximumTempBasal"]
+            p.utcOffset=d["utcOffset"]
 
         return p
 
