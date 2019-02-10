@@ -202,4 +202,6 @@ def canceltempbasal():
         return respond_error(msg = str(e))
 
 if __name__ == '__main__':
+    if os.path.isfile(TOKENS_FILE):
+        os.remove(TOKENS_FILE)
     app.run(host='0.0.0.0', port=4444)
