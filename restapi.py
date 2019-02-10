@@ -134,6 +134,18 @@ def set_pod_parameters():
     except Exception as e:
         return respond_error(msg = str(e))
 
+@app.route("/omnipy/limits")
+def set_limits():
+    try:
+        verify_auth(request)
+        pod = get_pod()
+        pod.maximumBolus = Double(request.args.get('maxbolus'))
+        pod.maximumTempBasal = Double(request.args.get('maxbasal'))
+        pod.Save()
+        return respond_ok()
+    except Exception as e:
+        return respond_error(msg = str(e))
+
 @app.route("/pdm/status")
 def get_status():
     try:
