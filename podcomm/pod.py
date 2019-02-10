@@ -75,11 +75,13 @@ class Pod:
         self.maximumBolus=15
         self.maximumTempBasal=15
         self.utcOffset=0
-        self.path = "omni.json"
+        self.path = None
 
     def Save(self, save_as = None):
         if save_as is not None:
             self.path = save_as
+        if self.path is None:
+            raise ValueError("No filename given")
         with open(self.path, "w") as stream:
             json.dump(self.__dict__, stream, indent=4, sort_keys=True)
 
