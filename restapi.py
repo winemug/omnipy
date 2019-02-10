@@ -15,13 +15,15 @@ from Crypto.Cipher import AES
 
 TOKENS_FILE = ".tokens"
 KEY_FILE = ".key"
+POD_FILE = "pod.json"
 
 app = Flask(__name__)
 
+def get_pod():
+    return Pod.Load(POD_FILE)
+
 def get_pdm():
-    pod = Pod.Load("pod.json")
-    pdm = Pdm(pod)
-    return pdm
+    return Pdm(get_pod())
 
 def respond_ok(d = {}):
     return json.dumps({ "success": True, "result": d})
@@ -112,8 +114,23 @@ def takeover():
             respond_error("No pdm packet detected")
 
         pod.address = p.address
-        pod.Save("pod.json")
+        pod.Save(POD_FILE)
         return respond_ok({"address": p.address})
+    except Exception as e:
+        return respond_error(msg = str(e))
+
+@app.route("/omnipy/parameters")
+def set_pod_parameters():
+    try:
+        verify_auth(request)
+        pod = get_pod()
+        pod.lot = int(request.args.get('lot'))
+        pod.tid = int(request.args.get('tid'))
+        pod.address = int(request.args.get('address'))
+        pod.nonceSeed = 0
+        pod.lastNonce = None
+        pod.Save()
+        return respond_ok()
     except Exception as e:
         return respond_error(msg = str(e))
 
