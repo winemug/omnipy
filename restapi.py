@@ -79,6 +79,14 @@ def create_token():
     except Exception as e:
         return respond_error(msg = str(e))
 
+@app.route("/omnipy/pwcheck")
+def check_password():
+    try:
+        verify_auth(request)
+        return respond_ok()
+    except Exception as e:
+        return respond_error(msg = str(e))
+
 @app.route("/pdm/status")
 def get_status():
     try:
