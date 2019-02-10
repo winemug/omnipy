@@ -10,8 +10,13 @@ from threading import RLock
 import time
 import logging
 
+PDM_LOCK_FILE = ".pdmlock"
+
 def currentTimestamp():
     return datetime.utcnow() - datetime.utcfromtimestamp(0)
+
+def pdmlock():
+    return open(PDM_LOCK_FILE, "w")
 
 def getPulsesForHalfHours(halfHourUnits):
     halfHourlyDeliverySubtotals = []
@@ -131,14 +136,11 @@ def getPulseIntervalEntries(halfHourUnits):
 
     return list2
 
-
-
 class PdmError(Exception):
     pass
 
 class Pdm:
     def __init__(self, pod, dryRun = False):
-        self.commandLock = RLock()
         self.nonce = Nonce(pod.lot, pod.tid, seekNonce = pod.lastNonce, seed = pod.nonceSeed)
         self.pod = pod
         self.radio = Radio(pod.msgSequence, pod.packetSequence)
@@ -174,8 +176,6 @@ class Pdm:
                 self.radio.stop()
 
     def initializePod(self, path, addressToAssign = None):
-        # with self.commandLock:
-
         #     if addressToAssign is None:
         #         addressToAssign = random.randint(0x20000000, 0x2FFFFFFF)
         #     success = False
@@ -195,13 +195,13 @@ class Pdm:
         pass
 
     def deactivatePod(self):
-        logging.debug("deactivating pod")
-        self.__savePod()
+        #logging.debug("deactivating pod")
+        #self.__savePod()
         pass
 
     def updatePodStatus(self):
         logging.debug("updating pod status")
-        with self.commandLock:
+        with pdmlock():
             dnts = (datetime.utcnow() - datetime.utcfromtimestamp(0)).total_seconds()
             diffsecs = dnts - self.pod.lastUpdated
             if diffsecs < 7 and diffsecs > 0:
@@ -216,7 +216,7 @@ class Pdm:
 
     def bolus(self, bolusAmount, waitUntilFinished = True, confidenceReminder = False):
         logging.debug("enacting bolus: %f units" % bolusAmount)
-        with self.commandLock:
+        with pdmlock():
             if self.pod is None or not self.pod.isInitialized():
                 raise PdmError()
             if bolusAmount > self.pod.maximumBolus:
@@ -282,7 +282,7 @@ class Pdm:
 
     def setBasalSchedule(self, basalSchedule):
         raise PdmError() # not implemented
-        with self.commandLock:
+        with pdmlock():
 
             self.updatePodStatus()
 
@@ -392,7 +392,7 @@ class Pdm:
 
     def __cancelActivity(self, cancelBasal = False, cancelBolus= False, cancelTempBasal = False, alarm = True):
         logging.debug("Running cancel activity for basal: %s - bolus: %s - tempBasal: %s" %(cancelBasal, cancelBolus, cancelTempBasal))
-        with self.commandLock:
+        with pdmlock():
             commandBody = struct.pack(">I", self.nonce.getNext())
             if alarm:
                 c = 0x60
@@ -413,7 +413,7 @@ class Pdm:
             self.__savePod()
 
     def setTempBasal(self, basalRate, hours, confidenceReminder = False):
-        with self.commandLock:
+        with pdmlock():
 
             halfHours = int(hours * Decimal(2))
 
