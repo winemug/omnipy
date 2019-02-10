@@ -87,18 +87,8 @@ def check_password():
     except Exception as e:
         return respond_error(msg = str(e))
 
-@app.route("/pdm/status")
-def get_status():
-    try:
-        verify_auth(request)
-        pdm = get_pdm()
-        pdm.updatePodStatus()
-        return respond_ok(pdm.pod.__dict__)
-    except Exception as e:
-        return respond_error(msg = str(e))
-
-@app.route("/pdm/newpod")
-def grab_pod():
+@app.route("/omnipy/takeover")
+def takeover():
     try:
         verify_auth(request)
         pod = Pod()
@@ -124,6 +114,16 @@ def grab_pod():
         pod.address = p.address
         pod.Save("pod.json")
         return respond_ok({"address": p.address})
+    except Exception as e:
+        return respond_error(msg = str(e))
+
+@app.route("/pdm/status")
+def get_status():
+    try:
+        verify_auth(request)
+        pdm = get_pdm()
+        pdm.updatePodStatus()
+        return respond_ok(pdm.pod.__dict__)
     except Exception as e:
         return respond_error(msg = str(e))
 
