@@ -84,9 +84,8 @@ class RileyLink:
         self.data_handle = None
         if address is None:
             if os.path.exists(".rladdr"):
-                stream = open(".rladdr", "r")
-                address = stream.read()
-                stream.close
+                with open(".rladdr", "r") as stream:
+                    address = stream.read()
         self.address = address
         self.service = None
         self.response_handle = None
@@ -134,7 +133,7 @@ class RileyLink:
         self.p.disconnect()
 
     def get_packet(self, timeout=100):
-        return self.__command(Command.GET_PACKET, struct.pack(">BL", 0, timeout), timeout=timeout/1000)
+        return self.__command(Command.GET_PACKET, struct.pack(">BL", 0, timeout), timeout=(timeout/1000)+2)
 
     def init_radio(self):
         response = self.__command(Command.READ_REGISTER, bytes([Register.SYNC1]))
@@ -174,22 +173,30 @@ class RileyLink:
     def send_and_receive_packet(self, packet, repeat_count, delay_ms, timeout_ms, retry_count, preamble_ext_ms):
 
         logging.debug("sending packet: %s" % packet.hex())
-        return self.__command(Command.SEND_AND_LISTEN,
-                              struct.pack(">BBHBLBH",
-                                          0,
-                                          repeat_count,
-                                          delay_ms,
-                                          0,
-                                          timeout_ms,
-                                          retry_count,
-                                          preamble_ext_ms)
-                                          + packet,
-                              timeout=30)
+        try:
+            return self.__command(Command.SEND_AND_LISTEN,
+                                  struct.pack(">BBHBLBH",
+                                              0,
+                                              repeat_count,
+                                              delay_ms,
+                                              0,
+                                              timeout_ms,
+                                              retry_count,
+                                              preamble_ext_ms)
+                                              + packet,
+                                  timeout=30)
+        except RileyLinkError as rle:
+            logging.error("Error while sending and receiving data: %s", rle)
+            return None
 
     def send_final_packet(self, packet, repeat_count, delay_ms, preamble_extension_ms):
-        return self.__command(Command.SEND_PACKET, struct.pack(">BBHH", 0, repeat_count, delay_ms,
-                                                               preamble_extension_ms) + packet,
-                              timeout=30)
+        try:
+            return self.__command(Command.SEND_PACKET, struct.pack(">BBHH", 0, repeat_count, delay_ms,
+                                                                   preamble_extension_ms) + packet,
+                                  timeout=30)
+        except RileyLinkError as rle:
+            logging.error("Error while sending data: %s", rle)
+            raise
 
     def __command(self, command_type, command_data=None, timeout=2, throw_on_timeout=True):
         if command_data is None:
@@ -199,22 +206,23 @@ class RileyLink:
 
         self.p.writeCharacteristic(self.data_handle, data, withResponse=True)
 
-        while True:
-            if self.p.waitForNotifications(timeout):
-                response = self.p.readCharacteristic(self.data_handle)
-                if response is None or len(response) == 0:
-                    raise RileyLinkError("RileyLink returned no response")
-                else:
-                    if response[0] == Response.COMMAND_SUCCESS:
-                        return response[1:]
-                    elif response[0] == Response.COMMAND_INTERRUPTED:
-                        logging.warning("A previous command was interrupted - rereading response")
-                        continue
-                    else:
-                        raise RileyLinkError("RileyLink returned error code: %02X. Additional response data: %s"
-                                             % (response[0], response[1:]), response[0])
+        if self.p.waitForNotifications(timeout):
+            response = self.p.readCharacteristic(self.data_handle)
+            if response is None or len(response) == 0:
+                raise RileyLinkError("RileyLink returned no response")
             else:
-                if throw_on_timeout:
-                    raise RileyLinkError("Timed out while waiting for a response from RileyLink", Response.RX_TIMEOUT)
-                break
+                if response[0] == Response.COMMAND_SUCCESS:
+                    return response[1:]
+                elif response[0] == Response.COMMAND_INTERRUPTED:
+                    logging.warning("A previous command was interrupted")
+                    return response[1:]
+                elif response[0] == Response.RX_TIMEOUT:
+                    if throw_on_timeout:
+                        raise RileyLinkError("Connection timed out while waiting for a response from the pod", response[0])
+                else:
+                    raise RileyLinkError("RileyLink returned error code: %02X. Additional response data: %s"
+                                         % (response[0], response[1:]), response[0])
+        else:
+            if throw_on_timeout:
+                raise RileyLinkError("Timed out while waiting for a response from RileyLink")
 

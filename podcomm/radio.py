@@ -8,12 +8,15 @@ import logging
 from .message import Message, MessageState
 import time
 
-class CommunicationError(Exception):
-    pass
+
+class RadioError(Exception):
+    def __init__(self, message="Unknown"):
+        self.error_message = message
 
 
 class ProtocolError(Exception):
-    pass
+    def __init__(self, message="Unknown"):
+        self.error_message = message
 
 
 class Radio:
@@ -53,7 +56,7 @@ class Radio:
                         exp = "ACK"
                     received = self.__sendPacketAndGetPacketResponse(packet, exp)
                     if received is None:
-                        raise CommunicationError()
+                        raise ProtocolError()
 
                 podResponse = Message.fromPacket(received)
                 if podResponse is None:
@@ -94,6 +97,7 @@ class Radio:
         while True:
             self.rileyLink.send_final_packet(data, 10, 25, 42)
             timed_out = False
+            received = None
             try:
                 received = self.rileyLink.get_packet(300)
             except RileyLinkError as rle:
@@ -102,7 +106,7 @@ class Radio:
                 else:
                     timed_out = True
 
-            if not timed_out:
+            if not timed_out and received is not None:
                 p = self.__getPacket(received)
                 if p is not None:
                     continue
@@ -111,9 +115,10 @@ class Radio:
                 self.packetSequence = (self.packetSequence + 1) % 32
             return
 
-    def __sendPacketAndGetPacketResponse(self, packetToSend, expectedType, trackSequencing = True):
+    def __sendPacketAndGetPacketResponse(self, packetToSend, expectedType, trackSequencing = True, retry_count = 3):
         expectedAddress = packetToSend.address
-        while True:
+        retries = retry_count
+        while retries > 0:
             if trackSequencing:
                 packetToSend.setSequence(self.packetSequence)
             logging.debug("SENDING PACKET expecting response: %s" % packetToSend)
@@ -144,6 +149,9 @@ class Radio:
                     logging.debug("received packet does not match expected criteria. %s" % p)
                     if trackSequencing:
                         self.packetSequence = (p.sequence + 1) % 32
+            retries = retries - 1
+            logging.info("Retries left: %d" % retries)
+
 
     def __getPacket(self, data):
         if data is not None and len(data) > 2:

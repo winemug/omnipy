@@ -50,7 +50,7 @@ class Pod:
         self.lot=0
         self.tid=0
 
-        self.lastUpdated=(datetime.utcnow() - datetime.utcfromtimestamp(0)).total_seconds()
+        self.lastUpdated = None
         self.progress=PodProgress.InitialState
         self.basalState=BasalState.NotRunning
         self.bolusState=BolusState.NotRunning
@@ -151,7 +151,7 @@ class Pod:
 
             p.last_enacted_temp_basal_start = d["last_enacted_temp_basal_start"]
             p.last_enacted_temp_basal_duration = d["last_enacted_temp_basal_duration"]
-            p.last_enacted_temp_basal_amount = d["last_enact_temp_basal_amount"]
+            p.last_enacted_temp_basal_amount = d["last_enacted_temp_basal_amount"]
 
             p.last_enacted_bolus_start = d["last_enacted_bolus_start"]
             p.last_enacted_bolus_amount = d["last_enacted_bolus_amount"]

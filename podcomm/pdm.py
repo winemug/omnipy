@@ -1,4 +1,4 @@
-from . import pdmutils
+from .pdmutils import *
 from .nonce import Nonce
 from .radio import Radio
 from .pod import BasalState, BolusState
@@ -10,57 +10,42 @@ import struct
 import logging
 
 
-class PdmError(Exception):
-    def __init__(self, msg="Undefined"):
-        self.error_message = msg
-
-
 class Pdm:
-    def __init__(self, pod, dryRun=False):
+    def __init__(self, pod):
         self.nonce = Nonce(pod.lot, pod.tid, seekNonce=pod.lastNonce, seed=pod.nonceSeed)
         self.pod = pod
         self.radio = Radio(pod.msgSequence, pod.packetSequence)
-        if not dryRun:
-            self.radio.start()
         self.nonceSyncWord = None
-        self.dryRun = dryRun
 
     def updatePodStatus(self):
-        logging.debug("updating pod status")
-        now = pdmutils.currentTimestamp()
-        if now - self.pod.lastUpdated > 60:
-            with pdmutils.pdmlock():
-                self._update_status()
-
-    def _update_status(self):
-        commandType = 0x0e
-        commandBody = b"\x00"
-        msg = self._createMessage(commandType, commandBody)
-        self._sendMessage(msg, self.__handlePodResponse)
-        self._savePod()
+        if self.pod.lastUpdated is not None and currentTimestamp() - self.pod.lastUpdated < 60:
+            return
+        with pdmlock():
+            logging.debug("updating pod status")
+            self._update_status()
 
     def bolus(self, bolus_amount, beep=False):
         logging.debug("enacting bolus: %f units" % bolus_amount)
-        with pdmutils.pdmlock():
+        with pdmlock():
             if self.pod is None or not self.pod.is_active():
-                raise PdmError()
+                raise ()
             if bolus_amount > self.pod.maximumBolus:
-                raise PdmError()
+                raise ()
 
             pulseCount = int(bolus_amount * Decimal(20))
 
             if pulseCount == 0:
-                raise PdmError()
+                raise ()
 
             pulseSpan = pulseCount * 16
             if pulseSpan > 0x3840:
-                raise PdmError()
+                raise ()
 
             if self._is_bolus_running():
-                raise PdmError("A previous bolus is already running")
+                raise ("A previous bolus is already running")
 
             if bolus_amount > self.pod.reservoir:
-                raise PdmError("Cannot bolus %0.2f units, reservoir capacity is at: %0.2f")
+                raise ("Cannot bolus %0.2f units, reservoir capacity is at: %0.2f")
 
             commandBody = struct.pack(">I", self.nonce.getNext())
             commandBody += b"\x02"
@@ -69,7 +54,7 @@ class Pdm:
             bodyForChecksum += struct.pack(">H", pulseSpan)
             bodyForChecksum += struct.pack(">H", pulseCount)
             bodyForChecksum += struct.pack(">H", pulseCount)
-            checksum = pdmutils.getChecksum(bodyForChecksum)
+            checksum = getChecksum(bodyForChecksum)
 
             commandBody += struct.pack(">H", checksum)
             commandBody += bodyForChecksum
@@ -91,36 +76,38 @@ class Pdm:
 
             self.__sendMessageWithNonce(msg)
 
-            if not self.dryRun:
-                if self.pod.bolusState != BolusState.Immediate:
-                    raise PdmError("Pod did not confirm bolus")
+            if self.pod.bolusState != BolusState.Immediate:
+                raise ("Pod did not confirm bolus")
 
-                self.pod.last_enacted_bolus_start = pdmutils.currentTimestamp()
-                self.pod.last_enacted_bolus_amount = bolus_amount
+            self.pod.last_enacted_bolus_start = currentTimestamp()
+            self.pod.last_enacted_bolus_amount = bolus_amount
 
-                self._savePod()
+            self._savePod()
 
 
     def cancelBolus(self, beep=False):
-        with pdmutils.pdmlock():
+        with pdmlock():
             if self._is_bolus_running():
                 logging.debug("Canceling running bolus")
-                self.__cancelActivity(cancelBolus=True, alarm=beep)
+                self.__cancelActivity(cancelBolus=True, beep=beep)
                 if self.pod.bolusState == BolusState.Immediate:
-                    raise PdmError("Failed to cancel bolus")
+                    raise ("Failed to cancel bolus")
             else:
-                raise PdmError("Bolus is not running")
+                raise ("Bolus is not running")
 
     def cancelTempBasal(self, beep=False):
-        with pdmutils.pdmlock():
+        with pdmlock():
             if self._is_temp_basal_active():
                 logging.debug("Canceling temp basal")
-                self.__cancelActivity(cancelTempBasal=True, alarm=beep)
+                self.__cancelActivity(cancelTempBasal=True, beep=beep)
                 if self.pod.basalState == BasalState.TempBasal:
                     raise PdmError("Failed to cancel temp basal")
+                else:
+                    self.pod.last_enacted_temp_basal_duration = -1
+                    self.pod.last_enacted_temp_basal_start = currentTimestamp()
+                    self.pod.last_enacted_temp_basal_amount = -1
             else:
-                logging.debug("Temp basal is already inactive")
-                raise PdmError("Temp basal is already inactive")
+                raise PdmError("Temp basal is not active")
 
     def __cancelActivity(self, cancelBasal=False, cancelBolus=False, cancelTempBasal=False, beep=False):
         logging.debug("Running cancel activity for basal: %s - bolus: %s - tempBasal: %s" % (
@@ -145,31 +132,28 @@ class Pdm:
         self._savePod()
 
     def setTempBasal(self, basalRate, hours, confidenceReminder=False):
-        with pdmutils.pdmlock():
+        with pdmlock():
             halfHours = int(hours * Decimal(2))
 
             if halfHours > 24 or halfHours < 1:
-                raise PdmError()
+                raise ()
 
-            if not self.dryRun:
-                if self.pod is None or not self.pod.is_active():
-                    raise PdmError()
-                if basalRate > Decimal(self.pod.maximumTempBasal):
-                    raise PdmError()
-                if basalRate > Decimal(30):
-                    raise PdmError()
-                self.updatePodStatus()
-                if self.pod.bolusState == BolusState.Immediate:
-                    raise PdmError()
-                if self.pod.basalState == BasalState.TempBasal:
-                    self.cancelTempBasal()
+            if self.pod is None or not self.pod.is_active():
+                raise ()
+            if basalRate > Decimal(self.pod.maximumTempBasal):
+                raise ()
+            if basalRate > Decimal(30):
+                raise ()
+
+            if self._is_temp_basal_active():
+                self.cancelTempBasal()
 
             halfHourUnits = [basalRate / Decimal(2)] * halfHours
-            pulseList = pdmutils.getPulsesForHalfHours(halfHourUnits)
-            iseList = pdmutils.getInsulinScheduleTableFromPulses(pulseList)
+            pulseList = getPulsesForHalfHours(halfHourUnits)
+            iseList = getInsulinScheduleTableFromPulses(pulseList)
 
-            iseBody = pdmutils.getStringBodyFromTable(iseList)
-            pulseBody = pdmutils.getStringBodyFromTable(pulseList)
+            iseBody = getStringBodyFromTable(iseList)
+            pulseBody = getStringBodyFromTable(pulseList)
 
             commandBody = struct.pack(">I", self.nonce.getNext())
             commandBody += b"\x01"
@@ -177,7 +161,7 @@ class Pdm:
             bodyForChecksum = bytes([halfHours])
             bodyForChecksum += struct.pack(">H", 0x3840)
             bodyForChecksum += struct.pack(">H", pulseList[0])
-            checksum = pdmutils.getChecksum(bodyForChecksum + pulseBody)
+            checksum = getChecksum(bodyForChecksum + pulseBody)
 
             commandBody += struct.pack(">H", checksum)
             commandBody += bodyForChecksum
@@ -192,7 +176,7 @@ class Pdm:
             commandBody = bytes([reminders])
             commandBody += b"\x00"
 
-            pulseEntries = pdmutils.getPulseIntervalEntries(halfHourUnits)
+            pulseEntries = getPulseIntervalEntries(halfHourUnits)
 
             firstPulseCount, firstInterval = pulseEntries[0]
             commandBody += struct.pack(">H", firstPulseCount)
@@ -203,13 +187,15 @@ class Pdm:
 
             msg.addCommand(0x16, commandBody)
 
-            if self.dryRun:
-                print(msg)
+            self.__sendMessageWithNonce(msg)
+
+            self._savePod()
+            if self.pod.basalState != BasalState.TempBasal:
+                raise PdmError()
             else:
-                self.__sendMessageWithNonce(msg)
-                self._savePod()
-                if self.pod.basalState != BasalState.TempBasal:
-                    raise PdmError()
+                self.pod.last_enacted_temp_basal_duration = hours
+                self.pod.last_enacted_temp_basal_start = currentTimestamp()
+                self.pod.last_enacted_temp_basal_amount = basalRate
 
     def __sendMessageWithNonce(self, msg):
         while True:
@@ -254,22 +240,27 @@ class Pdm:
 
     def _savePod(self):
         logging.debug("Saving pod status")
-        if not self.dryRun:
-            self.pod.msgSequence = self.radio.messageSequence
-            self.pod.packetSequence = self.radio.packetSequence
-            self.pod.lastNonce = self.nonce.lastNonce
-            self.pod.nonceSeed = self.nonce.seed
-            self.pod.Save()
+        self.pod.msgSequence = self.radio.messageSequence
+        self.pod.packetSequence = self.radio.packetSequence
+        self.pod.lastNonce = self.nonce.lastNonce
+        self.pod.nonceSeed = self.nonce.seed
+        self.pod.Save()
 
     def _sendMessage(self, message, responseHandler):
         logging.debug("Sending message: %s" % message)
-        if not self.dryRun:
-            self.radio.sendRequestToPod(message, self.__handlePodResponse)
+        self.radio.sendRequestToPod(message, self.__handlePodResponse)
+
+    def _update_status(self):
+        commandType = 0x0e
+        commandBody = b"\x00"
+        msg = self._createMessage(commandType, commandBody)
+        self._sendMessage(msg, self.__handlePodResponse)
+        self._savePod()
 
     def _is_bolus_running(self):
         if self.pod.last_enacted_bolus_amount is not None \
                 and self.pod.last_enacted_bolus_start is not None:
-            now = pdmutils.currentTimestamp()
+            now = currentTimestamp()
             bolus_end_earliest = (self.pod.last_enacted_bolus_amount * 1.8) + self.pod.last_enacted_bolus_start
             bolus_end_latest = (self.pod.last_enacted_bolus_amount * 2.2) + 15 + self.pod.last_enacted_bolus_start
             if now > bolus_end_latest:
@@ -283,7 +274,9 @@ class Pdm:
     def _is_temp_basal_active(self):
         if self.pod.last_enacted_temp_basal_start is not None \
                 and self.pod.last_enacted_temp_basal_duration is not None:
-            now = pdmutils.currentTimestamp()
+            if self.pod.last_enacted_temp_basal_amount < 0:
+                return False
+            now = currentTimestamp()
             temp_basal_end_earliest = self.pod.last_enacted_temp_basal_start + \
                                       (self.pod.last_enacted_temp_basal_duration * 3600) - 60
             temp_basal_end_latest = self.pod.last_enacted_temp_basal_start + \

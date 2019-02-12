@@ -1,7 +1,5 @@
 #!/usr/bin/python3
-import logging
 import os
-import sys
 import simplejson as json
 from flask import Flask, request, g
 from podcomm.pdm import Pdm
@@ -12,6 +10,7 @@ from podcomm.crc import crc8
 from decimal import *
 import base64
 from Crypto.Cipher import AES
+from decimal import *
 
 TOKENS_FILE = ".tokens"
 KEY_FILE = ".key"
@@ -25,7 +24,7 @@ def get_pod():
 def get_pdm():
     return Pdm(get_pod())
 
-def respond_ok(d = {}):
+def respond_ok(d):
     return json.dumps({ "success": True, "result": d})
 
 def respond_error(msg = "Unknown"):
@@ -139,8 +138,8 @@ def set_limits():
     try:
         verify_auth(request)
         pod = get_pod()
-        pod.maximumBolus = Double(request.args.get('maxbolus'))
-        pod.maximumTempBasal = Double(request.args.get('maxbasal'))
+        pod.maximumBolus = Decimal(request.args.get('maxbolus'))
+        pod.maximumTempBasal = Decimal(request.args.get('maxbasal'))
         pod.Save()
         return respond_ok()
     except Exception as e:
@@ -174,7 +173,7 @@ def cancelbolus():
         verify_auth(request)
 
         pdm = get_pdm()
-        pdm.cancelbolus()
+        pdm.cancelBolus()
         return respond_ok(pdm.pod.__dict__)
     except Exception as e:
         return respond_error(msg = str(e))
