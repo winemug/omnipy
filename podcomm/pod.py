@@ -3,7 +3,7 @@
 import simplejson as json
 import struct
 from datetime import datetime, timedelta
-import os
+import binascii
 from enum import IntEnum
 
 
@@ -35,15 +35,15 @@ class PodProgress(IntEnum):
     Inactive = 15
 
 
-class PodAlarm(IntEnum):
-    AutoOff = 0
-    Unknown = 1
-    EndOfService = 2
-    Expired = 3
-    LowReservoir = 4
-    SuspendInProgress = 5
-    SuspendEnded = 6
-    TimerLimit = 7
+class PodAlert(IntEnum):
+    AutoOff = 0x01
+    Unknown = 0x02
+    EndOfService = 0x04
+    Expired = 0x08
+    LowReservoir = 0x10
+    SuspendInProgress = 0x20
+    SuspendEnded = 0x40
+    TimerLimit = 0x80
 
 class Pod:
     def __init__(self):
@@ -54,10 +54,21 @@ class Pod:
         self.progress=PodProgress.InitialState
         self.basalState=BasalState.NotRunning
         self.bolusState=BolusState.NotRunning
-        self.alarm=0
+        self.alert_states = 0
         self.reservoir=0
-        self.activeMinutes=0
+        self.minutes_since_activation=0
         self.faulted = False
+        self.fault_event = None
+        self.fault_event_rel_time = None
+        self.fault_table_access = None
+        self.fault_insulin_state_table_corruption = None
+        self.fault_internal_variables = None
+        self.fault_immediate_bolus_in_progress = None
+        self.fault_progress_before = None
+        self.radio_low_gain = None
+        self.radio_rssi = None
+        self.fault_progress_before_2 = None
+        self.information_type2_last_word = None
 
         self.totalInsulin=0
         self.canceledInsulin=0
@@ -98,10 +109,21 @@ class Pod:
             p.progress=d["progress"]
             p.basalState=d["basalState"]
             p.bolusState=d["bolusState"]
-            p.alarm=d["alarm"]
+            p.alert_states = d["alert_states"]
             p.reservoir=d["reservoir"]
-            p.activeMinutes=d["activeMinutes"]
+            p.minutes_since_activation = d["minutes_since_activation"]
             p.faulted=d["faulted"]
+            p.fault_event = d["fault_event"]
+            p.fault_event_rel_time = d["fault_event_rel_time"]
+            p.fault_table_access = d["fault_table_access"]
+            p.fault_insulin_state_table_corruption = d["fault_insulin_state_table_corruption"]
+            p.fault_internal_variables = d["fault_internal_variables"]
+            p.fault_immediate_bolus_in_progress = d["fault_immediate_bolus_in_progress"]
+            p.fault_progress_before = d["fault_progress_before"]
+            p.radio_low_gain = d["radio_low_gain"]
+            p.radio_rssi = d["radio_rssi"]
+            p.fault_progress_before_2 = d["fault_progress_before_2"]
+            p.information_type2_last_word = d["information_type2_last_word"]
 
             p.totalInsulin=d["totalInsulin"]
             p.canceledInsulin=d["canceledInsulin"]
@@ -132,12 +154,47 @@ class Pod:
 
     def handle_information_response(self, response):
         self.faulted = True
-        if response[0] == 0x02:
+        if response[0] == 0x01:
+            pass
+        elif response[0] == 0x02:
             self.progress = response[1]
+            self.__parse_delivery_state(response[2])
+            self.canceledInsulin = struct.unpack(">H", response[3:5])[0] * 0.05
+            self.msgSequence = response[5]
+            self.totalInsulin = struct.unpack(">H", response[6:8])[0] * 0.05
+            self.fault_event = response[8]
+            self.fault_event_rel_time = struct.unpack(">H", response[9:11])[0]
+            self.reservoir = struct.unpack(">H", response[11:13])[0] * 0.05
+            self.minutes_since_activation = struct.unpack(">H", response[13:15])[0]
+            self.alert_states = response[15]
+            self.fault_table_access = response[16]
+            self.fault_insulin_state_table_corruption = response[17] >> 7
+            self.fault_internal_variables = (response[17] & 0x60) >> 6
+            self.fault_immediate_bolus_in_progress = (response[17] & 0x10) >> 4
+            self.fault_progress_before = (response[17] & 0x0F)
+            self.radio_low_gain = (response[18] & 0xC0) >> 6
+            self.radio_rssi = response[18] & 0x3F
+            self.fault_progress_before_2 = (response[19] & 0x0F)
+            self.information_type2_last_word = struct.unpack(">H", response[20:22])[0]
+        elif response[0] == 0x03:
+            pass
+        elif response[0] == 0x05:
+            pass
+        elif response[0] == 0x06:
+            pass
+        elif response[0] == 0x46:
+            pass
+        elif response[0] == 0x50:
+            pass
+        elif response[0] == 0x51:
+            pass
+        else:
+            self.log("Unknown information response of type 0x%2X\n" % response[0])
+            self.log("Response content: %s\n" % binascii.hexlify(response) )
 
     def handle_status_response(self, response):
         s = struct.unpack(">BII", response)
-        delivery = s[0]
+        state = s[0]
         insulin_pulses = (s[1] & 0x0FFF8000) >> 15
         msg_sequence = (s[1] & 0x00007800) >> 11
         canceled_pulses = s[1] & 0x000007FF
@@ -146,48 +203,52 @@ class Pod:
         pod_active_time = (s[2] & 0x007FFC00) >> 10
         pod_reservoir = s[2] & 0x000003FF
 
-        if delivery & 0x80 > 0:
-            self.bolusState = BolusState.Extended
-        elif delivery & 0x40 > 0:
-            self.bolusState = BolusState.Immediate
-        else:
-            self.bolusState = BolusState.NotRunning
+        self.__parse_delivery_state(state >> 4)
 
-        if delivery & 0x20 > 0:
-            self.basalState = BasalState.TempBasal
-        elif delivery & 0x10 > 0:
-            self.basalState = BasalState.Program
-        else:
-            self.basalState = BasalState.NotRunning
+        self.progress = state & 0xF
 
-        self.progress = delivery & 0xF
-
-        self.alarm = pod_alarm
+        self.alert_states = pod_alarm
         self.reservoir = pod_reservoir * 0.05
         self.msgSequence = msg_sequence
         self.totalInsulin = insulin_pulses * 0.05
         self.canceledInsulin = canceled_pulses * 0.05
-        self.activeMinutes = pod_active_time
+        self.minutes_since_activation = pod_active_time
         now = datetime.utcnow()
         self.lastUpdated = (now - datetime.utcfromtimestamp(0)).total_seconds()
 
         ds = now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
 
-        log_line = "%d\t%s\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\n" % \
-            (self.lastUpdated, ds, self.totalInsulin, self.canceledInsulin, self.activeMinutes, self.progress,
-             self.bolusState, self.basalState, self.reservoir, self.alarm, self.faulted, self.lot, self.tid)
-
-        log_file_path = self.path + ".log"
-        with open(log_file_path, "a") as stream:
-            stream.write(log_line)
-
         self.Save()
+
+        self.log("%d\t%s\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\t0x%8X\n" % \
+                 (self.lastUpdated, ds, self.totalInsulin, self.canceledInsulin, self.minutes_since_activation, self.progress,
+                  self.bolusState, self.basalState, self.reservoir, self.alert_states, self.faulted, self.lot, self.tid, self.address))
+
+    def __parse_delivery_state(self, delivery_state):
+        if delivery_state & 8 > 0:
+            self.bolusState = BolusState.Extended
+        elif delivery_state & 4 > 0:
+            self.bolusState = BolusState.Immediate
+        else:
+            self.bolusState = BolusState.NotRunning
+
+        if delivery_state & 2 > 0:
+            self.basalState = BasalState.TempBasal
+        elif delivery_state & 1 > 0:
+            self.basalState = BasalState.Program
+        else:
+            self.basalState = BasalState.NotRunning
 
     def __str__(self):
         p = self
         state = "Lot %d Tid %d Address 0x%8X Faulted: %s\n" % (p.lot, p.tid, p.address, p.faulted)
         state += "Updated %s\nState: %s\nAlarm: %s\nBasal: %s\nBolus: %s\nReservoir: %dU\n" %\
-                 (p.lastUpdated, p.progress, p.alarm, p.basalState, p.bolusState, p.reservoir)
+                 (p.lastUpdated, p.progress, p.alert_states, p.basalState, p.bolusState, p.reservoir)
         state += "Insulin delivered: %fU canceled: %fU\nTime active: %s" %\
-                 (p.totalInsulin, p.canceledInsulin, timedelta(minutes=p.activeMinutes))
+                 (p.totalInsulin, p.canceledInsulin, timedelta(minutes=p.minutes_since_activation))
         return state
+
+    def log(self, log_message):
+        log_file_path = self.path + ".log"
+        with open(log_file_path, "a") as stream:
+            stream.write(log_message)

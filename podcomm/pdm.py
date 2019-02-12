@@ -2,7 +2,7 @@ import random
 from decimal import *
 from .nonce import Nonce
 from .radio import Radio
-from .pod import Pod, BasalState, BolusState, PodAlarm, PodProgress
+from .pod import Pod, BasalState, BolusState, PodAlert, PodProgress
 from .message import Message, MessageState, MessageType
 from datetime import date, datetime, time, timedelta
 import struct
