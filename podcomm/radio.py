@@ -24,25 +24,15 @@ class Radio:
         self.lastPacketReceived = None
         self.responseTimeout = 1000
         self.rileyLink = RileyLink()
+        self.rileyLink.connect()
+        self.rileyLink.init_radio()
+        self.rileyLink.disconnect()
 
     def __logPacket(self, p):
         logging.debug("Packet received: %s" % p)
 
     def __logMessage(self, msg):
         logging.debug("Message received: %s" % msg)
-
-    def start(self):
-        self.lastPacketReceived = None
-        self.responseTimeout = 1000
-        self.rileyLink.connect()
-        self.rileyLink.init_radio()
-        self.rileyLink.disconnect()
-
-    def stop(self):
-        pass
-
-    def listenForAnyPacket(self, timeout):
-        pass
 
     def sendRequestToPod(self, message, responseHandler = None):
         try:

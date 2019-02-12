@@ -88,6 +88,13 @@ class Pod:
         self.utcOffset=0
         self.path = None
 
+        self.last_enacted_temp_basal_start = None
+        self.last_enacted_temp_basal_duration = None
+        self.last_enacted_temp_basal_amount = None
+
+        self.last_enacted_bolus_start = None
+        self.last_enacted_bolus_amount = None
+
     def Save(self, save_as = None):
         if save_as is not None:
             self.path = save_as
@@ -142,9 +149,16 @@ class Pod:
             p.maximumTempBasal=d["maximumTempBasal"]
             p.utcOffset=d["utcOffset"]
 
+            p.last_enacted_temp_basal_start = d["last_enacted_temp_basal_start"]
+            p.last_enacted_temp_basal_duration = d["last_enacted_temp_basal_duration"]
+            p.last_enacted_temp_basal_amount = d["last_enact_temp_basal_amount"]
+
+            p.last_enacted_bolus_start = d["last_enacted_bolus_start"]
+            p.last_enacted_bolus_amount = d["last_enacted_bolus_amount"]
+
         return p
 
-    def isInitialized(self):
+    def is_active(self):
         return not(self.lot is None or self.tid is None or self.address is None) \
             and (self.progress == PodProgress.Running or self.progress == PodProgress.RunningLow) \
             and not self.faulted
