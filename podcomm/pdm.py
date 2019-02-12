@@ -150,7 +150,7 @@ class Pdm:
         self.dryRun = dryRun
 
     def __createMessage(self, commandType, commandBody):
-        msg = Message(MessageType.PDM, self.pod.address)
+        msg = Message(MessageType.PDM, self.pod.address, sequence=self.radio.messageSequence)
         msg.addCommand(commandType, commandBody)
         return msg
 
@@ -498,11 +498,11 @@ class Pdm:
                 self.__savePod()
                 return None
             if ctype == 0x1d: # status response
-                self.pod.updateStatus(content)
+                self.pod.handle_status_response(content)
                 self.__savePod()
                 return None
             if ctype == 0x02: # pod faulted
-                self.pod.faultError(content)
+                self.pod.handle_information_response(content)
                 self.__savePod()
                 return None
             if ctype == 0x06: 

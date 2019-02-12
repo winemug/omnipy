@@ -50,7 +50,7 @@ class Radio:
             self.rileyLink.init_radio()
             while True:
                 time.sleep(3)
-                message.sequence = self.messageSequence
+                message.setSequence(self.messageSequence)
                 logging.debug("SENDING MSG: %s" % message)
                 packets = message.getPackets()
                 received = None
@@ -89,6 +89,8 @@ class Radio:
                     return podResponse
                 else:
                     message = respondResult
+        except:
+            raise
         finally:
             self.rileyLink.disconnect()
 

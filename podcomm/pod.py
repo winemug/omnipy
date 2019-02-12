@@ -127,73 +127,67 @@ class Pod:
             and (self.progress == PodProgress.Running or self.progress == PodProgress.RunningLow) \
             and not self.faulted
 
-    def faultError(self, errMessageBody):
-        self.faulted = True
-        if errMessageBody[0] == 0x02:
-            self.progress = errMessageBody[1]
-
     def setupPod(self, messageBody):
         pass
 
-    def updateStatus(self, statusMessageBody):
-        s = struct.unpack(">BII", statusMessageBody)
+    def handle_information_response(self, response):
+        self.faulted = True
+        if response[0] == 0x02:
+            self.progress = response[1]
+
+    def handle_status_response(self, response):
+        s = struct.unpack(">BII", response)
         delivery = s[0]
-        insulinPulses = (s[1] & 0x0FFF8000) >> 15
-        msgSequence = (s[1] & 0x00007800) >> 11
-        canceledPulses = s[1] & 0x000007FF
+        insulin_pulses = (s[1] & 0x0FFF8000) >> 15
+        msg_sequence = (s[1] & 0x00007800) >> 11
+        canceled_pulses = s[1] & 0x000007FF
 
-        podAlarm = (s[2] & 0xFF000000) >> 25
-        podActiveTime = (s[2] & 0x007FFC00) >> 10
-        podReservoir = s[2] & 0x000003FF
-
-        p = self
+        pod_alarm = (s[2] & 0xFF000000) >> 25
+        pod_active_time = (s[2] & 0x007FFC00) >> 10
+        pod_reservoir = s[2] & 0x000003FF
 
         if delivery & 0x80 > 0:
-            p.bolusState = BolusState.Extended
+            self.bolusState = BolusState.Extended
         elif delivery & 0x40 > 0:
-            p.bolusState = BolusState.Immediate
+            self.bolusState = BolusState.Immediate
         else:
-            p.bolusState = BolusState.NotRunning
+            self.bolusState = BolusState.NotRunning
 
         if delivery & 0x20 > 0:
-            p.basalState = BasalState.TempBasal
+            self.basalState = BasalState.TempBasal
         elif delivery & 0x10 > 0:
-            p.basalState = BasalState.Program
+            self.basalState = BasalState.Program
         else:
-            p.basalState = BasalState.NotRunning
+            self.basalState = BasalState.NotRunning
 
-        p.progress = delivery & 0xF
+        self.progress = delivery & 0xF
 
-        p.alarm = podAlarm
-        p.reservoir = podReservoir * 0.05
-        p.msgSequence = msgSequence
-        p.totalInsulin = insulinPulses * 0.05
-        p.canceledInsulin = canceledPulses * 0.05
-        p.activeMinutes = podActiveTime
-        dn = datetime.utcnow()
-        p.lastUpdated = (dn - datetime.utcfromtimestamp(0)).total_seconds()
+        self.alarm = pod_alarm
+        self.reservoir = pod_reservoir * 0.05
+        self.msgSequence = msg_sequence
+        self.totalInsulin = insulin_pulses * 0.05
+        self.canceledInsulin = canceled_pulses * 0.05
+        self.activeMinutes = pod_active_time
+        now = datetime.utcnow()
+        self.lastUpdated = (now - datetime.utcfromtimestamp(0)).total_seconds()
 
-        ds = dn.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+        ds = now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
 
-        logLine = "%d\t%s\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\n" % \
-            (p.lastUpdated, ds, p.totalInsulin, p.canceledInsulin, p.activeMinutes, p.progress, \
-            p.bolusState, p.basalState, p.reservoir, p.alarm, p.faulted, p.lot, p.tid)
+        log_line = "%d\t%s\t%f\t%f\t%d\t%d\t%d\t%d\t%d\t%s\t%s\t%d\t%d\n" % \
+            (self.lastUpdated, ds, self.totalInsulin, self.canceledInsulin, self.activeMinutes, self.progress,
+             self.bolusState, self.basalState, self.reservoir, self.alarm, self.faulted, self.lot, self.tid)
 
-        mode = "w"
-        logFilePath = self.path + ".log"
-        if os.path.exists(logFilePath):
-            mode = "a"
-        else:
-            mode = "w"
-        stream = open(logFilePath, mode)
-        stream.write(logLine)
-        stream.close()
+        log_file_path = self.path + ".log"
+        with open(log_file_path, "a") as stream:
+            stream.write(log_line)
 
         self.Save()
 
     def __str__(self):
         p = self
         state = "Lot %d Tid %d Address 0x%8X Faulted: %s\n" % (p.lot, p.tid, p.address, p.faulted)
-        state += "Updated %s\nState: %s\nAlarm: %s\nBasal: %s\nBolus: %s\nReservoir: %dU\nInsulin delivered: %fU canceled: %fU\nTime active: %s" % (p.lastUpdated, p.progress, p.alarm, p.basalState, p.bolusState,
-                p.reservoir, p.totalInsulin, p.canceledInsulin, timedelta(minutes=p.activeMinutes))
+        state += "Updated %s\nState: %s\nAlarm: %s\nBasal: %s\nBolus: %s\nReservoir: %dU\n" %\
+                 (p.lastUpdated, p.progress, p.alarm, p.basalState, p.bolusState, p.reservoir)
+        state += "Insulin delivered: %fU canceled: %fU\nTime active: %s" %\
+                 (p.totalInsulin, p.canceledInsulin, timedelta(minutes=p.activeMinutes))
         return state
