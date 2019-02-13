@@ -1,5 +1,12 @@
 # About
-omnipy is a PDM (personal diabetes manager) emulator for the OmniPod insulin pump and it can be used to command the pump to perform various functions over a network. It is designed to be used over sub-optimal networking conditions (such as the internet) therefore uses the MQTT protocol to listen for commands and forward responses.
+omnipy is a PDM (personal diabetes manager) emulator for the OmniPod insulin pump and it can be used to command the pump to perform various functions over a network. ~~It is designed to be used over sub-optimal networking conditions (such as the internet) therefore uses the MQTT protocol to listen for commands and forward responses.~~ It exposes a basic HTTP API to be utilized by APS systems, such as Android APS.
+
+# Project status update
+
+As of February 13th:
+* Changes implemented that allow for omnipy to work without internet & mqtt
+* Work started for necessary changes to AndroidAPS / Omnipod branch
+* Public beta release target date: **February 17th, Sunday**
 
 # Important Background Information
 This used to be a pet project, where I investigated the radio communication between the OmniPod and the PDM. Whilst still studying the OmniPod, I have decided that there was enough information available to let it execute basic commands which would make it usable in an artifical pancreas system. I've put together a prototype and integrated it into AndroidAPS for my own use, which became what it is today.
