@@ -5,8 +5,6 @@ import signal
 import ssl
 import sys
 import threading
-
-import time
 from paho.mqtt.client import Client, MQTTv311
 
 from podcomm.pdm import Pdm
