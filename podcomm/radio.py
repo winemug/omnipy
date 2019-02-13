@@ -8,12 +8,15 @@ import logging
 from .message import Message, MessageState
 import time
 
-class CommunicationError(Exception):
-    pass
+
+class RadioError(Exception):
+    def __init__(self, message="Unknown"):
+        self.error_message = message
 
 
 class ProtocolError(Exception):
-    pass
+    def __init__(self, message="Unknown"):
+        self.error_message = message
 
 
 class Radio:
@@ -24,6 +27,9 @@ class Radio:
         self.lastPacketReceived = None
         self.responseTimeout = 1000
         self.rileyLink = RileyLink()
+        self.rileyLink.connect()
+        self.rileyLink.init_radio()
+        self.rileyLink.disconnect()
 
     def __logPacket(self, p):
         logging.debug("Packet received: %s" % p)
@@ -31,26 +37,13 @@ class Radio:
     def __logMessage(self, msg):
         logging.debug("Message received: %s" % msg)
 
-    def start(self):
-        self.lastPacketReceived = None
-        self.responseTimeout = 1000
-        self.rileyLink.connect()
-        self.rileyLink.init_radio()
-        self.rileyLink.disconnect()
-
-    def stop(self):
-        pass
-
-    def listenForAnyPacket(self, timeout):
-        pass
-
     def sendRequestToPod(self, message, responseHandler = None):
         try:
             self.rileyLink.connect()
             self.rileyLink.init_radio()
             while True:
                 time.sleep(3)
-                message.sequence = self.messageSequence
+                message.setSequence(self.messageSequence)
                 logging.debug("SENDING MSG: %s" % message)
                 packets = message.getPackets()
                 received = None
@@ -63,7 +56,7 @@ class Radio:
                         exp = "ACK"
                     received = self.__sendPacketAndGetPacketResponse(packet, exp)
                     if received is None:
-                        raise CommunicationError()
+                        raise ProtocolError()
 
                 podResponse = Message.fromPacket(received)
                 if podResponse is None:
@@ -89,6 +82,8 @@ class Radio:
                     return podResponse
                 else:
                     message = respondResult
+        except:
+            raise
         finally:
             self.rileyLink.disconnect()
 
@@ -102,6 +97,7 @@ class Radio:
         while True:
             self.rileyLink.send_final_packet(data, 10, 25, 42)
             timed_out = False
+            received = None
             try:
                 received = self.rileyLink.get_packet(300)
             except RileyLinkError as rle:
@@ -110,7 +106,7 @@ class Radio:
                 else:
                     timed_out = True
 
-            if not timed_out:
+            if not timed_out and received is not None:
                 p = self.__getPacket(received)
                 if p is not None:
                     continue
@@ -119,9 +115,10 @@ class Radio:
                 self.packetSequence = (self.packetSequence + 1) % 32
             return
 
-    def __sendPacketAndGetPacketResponse(self, packetToSend, expectedType, trackSequencing = True):
+    def __sendPacketAndGetPacketResponse(self, packetToSend, expectedType, trackSequencing = True, retry_count = 3):
         expectedAddress = packetToSend.address
-        while True:
+        retries = retry_count
+        while retries > 0:
             if trackSequencing:
                 packetToSend.setSequence(self.packetSequence)
             logging.debug("SENDING PACKET expecting response: %s" % packetToSend)
@@ -152,6 +149,9 @@ class Radio:
                     logging.debug("received packet does not match expected criteria. %s" % p)
                     if trackSequencing:
                         self.packetSequence = (p.sequence + 1) % 32
+            retries = retries - 1
+            logging.info("Retries left: %d" % retries)
+
 
     def __getPacket(self, data):
         if data is not None and len(data) > 2:

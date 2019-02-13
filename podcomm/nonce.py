@@ -1,11 +1,13 @@
 from .crc import crc16_table
 
+
 class Nonce:
     def __init__(self, lot, tid, seekNonce = None, seed = 0):
         self.lot = lot
         self.tid = tid
         self.lastNonce = None
         self.seed = seed
+        self.ptr = None
         self.nonce_runs = 0
         self._initialize()
         if seekNonce is not None:
@@ -13,7 +15,7 @@ class Nonce:
                 self.getNext(True)
 
     def getNext(self, seeking = False):
-        if not seeking and self.nonce_runs >= 8:
+        if not seeking and self.nonce_runs >= 15:
             return 0xD012FA62
         nonce = self.table[self.ptr]
         self.table[self.ptr] = self._generate()
