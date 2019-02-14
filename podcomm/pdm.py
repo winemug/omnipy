@@ -81,7 +81,7 @@ class Pdm:
                 commandBody += b"\x00\x00\x00\x00\x00\x00"
                 msg.addCommand(0x17, commandBody)
 
-                self.__sendMessage(msg, with_nonce=True)
+                self._sendMessage(msg, with_nonce=True)
 
                 if self.pod.bolusState != BolusState.Immediate:
                     raise ("Pod did not confirm bolus")
@@ -188,7 +188,7 @@ class Pdm:
 
                 msg.addCommand(0x16, commandBody)
 
-                self.__sendMessage(msg, with_nonce=True)
+                self._sendMessage(msg, with_nonce=True)
 
                 if self.pod.basalState != BasalState.TempBasal:
                     raise PdmError()
@@ -220,7 +220,7 @@ class Pdm:
         commandBody += bytes([c])
 
         msg = self._createMessage(0x1f, commandBody)
-        self.__sendMessage(msg, with_nonce=True)
+        self._sendMessage(msg, with_nonce=True)
 
     def _createMessage(self, commandType, commandBody):
         msg = Message(MessageType.PDM, self.pod.address, sequence=self.radio.messageSequence)

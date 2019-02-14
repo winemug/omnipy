@@ -43,7 +43,6 @@ input("press enter to continue")
 pdm = Pdm(pod)
 pdm.updatePodStatus()
 print(pod)
-pdm.cleanUp()
 
 print("done.")
 
