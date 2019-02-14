@@ -15,15 +15,16 @@ class Pdm:
         self.nonce = Nonce(pod.lot, pod.tid, seekNonce=pod.lastNonce, seed=pod.nonceSeed)
         self.pod = pod
         self.radio = Radio(pod.msgSequence, pod.packetSequence)
-        self.nonceSyncWord = None
 
-    def updatePodStatus(self):
+    def updatePodStatus(self, update_type=0):
         try:
-            if self.pod.lastUpdated is not None and currentTimestamp() - self.pod.lastUpdated < 60:
+            if update_type == 0 and \
+                    self.pod.lastUpdated is not None and \
+                    currentTimestamp() - self.pod.lastUpdated < 60:
                 return
             with pdmlock():
                 logging.debug("updating pod status")
-                self._update_status()
+                self._update_status(update_type)
         except:
             raise
         finally:
@@ -53,7 +54,7 @@ class Pdm:
                 if bolus_amount > self.pod.reservoir:
                     raise ("Cannot bolus %0.2f units, reservoir capacity is at: %0.2f")
 
-                commandBody = struct.pack(">I", self.nonce.getNext())
+                commandBody = struct.pack(">I", 0)
                 commandBody += b"\x02"
 
                 bodyForChecksum = b"\x01"
@@ -80,7 +81,7 @@ class Pdm:
                 commandBody += b"\x00\x00\x00\x00\x00\x00"
                 msg.addCommand(0x17, commandBody)
 
-                self.__sendMessageWithNonce(msg)
+                self.__sendMessage(msg, with_nonce=True)
 
                 if self.pod.bolusState != BolusState.Immediate:
                     raise ("Pod did not confirm bolus")
@@ -155,7 +156,7 @@ class Pdm:
                 iseBody = getStringBodyFromTable(iseList)
                 pulseBody = getStringBodyFromTable(pulseList)
 
-                commandBody = struct.pack(">I", self.nonce.getNext())
+                commandBody = struct.pack(">I", 0)
                 commandBody += b"\x01"
 
                 bodyForChecksum = bytes([halfHours])
@@ -187,7 +188,7 @@ class Pdm:
 
                 msg.addCommand(0x16, commandBody)
 
-                self.__sendMessageWithNonce(msg)
+                self.__sendMessage(msg, with_nonce=True)
 
                 if self.pod.basalState != BasalState.TempBasal:
                     raise PdmError()
@@ -203,7 +204,7 @@ class Pdm:
     def _cancelActivity(self, cancelBasal=False, cancelBolus=False, cancelTempBasal=False, beep=False):
         logging.debug("Running cancel activity for basal: %s - bolus: %s - tempBasal: %s" % (
         cancelBasal, cancelBolus, cancelTempBasal))
-        commandBody = struct.pack(">I", self.nonce.getNext())
+        commandBody = struct.pack(">I", 0)
         if beep:
             c = 0x60
         else:
@@ -219,43 +220,7 @@ class Pdm:
         commandBody += bytes([c])
 
         msg = self._createMessage(0x1f, commandBody)
-        self.__sendMessageWithNonce(msg)
-
-    def __sendMessageWithNonce(self, msg):
-        while True:
-            self.nonceSyncWord = None
-            self._sendMessage(msg, self.__handlePodResponse)
-            if self.nonceSyncWord is None:
-                break
-            self.radio.messageSequence = (self.radio.messageSequence - 2) % 16
-            self.nonce.sync(self.nonceSyncWord, self.radio.messageSequence)
-            msg.resetNonce(self.nonce.getNext())
-
-    def __handlePodResponse(self, messageSent, messageReceived):
-        contents = messageReceived.getContents()
-        for (ctype, content) in contents:
-            if ctype == 0x01:  # pod info response
-                self.pod.setupPod(content)
-                self._savePod()
-                return None
-            if ctype == 0x1d:  # status response
-                self.pod.handle_status_response(content)
-                self._savePod()
-                return None
-            if ctype == 0x02:  # pod faulted
-                self.pod.handle_information_response(content)
-                self._savePod()
-                return None
-            if ctype == 0x06:
-                if content[0] == 0x14:  # bad nonce error
-                    self.nonceSyncWord = struct.unpack(">H", content[1:])[0]
-                    self.nonceSyncIndex = messageReceived.sequence
-                    return None
-                else:
-                    errorCode = ord(content[0])
-                    loggedEvent = ord(content[1])
-                    podProgress = ord(content[2])
-                    return None
+        self.__sendMessage(msg, with_nonce=True)
 
     def _createMessage(self, commandType, commandBody):
         msg = Message(MessageType.PDM, self.pod.address, sequence=self.radio.messageSequence)
@@ -270,18 +235,38 @@ class Pdm:
             self.pod.lastNonce = self.nonce.lastNonce
             self.pod.nonceSeed = self.nonce.seed
             self.pod.Save()
+            logging.debug("Saved pod status")
         except:
             raise
 
-    def _sendMessage(self, message, responseHandler):
-        self.radio.sendRequestToPod(message, self.__handlePodResponse)
+    def _sendMessage(self, message, with_nonce = False, nonce_retry_count = 0):
+        if with_nonce:
+            message.setNonce(self.nonce.getNext())
+        response_message = self.radio.sendRequestToPod(message)
+        contents = response_message.getContents()
+        for (ctype, content) in contents:
+            if ctype == 0x01:  # pod info response
+                self.pod.setupPod(content)
+            elif ctype == 0x1d:  # status response
+                self.pod.handle_status_response(content)
+            elif ctype == 0x02:  # pod faulted
+                self.pod.handle_information_response(content)
+            elif ctype == 0x06:
+                if content[0] == 0x14:  # bad nonce error
+                    if nonce_retry_count > 1:
+                        raise PdmError("Nonce negotiation failed")
+                    nonceSyncWord = struct.unpack(">H", content[1:])[0]
+                    nonceSyncIndex = response_message.sequence
+                    self.nonce.sync(nonceSyncWord, nonceSyncIndex)
+                    self.radio.messageSequence = nonceSyncIndex
+                    return self._sendMessage(message, with_nonce=True, nonce_retry_count=nonce_retry_count + 1)
 
-    def _update_status(self):
+
+    def _update_status(self, update_type=0):
         commandType = 0x0e
-        commandBody = b"\x00"
+        commandBody = bytes([update_type])
         msg = self._createMessage(commandType, commandBody)
-        self._sendMessage(msg, self.__handlePodResponse)
-        self._savePod()
+        self._sendMessage(msg)
 
     def _is_bolus_running(self):
         if self.pod.last_enacted_bolus_amount is not None \

@@ -34,7 +34,7 @@ class Message():
         self.body = copy + self.calculateChecksum(copy)
         self.state = MessageState.Complete
 
-    def resetNonce(self, nonce):
+    def setNonce(self, nonce):
         copy = self.body[0:2]
         copy += struct.pack(">I", nonce)
         copy += self.body[6:-2]

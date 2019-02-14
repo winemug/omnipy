@@ -1,11 +1,11 @@
-import binascii
+import time
 import logging
 import struct
 import os
 from enum import IntEnum
 from threading import Event
 
-from bluepy.btle import Peripheral, DefaultDelegate, Scanner, ScanEntry
+from bluepy.btle import Peripheral, DefaultDelegate, Scanner, ScanEntry, BTLEDisconnectError
 
 
 class Command(IntEnum):
@@ -111,7 +111,8 @@ class RileyLink:
         if self.address is None:
             self.address = self.findRileyLink()
 
-        self.p.connect(self.address)
+        self._connect_retry(3)
+
         self.service = self.p.getServiceByUUID("0235733b-99c5-4197-b856-69219c2a3845")
         data_char = self.service.getCharacteristics("c842e849-5028-42e2-867c-016adada9155")[0]
         self.data_handle = data_char.getHandle()
@@ -126,18 +127,32 @@ class RileyLink:
         while self.p.waitForNotifications(0.05):
             self.p.readCharacteristic(self.data_handle)
 
+    def _connect_retry(self, retries):
+        while retries > 0:
+            retries -= 1
+            logging.info("Connecting to RileyLink, retries left: %d" % retries)
+            try:
+                self.p.connect(self.address)
+                logging.info("Connected")
+                break
+            except BTLEDisconnectError:
+                logging.warning("BTLE disconnect error received")
+                time.sleep(2)
+
     def disconnect(self):
+        logging.info("Disconnecting..")
         response_notify_handle = self.response_handle + 1
         notify_setup = b"\x00\x00"
         self.p.writeCharacteristic(response_notify_handle, notify_setup)
         self.p.disconnect()
-
-    def get_packet(self, timeout=100):
-        return self.__command(Command.GET_PACKET, struct.pack(">BL", 0, timeout), timeout=(timeout/1000)+2)
+        logging.info("Disconnected")
 
     def init_radio(self):
         response = self.__command(Command.READ_REGISTER, bytes([Register.SYNC1]))
-        if response[0] != 0xA5:
+        if len(response) > 0 and response[0] == 0xA5:
+            return
+
+        try:
             self.__command(Command.RADIO_RESET_CONFIG)
             self.__command(Command.SET_SW_ENCODING, bytes([Encoding.MANCHESTER]))
             frequency = int(433910000 / (24000000 / pow(2, 16)))
@@ -166,9 +181,20 @@ class RileyLink:
             self.__command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
             self.__command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
 
-        response = self.__command(Command.GET_STATE)
-        if response != b"OK":
-            raise RileyLinkError("Rileylink state is not OK. Response returned: %s" % response)
+            response = self.__command(Command.GET_STATE)
+            if response != b"OK":
+                raise RileyLinkError("Rileylink state is not OK. Response returned: %s" % response)
+
+        except RileyLinkError as rle:
+            logging.error("Error while initializing rileylink radio: %s", rle)
+            raise
+
+    def get_packet(self, timeout=1):
+        try:
+            return self.__command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)), timeout=timeout+2, throw_on_timeout=False)
+        except RileyLinkError as rle:
+            logging.error("Error while receiving data: %s", rle)
+            raise
 
     def send_and_receive_packet(self, packet, repeat_count, delay_ms, timeout_ms, retry_count, preamble_ext_ms):
 
@@ -187,13 +213,14 @@ class RileyLink:
                                   timeout=30)
         except RileyLinkError as rle:
             logging.error("Error while sending and receiving data: %s", rle)
-            return None
+            raise
 
-    def send_final_packet(self, packet, repeat_count, delay_ms, preamble_extension_ms):
+    def send_packet(self, packet, repeat_count, delay_ms, preamble_extension_ms):
         try:
-            return self.__command(Command.SEND_PACKET, struct.pack(">BBHH", 0, repeat_count, delay_ms,
+            result = self.__command(Command.SEND_PACKET, struct.pack(">BBHH", 0, repeat_count, delay_ms,
                                                                    preamble_extension_ms) + packet,
                                   timeout=30)
+            return result
         except RileyLinkError as rle:
             logging.error("Error while sending data: %s", rle)
             raise
@@ -225,4 +252,5 @@ class RileyLink:
         else:
             if throw_on_timeout:
                 raise RileyLinkError("Timed out while waiting for a response from RileyLink")
+        return None
 

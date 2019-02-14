@@ -45,6 +45,4 @@ print("Getting final status")
 pdm.updatePodStatus()
 print(pdm.pod)
 
-pdm.cleanUp()
-
 print(pdm.pod)

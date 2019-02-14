@@ -16,6 +16,4 @@ try:
 except PdmError as ProtocolError:
     pdm.updatePodStatus()
 
-pdm.cleanUp()
-
 print(pdm.pod)
