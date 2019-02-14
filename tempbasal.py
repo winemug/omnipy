@@ -16,6 +16,5 @@ hours = Decimal(sys.argv[3])
 print("\nSetting temp basal of %.2f units for %.1f hours\n" % (amount, hours))
 
 pdm.setTempBasal(amount, hours, False)
-pdm.cleanUp()
 
 print(pdm.pod)

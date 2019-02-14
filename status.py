@@ -13,5 +13,4 @@ pdm = Pdm(pod)
 pdm.updatePodStatus()
 print(pdm.pod)
 
-pdm.cleanUp()
     
