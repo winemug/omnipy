@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 from podcomm.pod import Pod
-from podcomm.pdm import Pdm, PdmError
+from podcomm.pdm import Pdm
+from podcomm.pdmutils import PdmError
 import logging
 import sys
 import time
@@ -21,7 +22,7 @@ try:
     print("Bolus started status:")
     pdm.updatePodStatus()
     print(pdm.pod)
-except PdmError as ProtocolError:
+except PdmError as e:
     pdm.updatePodStatus()
 
 print("\n\nBolusing %.2f units\n\nPress ctrl+c to cancel\n\n" % (amount))

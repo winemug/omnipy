@@ -69,6 +69,9 @@ class Message():
         self.acknowledged = False
         self.updateMessageState()
 
+    def setSequence(self, sequence):
+        self.sequence = sequence
+
     def getPackets(self):
         self.body = self.body[0:-2] + self.calculateChecksum(self.body[0:-2])
 

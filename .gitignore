@@ -106,5 +106,7 @@ venv.bak/
 # visual studio code folder
 .vscode/
 
-#whatever the what
+# various junk
 .idea/
+.*
+*.json
