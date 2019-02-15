@@ -1,7 +1,7 @@
 from .pdmutils import *
 from .nonce import Nonce
 from .radio import Radio
-from .pod import BasalState, BolusState
+from .pod import BasalState, BolusState, PodProgress
 from .message import Message, MessageType
 
 from decimal import *
@@ -18,6 +18,7 @@ class Pdm:
 
     def updatePodStatus(self, update_type=0):
         try:
+            self._assert_pod_address_assigned()
             if update_type == 0 and \
                     self.pod.lastUpdated is not None and \
                     time.time() - self.pod.lastUpdated < 60:
@@ -32,10 +33,13 @@ class Pdm:
 
     def bolus(self, bolus_amount, beep=False):
         try:
-            logging.debug("enacting bolus: %f units" % bolus_amount)
             with pdmlock():
-                if self.pod is None or not self.pod.is_active():
-                    raise PdmError()
+                self._assert_pod_address_assigned()
+                self._assert_can_generate_nonce()
+                self._assert_immediate_bolus_not_active()
+                self._assert_not_faulted()
+                self._assert_status_running()
+
                 if bolus_amount > self.pod.maximumBolus:
                     raise PdmError()
 
@@ -97,6 +101,11 @@ class Pdm:
     def cancelBolus(self, beep=False):
         try:
             with pdmlock():
+                self._assert_pod_address_assigned()
+                self._assert_can_generate_nonce()
+                self._assert_not_faulted()
+                self._assert_status_running()
+
                 if self._is_bolus_running():
                     logging.debug("Canceling running bolus")
                     self._cancelActivity(cancelBolus=True, beep=beep)
@@ -115,6 +124,12 @@ class Pdm:
     def cancelTempBasal(self, beep=False):
         try:
             with pdmlock():
+                self._assert_pod_address_assigned()
+                self._assert_can_generate_nonce()
+                self._assert_immediate_bolus_not_active()
+                self._assert_not_faulted()
+                self._assert_status_running()
+
                 if self._is_temp_basal_active():
                     logging.debug("Canceling temp basal")
                     self._cancelActivity(cancelTempBasal=True, beep=beep)
@@ -134,6 +149,12 @@ class Pdm:
     def setTempBasal(self, basalRate, hours, confidenceReminder=False):
         try:
             with pdmlock():
+                self._assert_pod_address_assigned()
+                self._assert_can_generate_nonce()
+                self._assert_immediate_bolus_not_active()
+                self._assert_not_faulted()
+                self._assert_status_running()
+
                 halfHours = int(hours * Decimal(2))
 
                 if halfHours > 24 or halfHours < 1:
@@ -309,6 +330,40 @@ class Pdm:
 
         self._update_status()
         return self.pod.basalState == BasalState.TempBasal
+
+    def _assert_pod_address_assigned(self):
+        if self.pod is None:
+            raise PdmError("No pod assigned")
+
+        if self.pod.address is None:
+            raise PdmError("Radio address unknown")
+
+    def _assert_can_generate_nonce(self):
+        if self.pod.lot is None:
+            raise PdmError("Lot number is not defined")
+
+        if self.pod.tid is None:
+            raise PdmError("Pod serial number is not defined")
+
+    def _assert_status_running(self):
+        if self.pod.progress < PodProgress.Running:
+            raise PdmError("Pod is not active yet")
+
+        if self.pod.progress > PodProgress.RunningLow:
+            raise PdmError("Pod is not active yet")
+
+    def _assert_not_faulted(self):
+        if self.pod.faulted:
+            raise PdmError("Pod is faulted")
+
+    def _assert_no_active_alerts(self):
+        if self.pod.alert_states != 0:
+            raise PdmError("Pod has active alerts")
+
+    def _assert_immediate_bolus_not_active(self):
+        if self._is_bolus_running():
+            raise PdmError("Pod is busy delivering a bolus")
+
 
     #    def initializePod(self, path, addressToAssign=None):
     #     if addressToAssign is None:
