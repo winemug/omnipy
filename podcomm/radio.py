@@ -221,8 +221,12 @@ class Radio:
             logging.error("Error while sending %s" % rle)
 
     def __getPacket(self, data):
+        p = None
         if data is not None and len(data) > 2:
             calc = crc.crc8(data[2:-1])
             if data[-1] == calc:
-                return Packet.from_data(data[2:-1])
-        return None
+                try:
+                    p = Packet.from_data(data[2:-1])
+                except ProtocolError as pe:
+                    logging.warning("Crc match on an invalid packet, error: %s" % pe)
+        return p
