@@ -1,9 +1,7 @@
 from .packet import Packet
 from enum import Enum
 from .crc import crc16
-import binascii
 import struct
-from datetime import datetime
 
 class MessageState(Enum):
     Incomplete = 0,
@@ -14,7 +12,7 @@ class MessageType(Enum):
     PDM = 0,
     POD = 1
 
-class Message():
+class Message:
     def __init__(self, mtype, address, unknownBits = 0, sequence = 0):
         self.type = mtype
         self.address = address
@@ -97,7 +95,7 @@ class Message():
 
         maxLength = 31
         conData = []
-        while (len(bodyToWrite) > 0):
+        while len(bodyToWrite) > 0:
             lenToWrite = min(maxLength, len(bodyToWrite))
             cond = struct.pack(">I", self.address)
             cond += b"\x80"
@@ -105,9 +103,9 @@ class Message():
             bodyToWrite = bodyToWrite[lenToWrite:]
             conData.append(cond)
 
-        packets = [ Packet(0, data) ]
+        packets = [Packet.from_data(data)]
         for cond in conData:
-            packets.append(Packet(0, cond))
+            packets.append(Packet.from_data(cond))
 
         packets[-1].data += crc
         return packets
@@ -161,9 +159,9 @@ class Message():
         for contentType, content in self.getContents():
             s += "Type: %02x " % contentType
             if contentType == 0x1a:
-                s += separate(content, [4,1,2,1,2]) + "\n"
+                s += separate(content, [4, 1, 2, 1, 2]) + "\n"
             elif contentType == 0x16:
-                s += separate(content, [1,1,2,4,2,4]) + "\n"
+                s += separate(content, [1, 1, 2, 4, 2, 4]) + "\n"
             else:
                 s += "Type: %02x Body: %s\n" % (contentType, content.hex())
         return s
@@ -171,6 +169,7 @@ class Message():
 def separate(content, separations):
     r = ""
     ptr = 0
+    s = 0
     for s in separations:
         if r != "":
             r += " "

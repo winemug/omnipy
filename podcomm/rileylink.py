@@ -1,11 +1,11 @@
-import time
 import logging
-import struct
 import os
+import struct
+import time
 from enum import IntEnum
 from threading import Event
 
-from bluepy.btle import Peripheral, DefaultDelegate, Scanner, ScanEntry, BTLEDisconnectError
+from bluepy.btle import Peripheral, Scanner, BTLEDisconnectError
 
 
 class Command(IntEnum):
@@ -189,9 +189,9 @@ class RileyLink:
             logging.error("Error while initializing rileylink radio: %s", rle)
             raise
 
-    def get_packet(self, timeout=1):
+    def get_packet(self, timeout=1.0):
         try:
-            return self.__command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)), timeout=timeout+2, throw_on_timeout=False)
+            return self.__command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)), timeout=float(timeout)+0.5, throw_on_timeout=False)
         except RileyLinkError as rle:
             logging.error("Error while receiving data: %s", rle)
             raise
@@ -225,7 +225,7 @@ class RileyLink:
             logging.error("Error while sending data: %s", rle)
             raise
 
-    def __command(self, command_type, command_data=None, timeout=2, throw_on_timeout=True):
+    def __command(self, command_type, command_data=None, timeout=2.0, throw_on_timeout=True):
         if command_data is None:
             data = bytes([1, command_type])
         else:

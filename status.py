@@ -1,9 +1,9 @@
 #!/usr/bin/python3
-from podcomm.pod import Pod
-from podcomm.pdm import Pdm
 import logging
 import sys
-import time
+
+from podcomm.pdm import Pdm
+from podcomm.pod import Pod
 
 logging.basicConfig(level=logging.DEBUG)
 

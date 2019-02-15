@@ -1,11 +1,12 @@
 #!/usr/bin/python3
 
+import logging
 import simplejson as json
 import struct
 from datetime import datetime, timedelta
 import binascii
 from enum import IntEnum
-
+import time
 
 class BolusState(IntEnum):
     NotRunning = 0
@@ -167,10 +168,10 @@ class Pod:
         pass
 
     def handle_information_response(self, response):
-        self.faulted = True
         if response[0] == 0x01:
             pass
         elif response[0] == 0x02:
+            self.faulted = True
             self.progress = response[1]
             self.__parse_delivery_state(response[2])
             self.canceledInsulin = struct.unpack(">H", response[3:5])[0] * 0.05
@@ -203,8 +204,8 @@ class Pod:
         elif response[0] == 0x51:
             pass
         else:
-            self.log("Unknown information response of type 0x%2X\n" % response[0])
-            self.log("Response content: %s\n" % binascii.hexlify(response) )
+            logging.debug("Unknown information response of type 0x%2X\n" % response[0])
+            logging.debug("Response content: %s\n" % binascii.hexlify(response) )
 
     def handle_status_response(self, response):
         s = struct.unpack(">BII", response)
@@ -227,10 +228,9 @@ class Pod:
         self.totalInsulin = insulin_pulses * 0.05
         self.canceledInsulin = canceled_pulses * 0.05
         self.minutes_since_activation = pod_active_time
-        now = datetime.utcnow()
-        self.lastUpdated = (now - datetime.utcfromtimestamp(0)).total_seconds()
+        self.lastUpdated = time.time()
 
-        ds = now.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
+        ds = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
 
         self.Save()
 

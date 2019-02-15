@@ -68,7 +68,7 @@ def main():
 exit_event = threading.Event()
 
 
-def signal_handler(signo, _frame):
+def signal_handler(_, _frame):
     exit_event.set()
 
 
