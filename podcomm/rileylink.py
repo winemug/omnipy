@@ -2,12 +2,16 @@ import logging
 import os
 import struct
 import time
+from .definitions import *
 from enum import IntEnum
 from threading import Event
 from .exceptions import RileyLinkError
 
 from bluepy.btle import Peripheral, Scanner, BTLEDisconnectError
 
+RILEYLINK_SERVICE_UUID = "0235733b-99c5-4197-b856-69219c2a3845"
+RILEYLINK_DATA_CHAR_UUID = "c842e849-5028-42e2-867c-016adada9155"
+RILEYLINK_RESPONSE_CHAR_UUID = "6e6c7910-b89e-43a5-a0fe-50c5e2b81f4a"
 
 class Command(IntEnum):
     GET_STATE = 1
@@ -76,8 +80,8 @@ class RileyLink:
         self.p = Peripheral()
         self.data_handle = None
         if address is None:
-            if os.path.exists(".rladdr"):
-                with open(".rladdr", "r") as stream:
+            if os.path.exists(RILEYLINK_MAC_FILE):
+                with open(RILEYLINK_MAC_FILE, "r") as stream:
                     address = stream.read()
         self.address = address
         self.service = None
@@ -88,14 +92,19 @@ class RileyLink:
         scanner = Scanner()
         found = None
         logging.debug("Scanning for RileyLink")
-        for result in scanner.scan(6.0):
-            if result.getValueText(7) == "0235733b-99c5-4197-b856-69219c2a3845":
-                logging.debug("Found RileyLink")
-                found = result.addr
-                stream = open(".rladdr", "w")
-                stream.write(result.addr)
-                stream.close()
-                break
+        retries = 10
+        while found is None and retries > 0:
+            retries -= 1
+            for result in scanner.scan(1.0):
+                if result.getValueText(7) == RILEYLINK_SERVICE_UUID:
+                    logging.debug("Found RileyLink")
+                    found = result.addr
+                    try:
+                        with open(RILEYLINK_MAC_FILE, "w") as stream:
+                            stream.write(result.addr)
+                    except IOError:
+                        logging.warning("Cannot store rileylink mac address for later")
+                    break
         else:
             logging.error("RileyLink not found")
         return found
@@ -106,11 +115,11 @@ class RileyLink:
 
         self._connect_retry(3)
 
-        self.service = self.p.getServiceByUUID("0235733b-99c5-4197-b856-69219c2a3845")
-        data_char = self.service.getCharacteristics("c842e849-5028-42e2-867c-016adada9155")[0]
+        self.service = self.p.getServiceByUUID(RILEYLINK_SERVICE_UUID)
+        data_char = self.service.getCharacteristics(RILEYLINK_DATA_CHAR_UUID)[0]
         self.data_handle = data_char.getHandle()
 
-        char_response = self.service.getCharacteristics("6e6c7910-b89e-43a5-a0fe-50c5e2b81f4a")[0]
+        char_response = self.service.getCharacteristics(RILEYLINK_RESPONSE_CHAR_UUID)[0]
         self.response_handle = char_response.getHandle()
 
         response_notify_handle = self.response_handle + 1

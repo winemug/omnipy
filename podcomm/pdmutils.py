@@ -1,8 +1,7 @@
 from decimal import *
 from .exceptions import PdmError, PdmBusyError
+from .definitions import *
 import struct
-
-PDM_LOCK_FILE = ".pdmlock"
 
 
 def pdmlock():

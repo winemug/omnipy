@@ -8,19 +8,12 @@ import Crypto.Cipher
 import simplejson as json
 from flask import Flask, request
 
+from podcomm.definitions import *
 from podcomm.crc import crc8
 from podcomm.packet import Packet
 from podcomm.pdm import Pdm
 from podcomm.pod import Pod
 from podcomm.rileylink import RileyLink
-
-TOKENS_FILE = ".tokens"
-KEY_FILE = ".key"
-RESPONSE_FILE = ".response"
-
-POD_FILE = "pod.json"
-API_VERSION_MAJOR = 1
-API_VERSION_MINOR = 0
 
 app = Flask(__name__)
 

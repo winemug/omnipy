@@ -1,5 +1,15 @@
 from enum import IntEnum
 
+RILEYLINK_MAC_FILE = ".rladdr"
+PDM_LOCK_FILE = ".pdmlock"
+TOKENS_FILE = ".tokens"
+KEY_FILE = ".key"
+RESPONSE_FILE = ".response"
+POD_FILE = "pod.json"
+
+API_VERSION_MAJOR = 1
+API_VERSION_MINOR = 0
+
 
 class BolusState(IntEnum):
     NotRunning = 0
