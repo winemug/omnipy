@@ -3,7 +3,7 @@ class OmnipyError(Exception):
         self.error_message = message
 
     def __str__(self):
-        return "%s: %s\n\nContext: %s\n\nTraceback: %s" % (self.__class__.__name__, self.error_message, self.__context__, self.__traceback__)
+        return "%s: %s\n\nContext: %s\n" % (self.__class__.__name__, self.error_message, self.__context__)
 
 
 class RileyLinkError(OmnipyError):
