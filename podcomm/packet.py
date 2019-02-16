@@ -1,9 +1,6 @@
 import binascii
 import struct
-
-class ProtocolError(Exception):
-    def __init__(self, message="Unknown"):
-        self.error_message = message
+from .exceptions import ProtocolError
 
 class Packet:
     def __init__(self):

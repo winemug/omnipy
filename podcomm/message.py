@@ -1,4 +1,5 @@
 from .packet import Packet
+from .exceptions import ProtocolError
 from enum import Enum
 from .crc import crc16
 import struct
@@ -46,7 +47,7 @@ class Message:
         elif packet.type == "POD":
             mType = MessageType.POD
         else:
-            raise ValueError()
+            raise ProtocolError("Packet type %s not valid for a first packet in a message" % packet.type)
 
         b0 = packet.body[0]
         b1 = packet.body[1]
@@ -62,7 +63,7 @@ class Message:
 
     def addConPacket(self, packet):
         if packet.type != "CON":
-            raise ValueError()
+            raise ProtocolError("Packet type is not CON.")
         self.body = self.body + packet.body
         self.acknowledged = False
         self.updateMessageState()
@@ -116,10 +117,12 @@ class Message:
                 self.state = MessageState.Complete
             else:
                 self.state = MessageState.Invalid
+                raise ProtocolError("Message checksum failed")
         elif len(self.body) < self.length + 2:
             self.state = MessageState.Incomplete
         else:
             self.state = MessageState.Invalid
+            raise ProtocolError("Message data exceeds announced message length")
 
     def verifyChecksum(self):
         checksum = self.calculateChecksum(self.body[:-2])
@@ -149,12 +152,6 @@ class Message:
         return contents
 
     def __str__(self):
-        return self.prettyPrint()
-        # return "Msg %s: %s (%s, %s) (seq: 0x%02x, unkn.: 0x%02x)" % (self.type, binascii.hexlify(self.body[:-2]),
-        #     "OK" if self.state == MessageState.Complete else "ERROR", "ACK'd" if self.acknowledged else "NOACK",
-        #     self.sequence, self.unknownBits)
-
-    def prettyPrint(self):
         s = "%s %s %s\n" % (self.type, self.sequence, self.unknownBits)
         for contentType, content in self.getContents():
             s += "Type: %02x " % contentType
@@ -165,6 +162,7 @@ class Message:
             else:
                 s += "Type: %02x Body: %s\n" % (contentType, content.hex())
         return s
+
 
 def separate(content, separations):
     r = ""
@@ -181,6 +179,4 @@ def separate(content, separations):
             r += content[ptr:ptr+s].hex()
             ptr += s
     return r
-
-
 

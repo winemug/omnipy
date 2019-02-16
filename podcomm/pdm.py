@@ -3,6 +3,7 @@ from .nonce import Nonce
 from .radio import Radio
 from .pod import BasalState, BolusState, PodProgress
 from .message import Message, MessageType
+from .exceptions import PdmError, OmnipyError
 
 from decimal import *
 import time
@@ -41,22 +42,22 @@ class Pdm:
                 self._assert_status_running()
 
                 if bolus_amount > self.pod.maximumBolus:
-                    raise PdmError()
+                    raise PdmError("Bolus exceeds defined maximum bolus of %.2fU" % self.pod.maximumBolus)
 
                 pulseCount = int(bolus_amount * Decimal(20))
 
                 if pulseCount == 0:
-                    raise PdmError()
+                    raise PdmError("Cannot do a zero bolus")
 
                 pulseSpan = pulseCount * 16
                 if pulseSpan > 0x3840:
-                    raise PdmError()
+                    raise PdmError("Bolus would exceed the maximum time allowed for an immediate bolus")
 
                 if self._is_bolus_running():
                     raise PdmError("A previous bolus is already running")
 
                 if bolus_amount > self.pod.reservoir:
-                    raise PdmError("Cannot bolus %0.2f units, reservoir capacity is at: %0.2f")
+                    raise PdmError("Cannot bolus %.2f units, reservoir capacity is at: %.2f")
 
                 commandBody = struct.pack(">I", 0)
                 commandBody += b"\x02"
@@ -92,8 +93,12 @@ class Pdm:
 
                 self.pod.last_enacted_bolus_start = time.time()
                 self.pod.last_enacted_bolus_amount = float(bolus_amount)
-        except:
+        except PdmError:
             raise
+        except OmnipyError as oe:
+            raise PdmError("Command failed") from oe
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
         finally:
             self._savePod()
 
@@ -116,8 +121,13 @@ class Pdm:
                         self.pod.last_enacted_bolus_start = time.time()
                 else:
                     raise PdmError("Bolus is not running")
-        except:
+
+        except PdmError:
             raise
+        except OmnipyError as oe:
+            raise PdmError("Command failed") from oe
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
         finally:
             self._savePod()
 
@@ -141,8 +151,14 @@ class Pdm:
                         self.pod.last_enacted_temp_basal_amount = float(-1)
                 else:
                     raise PdmError("Temp basal is not active")
-        except:
+
+        except PdmError:
             raise
+        except OmnipyError as oe:
+            raise PdmError("Command failed") from oe
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
+
         finally:
             self._savePod()
 
@@ -217,8 +233,14 @@ class Pdm:
                     self.pod.last_enacted_temp_basal_duration = float(hours)
                     self.pod.last_enacted_temp_basal_start = time.time()
                     self.pod.last_enacted_temp_basal_amount = float(basalRate)
-        except:
+
+        except PdmError:
             raise
+        except OmnipyError as oe:
+            raise PdmError("Command failed") from oe
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
+
         finally:
             self._savePod()
 
@@ -256,8 +278,8 @@ class Pdm:
             self.pod.nonceSeed = self.nonce.seed
             self.pod.Save()
             logging.debug("Saved pod status")
-        except:
-            raise
+        except Exception as e:
+            raise PdmError("Pod status was not saved") from e
 
     def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0):
         if with_nonce:

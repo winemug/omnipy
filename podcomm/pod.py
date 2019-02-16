@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from .exceptions import ProtocolError
 import logging
 import simplejson as json
 import struct
@@ -7,6 +8,7 @@ from datetime import datetime, timedelta
 import binascii
 from enum import IntEnum
 import time
+
 
 class BolusState(IntEnum):
     NotRunning = 0
@@ -204,8 +206,8 @@ class Pod:
         elif response[0] == 0x51:
             pass
         else:
-            logging.debug("Unknown information response of type 0x%2X\n" % response[0])
-            logging.debug("Response content: %s\n" % binascii.hexlify(response) )
+            raise ProtocolError("Failed to parse the information response of type 0x%2X with content: %s"
+                                % (response[0], binascii.hexlify(response)))
 
     def handle_status_response(self, response):
         s = struct.unpack(">BII", response)
@@ -263,6 +265,10 @@ class Pod:
         return state
 
     def log(self, log_message):
-        log_file_path = self.path + ".log"
-        with open(log_file_path, "a") as stream:
-            stream.write(log_message)
+        try:
+            log_file_path = self.path + ".log"
+            with open(log_file_path, "a") as stream:
+                stream.write(log_message)
+        except Exception as e:
+            logging.warning("Failed to write the following line to the pod log file %s:\n%s\nError: %s"
+                            %(log_file_path, log_message, e))

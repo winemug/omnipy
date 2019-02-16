@@ -1,11 +1,9 @@
 from decimal import *
+from .exceptions import PdmError
 import struct
 
 PDM_LOCK_FILE = ".pdmlock"
 
-class PdmError(Exception):
-    def __init__(self, msg="Undefined"):
-        self.error_message = msg
 
 def pdmlock():
     return open(PDM_LOCK_FILE, "w")
