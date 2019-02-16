@@ -129,6 +129,7 @@ class Radio:
 
     def _eval_received_data_as_packet(self, data, expected_sequence, expected_address):
         if data is None:
+            logging.debug("Receive timed out.")
             return None
         p = self.__getPacket(data)
         if p is None:

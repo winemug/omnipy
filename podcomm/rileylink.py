@@ -105,8 +105,6 @@ class RileyLink:
                     except IOError:
                         logging.warning("Cannot store rileylink mac address for later")
                     break
-        else:
-            logging.error("RileyLink not found")
         return found
         
     def connect(self):
