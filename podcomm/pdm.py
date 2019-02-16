@@ -56,6 +56,19 @@ class Pdm:
         finally:
             self._savePod()
 
+    def is_busy(self):
+        try:
+            with pdmlock():
+                return self._is_bolus_running()
+        except PdmBusyError:
+            return True
+        except PdmError:
+            raise
+        except OmnipyError as oe:
+            raise PdmError("Command failed") from oe
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
+
     # def clear_alert(self, alert_bit):
     #     try:
     #         self._assert_can_acknowledge_alerts()

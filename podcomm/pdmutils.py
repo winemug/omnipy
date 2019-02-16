@@ -1,12 +1,15 @@
 from decimal import *
-from .exceptions import PdmError
+from .exceptions import PdmError, PdmBusyError
 import struct
 
 PDM_LOCK_FILE = ".pdmlock"
 
 
 def pdmlock():
-    return open(PDM_LOCK_FILE, "w")
+    try:
+        return open(PDM_LOCK_FILE, "w")
+    except IOError as ioe:
+        raise PdmBusyError from ioe
 
 def getPulsesForHalfHours(halfHourUnits):
     halfHourlyDeliverySubtotals = []
