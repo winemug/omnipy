@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from .exceptions import ProtocolError
+from .definitions import *
 import logging
 import simplejson as json
 import struct
@@ -9,44 +10,6 @@ import binascii
 from enum import IntEnum
 import time
 
-
-class BolusState(IntEnum):
-    NotRunning = 0
-    Extended = 1
-    Immediate = 2
-
-
-class BasalState(IntEnum):
-    NotRunning = 0
-    TempBasal = 1
-    Program = 2
-
-
-class PodProgress(IntEnum):
-    InitialState = 0
-    TankPowerActivated = 1
-    TankFillCompleted = 2
-    PairingSuccess = 3
-    Purging = 4
-    ReadyForInjection = 5
-    InjectionDone = 6
-    Priming = 7
-    Running = 8
-    RunningLow = 9
-    ErrorShuttingDown = 13
-    AlertExpiredShuttingDown = 14
-    Inactive = 15
-
-
-class PodAlert(IntEnum):
-    AutoOff = 0x01
-    Unknown = 0x02
-    EndOfService = 0x04
-    Expired = 0x08
-    LowReservoir = 0x10
-    SuspendInProgress = 0x20
-    SuspendEnded = 0x40
-    TimerLimit = 0x80
 
 class Pod:
     def __init__(self):

@@ -1,9 +1,9 @@
 from .pdmutils import *
 from .nonce import Nonce
 from .radio import Radio
-from .pod import BasalState, BolusState, PodProgress
 from .message import Message, MessageType
 from .exceptions import PdmError, OmnipyError
+from .definitions import *
 
 from decimal import *
 import time
@@ -37,14 +37,15 @@ class Pdm:
         finally:
             self._savePod()
 
-    def acknowledge_alerts(self, alerts):
+    def acknowledge_alerts(self, alert_mask):
         try:
-            self._assert_pod_address_assigned()
             self._assert_can_acknowledge_alerts()
 
+            # TODO: verify alert state
+
             with pdmlock():
-                logging.debug("acknowledging alerts with bitmask %d" % alerts)
-                self._acknowledge_alerts(alerts)
+                logging.debug("acknowledging alerts with bitmask %d" % alert_mask)
+                self._acknowledge_alerts(alert_mask)
 
         except PdmError:
             raise
@@ -54,6 +55,24 @@ class Pdm:
             raise PdmError("Unexpected error") from e
         finally:
             self._savePod()
+
+    # def clear_alert(self, alert_bit):
+    #     try:
+    #         self._assert_can_acknowledge_alerts()
+    #
+    #         # TODO: verify alert state
+    #
+    #         with pdmlock():
+    #             logging.debug("clearing alert %d" % alert_bit)
+    #             self._configure_alert(alert_bit, clear=True)
+    #     except PdmError:
+    #         raise
+    #     except OmnipyError as oe:
+    #         raise PdmError("Command failed") from oe
+    #     except Exception as e:
+    #         raise PdmError("Unexpected error") from e
+    #     finally:
+    #         self._savePod()
 
     def bolus(self, bolus_amount, beep=False):
         try:
@@ -334,11 +353,29 @@ class Pdm:
         msg = self._createMessage(commandType, commandBody)
         self._sendMessage(msg)
 
-    def _acknowledge_alerts(self, alerts):
+    def _acknowledge_alerts(self, alert_mask):
         commandType = 0x11
-        commandBody = bytes([0, 0, 0, 0, alerts])
+        commandBody = bytes([0, 0, 0, 0, alert_mask])
         msg = self._createMessage(commandType, commandBody)
         self._sendMessage(msg, with_nonce=True)
+
+    # def _configure_alert(self, alert_bit, activate, alert_trigger_type, alert_auto_off):
+    #     commandType = 0x19
+    #     commandBody = bytes([0, 0, 0, 0])
+    #
+    #     b_activate = 0
+    #     b_trigger_low_reservoir = 0
+    #     b_trigger_auto_off = 0
+    #
+    #     alert_duration_minutes = 0
+    #     alert_trigger_in_minutes = 0
+    #     alert_trigger_at_reservoir_level = 0
+    #
+    #     beep_pattern = 0
+    #     beep_type = 0
+    #
+    #     msg = self._createMessage(commandType, commandBody)
+    #     self._sendMessage(msg, with_nonce=True)
 
     def _is_bolus_running(self):
         if self.pod.lastUpdated is not None and self.pod.bolusState != BolusState.Immediate:
