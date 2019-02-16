@@ -27,8 +27,31 @@ class Pdm:
             with pdmlock():
                 logging.debug("updating pod status")
                 self._update_status(update_type)
-        except:
+
+        except PdmError:
             raise
+        except OmnipyError as oe:
+            raise PdmError("Command failed") from oe
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
+        finally:
+            self._savePod()
+
+    def acknowledge_alerts(self, alerts):
+        try:
+            self._assert_pod_address_assigned()
+            self._assert_can_acknowledge_alerts()
+
+            with pdmlock():
+                logging.debug("acknowledging alerts with bitmask %d" % alerts)
+                self._acknowledge_alerts(alerts)
+
+        except PdmError:
+            raise
+        except OmnipyError as oe:
+            raise PdmError("Command failed") from oe
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
         finally:
             self._savePod()
 
@@ -311,6 +334,12 @@ class Pdm:
         msg = self._createMessage(commandType, commandBody)
         self._sendMessage(msg)
 
+    def _acknowledge_alerts(self, alerts):
+        commandType = 0x11
+        commandBody = bytes([0, 0, 0, 0, alerts])
+        msg = self._createMessage(commandType, commandBody)
+        self._sendMessage(msg, with_nonce=True)
+
     def _is_bolus_running(self):
         if self.pod.lastUpdated is not None and self.pod.bolusState != BolusState.Immediate:
             return False
@@ -360,6 +389,21 @@ class Pdm:
         if self.pod.address is None:
             raise PdmError("Radio address unknown")
 
+    def _assert_can_acknowledge_alerts(self):
+        self._assert_pod_address_assigned()
+        if self.pod.progress < PodProgress.PairingSuccess:
+            raise PdmError("Pod not paired completely yet.")
+
+        if self.pod.progress == PodProgress.ErrorShuttingDown:
+            raise PdmError("Pod is shutting down, cannot acknowledge alerts.")
+
+        if self.pod.progress == PodProgress.AlertExpiredShuttingDown:
+            raise PdmError("Acknowledgement period expired, pod is shutting down")
+
+        if self.pod.progress > PodProgress.AlertExpiredShuttingDown:
+            raise PdmError("Pod is not active")
+
+
     def _assert_can_generate_nonce(self):
         if self.pod.lot is None:
             raise PdmError("Lot number is not defined")
@@ -369,10 +413,10 @@ class Pdm:
 
     def _assert_status_running(self):
         if self.pod.progress < PodProgress.Running:
-            raise PdmError("Pod is not active yet")
+            raise PdmError("Pod is not yet running")
 
         if self.pod.progress > PodProgress.RunningLow:
-            raise PdmError("Pod is not active yet")
+            raise PdmError("Pod has stopped")
 
     def _assert_not_faulted(self):
         if self.pod.faulted:
