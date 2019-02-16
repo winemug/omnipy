@@ -181,18 +181,13 @@ class Radio:
             data += bytes([crc.crc8(data)])
             receive_retries = 10
             while receive_retries > 0:
-                try:
-                    logging.debug("SENDING FINAL PACKET: %s (retries left: %d)" % (packetToSend, receive_retries))
-                    self.rileyLink.send_packet(data, 3, 20, 42)
-                    receive_retries -= 1
-                    received = self.rileyLink.get_packet(0.3)
-                    if received is None:
-                        break
-                except RileyLinkError as rle:
-                    if rle.response_code == Response.RX_TIMEOUT:
-                        break
-                    else:
-                        raise rle
+                logging.debug("SENDING FINAL PACKET: %s (retries left: %d)" % (packetToSend, receive_retries))
+                self.rileyLink.send_packet(data, 3, 20, 42)
+                receive_retries -= 1
+                received = self.rileyLink.get_packet(0.3)
+                if received is None:
+                    break
+
                 p = self.__getPacket(received)
                 if p is None or p.address != packetToSend.address:
                     break
