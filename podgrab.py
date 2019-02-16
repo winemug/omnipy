@@ -14,7 +14,7 @@ pod.lot = int(sys.argv[1])
 pod.tid = int(sys.argv[2])
 pod.lastNonce = None
 
-r = RileyLink("88:6b:0f:44:fc:1b")
+r = RileyLink()
 print("connecting to RL")
 r.connect()
 print("initializing")
