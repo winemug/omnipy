@@ -225,6 +225,21 @@ def get_status():
         return respond_error("Other error. Please check log files.")
 
 
+@app.route("/pdm/ack")
+def acknowledge_alerts():
+    try:
+        verify_auth(request)
+        mask = Decimal(request.args.get('alertmask'))
+        pdm = get_pdm()
+        pdm.acknowledge_alerts(mask)
+        return respond_ok(pdm.pod.__dict__)
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logging.error("Error during get status: %s", e)
+        return respond_error("Other error. Please check log files.")
+
+
 @app.route("/pdm/bolus")
 def bolus():
     try:
