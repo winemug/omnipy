@@ -172,6 +172,8 @@ class RileyLink:
                         logging.error("Firmware version is below 2.0")
                         raise RileyLinkError("Unsupported RileyLinkv firmware %d.%d (%s)" %
                                              (v_major, v_minor, version))
+                except RileyLinkError:
+                    raise
                 except Exception as ex:
                     raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
 
