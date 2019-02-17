@@ -16,17 +16,17 @@ echo
 echo ${bold}Step 2/35: ${normal}Upgrading existing packages
 sudo apt upgrade -y
 
-if [ ! -d $HOME/omnipy ]
+if [ ! -d /home/pi/omnipy ]
 then
 echo
 echo ${bold}Step 3/35: ${normal}Downloading and installing omnipy
-cd $HOME
+cd /home/pi
 git clone https://github.com/winemug/omnipy.git
-cd $HOME/omnipy
+cd /home/pi/omnipy
 else
 echo
 echo ${bold}Step 3/35: ${normal}Updating omnipy
-cd $HOME/omnipy
+cd /home/pi/omnipy
 git stash
 git pull
 fi
@@ -41,12 +41,12 @@ sudo pip3 install requests
 
 echo
 echo ${bold}Step 4/35: ${normal}Configuring and installing bluepy
-cd $HOME
+cd /home/pi
 git clone https://github.com/IanHarvey/bluepy.git
 cd bluepy
 python3 ./setup.py build
 sudo python3 ./setup.py install
-cd $HOME/omnipy
+cd /home/pi/omnipy
 
 echo
 echo ${bold}Step 5/35: ${normal}Enabling bluetooth management for users
@@ -69,7 +69,7 @@ echo This step will test if your RileyLink device is connectable and has the
 echo correct firmware version installed.
 echo
 read -p "Press Enter to continue..."
-/usr/bin/python3 $HOME/omnipy/verify_rl.py
+/usr/bin/python3 /home/pi/omnipy/verify_rl.py
 
 # echo ${bold}Step 8/35: ${normal}Setting up bluetooth personal area network
 # echo
@@ -129,16 +129,16 @@ read -p "Press Enter to continue..."
 # sudo killall -9 btnap.sh > /dev/null 2>&1
 # sudo killall -9 bt-network > /dev/null 2>&1
 
-# echo
-# echo ${bold}Step 9/35: ${normal}Creating and starting omnipy service
-# sudo cp /home/pi/omnipy/omnipy.service /etc/systemd/system/
-# sudo systemctl enable omnipy.service
-# sudo systemctl start omnipy.service
+echo
+echo ${bold}Step 9/35: ${normal}Creating and starting omnipy service
+sudo cp /home/pi/omnipy/omnipy.service /etc/systemd/system/
+sudo systemctl enable omnipy.service
+sudo systemctl start omnipy.service
 
-# echo
-# echo ${bold}Step 10/35: ${normal}Informing the user about the actual number of steps
-# echo
-# echo Setup needed no more than 10 steps.
-# echo
-# echo ${bold}Setup completed.${normal}
+echo
+echo ${bold}Step 10/35: ${normal}Informing the user about the actual number of steps
+echo
+echo Setup needed no more than 10 steps.
+echo
+echo ${bold}Setup completed.${normal}
 
