@@ -10,6 +10,8 @@ from .exceptions import RileyLinkError
 
 from bluepy.btle import Peripheral, Scanner, BTLEException
 
+XGATT_BATTERYSERVICE_UUID = "180f"
+XGATT_BATTERY_CHAR_UUID = "2a19"
 RILEYLINK_SERVICE_UUID = "0235733b-99c5-4197-b856-69219c2a3845"
 RILEYLINK_DATA_CHAR_UUID = "c842e849-5028-42e2-867c-016adada9155"
 RILEYLINK_RESPONSE_CHAR_UUID = "6e6c7910-b89e-43a5-a0fe-50c5e2b81f4a"
@@ -129,7 +131,8 @@ class RileyLink:
     def disconnect(self, ignore_errors=True):
         try:
             if self.peripheral is None:
-                raise RileyLinkError("Not connected")
+                logging.info("Already disconnected")
+                return
             logging.info("Disconnecting..")
             response_notify_handle = self.response_handle + 1
             notify_setup = b"\x00\x00"
@@ -147,6 +150,21 @@ class RileyLink:
                     logging.warning("Ignoring btle exception during disconnect: %s" % btlee)
                 else:
                     raise
+
+    def get_battery_level(self):
+        try:
+            self.connect()
+
+            bs = self.peripheral.getServiceByUUID(XGATT_BATTERYSERVICE_UUID)
+            bc = bs.getCharacteristics(XGATT_BATTERY_CHAR_UUID)[0]
+            bch = bc.getHandle()
+            battery_value = int(self.peripheral.readCharacteristic(bch)[0])
+            logging.debug("Battery level read: %d", battery_value)
+            return battery_value
+        except BTLEException as btlee:
+            raise RileyLinkError("Error communicating with RileyLink") from btlee
+        finally:
+            self.disconnect()
 
     def init_radio(self, force_init=False):
         try:

@@ -223,6 +223,21 @@ def set_limits():
         return respond_error("Other error. Please check log files.")
 
 
+@app.route("/rl/battery")
+def get_rl_battery_level():
+    try:
+        verify_auth(request)
+
+        r = RileyLink()
+        level = r.get_battery_level()
+        return respond_ok(str(level))
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logging.error("Error during get status: %s", e)
+        return respond_error("Other error. Please check log files.")
+
+
 @app.route("/pdm/status")
 def get_status():
     try:
