@@ -1,12 +1,44 @@
 # About
-omnipy is a PDM (personal diabetes manager) emulator for the OmniPod insulin pump and it can be used to command the pump to perform various functions over a network. ~~It is designed to be used over sub-optimal networking conditions (such as the internet) therefore uses the MQTT protocol to listen for commands and forward responses.~~ It exposes a basic HTTP API to be utilized by APS systems, such as Android APS.
+omnipy is a PDM (personal diabetes manager) emulator for the OmniPod insulin pump and it can be used to command the pump to perform various functions over a Raspberry Pi on a local network. It exposes a basic HTTP API to be utilized by APS systems, such as Android APS.
 
 # Project status update
 
-As of February 13th:
-* Changes implemented that allow for omnipy to work without internet & mqtt
-* Work started for necessary changes to AndroidAPS / Omnipod branch
-* Public beta release target date: **February 17th, Sunday**
+*As of February 17th:*
+
+The good:
+* Release candidate is now in main branch
+* Installation script for Raspberry Pi
+* Lots of improvements, some new features
+
+The bad:
+* AndroidAPS integration for the new omnipy API is _not_ finished
+* Documentation not updated
+
+The ugly:
+* Some last minute changes not well tested
+* No proper client for running tests, unless you can program in python
+
+**What's coming:**
+* A simple client for running omnipy commands & documentation (very soon)
+* Android APS release with the updated Omnipod driver (soon)
+
+**What you can do now:**
+* Install on the raspberry pi:<br/>
+```curl https://raw.githubusercontent.com/winemug/omnipy/master/pi-setup.sh | sudo bash```
+* Grab yourself a pod:<br/>
+```
+cd ~/omnipy
+python3 ./podgrab.py 11111 222222 mypod.json
+```
+* Bolus 3.5 Units: <br/>
+```python3 ./bolus.py 2.35```
+* Set a temp basal of 2.60 U/h over the course of 1.5 hours: <br/>
+```python3 ./tempbasal.py 2.60 1.5```
+
+If you know a bit of python, feel free to look through the code and call the methods in the [pdm](https://github.com/winemug/omnipy/blob/master/podcomm/pdm.py) class to do more with the omnipod, based on the examples above.
+
+File an issue if you find something that doesn't work right, get in touch or both.
+
 
 # Important Background Information
 This used to be a pet project, where I investigated the radio communication between the OmniPod and the PDM. Whilst still studying the OmniPod, I have decided that there was enough information available to let it execute basic commands which would make it usable in an artifical pancreas system. I've put together a prototype and integrated it into AndroidAPS for my own use, which became what it is today.
