@@ -1,5 +1,5 @@
 from .pdmutils import *
-from .nonce import Nonce
+from .nonce import *
 from .radio import Radio
 from .message import Message, MessageType
 from .exceptions import PdmError, OmnipyError
@@ -346,17 +346,21 @@ class Pdm:
         except Exception as e:
             raise PdmError("Pod status was not saved") from e
 
-    def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0):
+    def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0, stay_connected=False):
+        requested_stay_connected = stay_connected
         if with_nonce:
-            message.setNonce(self.nonce.getNext())
-        response_message = self.radio.sendRequestToPod(message)
+            nonce = self.nonce.getNext()
+            if nonce == FAKE_NONCE:
+                stay_connected = True
+            message.setNonce(nonce)
+        response_message = self.radio.sendRequestToPod(message, stay_connected=stay_connected)
         contents = response_message.getContents()
         for (ctype, content) in contents:
             # if ctype == 0x01:  # pod info response
             #     self.pod.setupPod(content)
             if ctype == 0x1d:  # status response
                 self.pod.handle_status_response(content)
-            elif ctype == 0x02:  # pod faulted
+            elif ctype == 0x02:  # pod faulted or information
                 self.pod.handle_information_response(content)
             elif ctype == 0x06:
                 if content[0] == 0x14:  # bad nonce error
@@ -367,14 +371,15 @@ class Pdm:
                     nonce_sync_word = struct.unpack(">H", content[1:])[0]
                     self.nonce.sync(nonce_sync_word, message.sequence)
                     self.radio.messageSequence = message.sequence
-                    return self._sendMessage(message, with_nonce=True, nonce_retry_count=nonce_retry_count + 1)
+                    return self._sendMessage(message, with_nonce=True, nonce_retry_count=nonce_retry_count + 1,
+                                             stay_connected=requested_stay_connected)
 
 
     def _update_status(self, update_type=0):
         commandType = 0x0e
         commandBody = bytes([update_type])
         msg = self._createMessage(commandType, commandBody)
-        self._sendMessage(msg)
+        self._sendMessage(msg, True)
 
     def _acknowledge_alerts(self, alert_mask):
         commandType = 0x11

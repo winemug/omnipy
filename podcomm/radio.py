@@ -5,7 +5,7 @@ import time
 
 from .exceptions import ProtocolError, RileyLinkError
 from podcomm import crc
-from podcomm.rileylink import RileyLink, Response
+from podcomm.rileylink import RileyLink
 from .message import Message, MessageState
 from .packet import Packet
 
@@ -19,7 +19,6 @@ class Radio:
         self.lastPacketReceived = None
         self.responseTimeout = 1000
         self.rileyLink = RileyLink()
-        self.connected = False
 
     def __logPacket(self, p):
         logging.debug("Packet received: %s" % p)
@@ -29,39 +28,21 @@ class Radio:
 
     def sendRequestToPod(self, message, try_resync=True, stay_connected=True):
         try:
-            self.connect()
             return self._sendRequest(message)
         except ProtocolError as pe:
             if try_resync:
                 logging.error("Protocol error: %s" % pe)
                 logging.info("Trying to resync sequences with pod")
-                self.resyncPod(message.address)
+                self._resyncPod(message.address)
                 logging.info("Retrying request one more time")
                 return self._sendRequest(message)
             else:
                 raise
         finally:
             if not stay_connected:
-                self.disconnect()
+                self.rileyLink.disconnect()
 
-    def connect(self):
-        try:
-            self.rileyLink.connect()
-            self.connected = True
-        except RileyLinkError as rle:
-            logging.error("Error while connecting to RileyLink: %s" % rle)
-            raise rle
-
-    def disconnect(self):
-        try:
-            self.rileyLink.disconnect()
-        except RileyLinkError as rle:
-            logging.warning("Error while disconnecting from RileyLink: %s" % rle)
-
-
-    def resyncPod(self, address):
-        self.connect()
-
+    def _resyncPod(self, address):
         logging.info("Checking if the pod is still broadcasting")
         while True:
             logging.info("Listening to pod")
@@ -73,77 +54,64 @@ class Radio:
                 continue
             logging.info("Received broadcast from pod, responding to it")
             ack = Packet.Ack(address, True)
-            ack.setSequence((p.sequence + 1) % 32)
+            self.packetSequence = (p.sequence + 1) % 32
+            ack.setSequence(self.packetSequence)
+            self.packetSequence = (self.packetSequence + 1) % 32
             data = ack.data
             data += bytes([crc.crc8(data)])
             self.rileyLink.send_packet(data, 10, 100, 45)
 
         logging.info("Radio silence confirmed")
-        time.sleep(2)
-        logging.info("Sending request for sync")
-        ack = Packet.Ack(address, True)
-        ack.setSequence(0)
-        data = ack.data
-        data += bytes([crc.crc8(data)])
-        self.rileyLink.send_packet(data, 5, 100, 250)
-        logging.info("All done, fingers crossed.")
-        self.rileyLink.disconnect()
-        self.packetSequence = 1
-        self.messageSequence = 0
-        time.sleep(2)
+        time.sleep(5)
 
     def _sendRequest(self, message):
-        try:
-            self.rileyLink.connect()
-            self.rileyLink.init_radio()
-            message.setSequence(self.messageSequence)
-            logging.debug("SENDING MSG: %s" % message)
-            packets = message.getPackets()
-            received = None
-            packet_index = 1
-            packet_count = len(packets)
-            for packet in packets:
-                if packet_index == packet_count:
-                    expected_type = "POD"
-                else:
-                    expected_type = "ACK"
-                received = self._sendPacketAndGetPacket(packet, expected_type)
-                if received is None:
-                    raise ProtocolError("Timeout reached waiting for a response.")
+        message.setSequence(self.messageSequence)
+        logging.debug("SENDING MSG: %s" % message)
+        packets = message.getPackets()
+        received = None
+        packet_index = 1
+        packet_count = len(packets)
+        for packet in packets:
+            if packet_index == packet_count:
+                expected_type = "POD"
+            else:
+                expected_type = "ACK"
+            received = self._sendPacketAndGetPacket(packet, expected_type)
+            if received is None:
+                raise ProtocolError("Timeout reached waiting for a response.")
 
-                if received.type != expected_type:
-                    raise ProtocolError("Invalid response received. Expected type %s, received %s"
-                                        % (expected_type, received.type))
-                packet_index += 1
+            if received.type != expected_type:
+                raise ProtocolError("Invalid response received. Expected type %s, received %s"
+                                    % (expected_type, received.type))
+            packet_index += 1
 
-            pod_response = Message.fromPacket(received)
+        pod_response = Message.fromPacket(received)
 
-            while pod_response.state == MessageState.Incomplete:
-                ack_packet = Packet.Ack(message.address, False)
-                received = self._sendPacketAndGetPacket(ack_packet, "CON")
-                if received is None:
-                    raise ProtocolError("Timeout reached waiting for a response.")
-                if received.type != "CON":
-                    raise ProtocolError("Invalid response received. Expected type CON, received %s" % received.type)
-                pod_response.addConPacket(received)
+        while pod_response.state == MessageState.Incomplete:
+            ack_packet = Packet.Ack(message.address, False)
+            received = self._sendPacketAndGetPacket(ack_packet, "CON")
+            if received is None:
+                raise ProtocolError("Timeout reached waiting for a response.")
+            if received.type != "CON":
+                raise ProtocolError("Invalid response received. Expected type CON, received %s" % received.type)
+            pod_response.addConPacket(received)
 
-            if pod_response.state == MessageState.Invalid:
-                raise ProtocolError("Received message is not valid")
+        if pod_response.state == MessageState.Invalid:
+            raise ProtocolError("Received message is not valid")
 
-            logging.debug("RECEIVED MSG: %s" % pod_response)
+        logging.debug("RECEIVED MSG: %s" % pod_response)
 
-            logging.debug("Sending end of conversation")
-            ack_packet = Packet.Ack(message.address, True)
-            self._sendPacket(ack_packet)
-            logging.debug("Conversation ended")
+        logging.debug("Sending end of conversation")
+        ack_packet = Packet.Ack(message.address, True)
+        self._sendPacket(ack_packet)
+        logging.debug("Conversation ended")
 
-            self.messageSequence = (pod_response.sequence + 1) % 16
-            return pod_response
-        finally:
-            self.rileyLink.disconnect()
+        self.messageSequence = (pod_response.sequence + 1) % 16
+        return pod_response
 
     def _eval_received_unexpected_packet(self, data, expected_address, expected_sequence, expected_type):
         pass
+
     def _eval_received_data_as_packet(self, data, expected_address, expected_sequence, expected_type):
         if data is None:
             logging.debug("Receive timed out.")
@@ -159,7 +127,7 @@ class Radio:
             logging.debug("Received packet sequence mismatch. %s" % p)
             return None
         elif p.type != expected_type:
-            logging.debug("Received unexpected packet type %s" % ())
+            logging.debug("Received unexpected packet type %s" % p.type)
             return None
         return p
 

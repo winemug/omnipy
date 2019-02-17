@@ -7,7 +7,6 @@ import simplejson as json
 import struct
 from datetime import datetime, timedelta
 import binascii
-from enum import IntEnum
 import time
 
 

@@ -89,40 +89,16 @@ class RileyLink:
         self.response_handle = None
         self.notify_event = Event()
 
-    def findRileyLink(self):
-        scanner = Scanner()
-        found = None
-        logging.debug("Scanning for RileyLink")
-        retries = 10
-        while found is None and retries > 0:
-            retries -= 1
-            for result in scanner.scan(1.0):
-                if result.getValueText(7) == RILEYLINK_SERVICE_UUID:
-                    logging.debug("Found RileyLink")
-                    found = result.addr
-                    try:
-                        with open(RILEYLINK_MAC_FILE, "w") as stream:
-                            stream.write(result.addr)
-                    except IOError:
-                        logging.warning("Cannot store rileylink mac address for later")
-                    break
-
-        if found is None:
-            raise RileyLinkError("Could not find RileyLink")
-
-        return found
-        
     def connect(self, force_initialize=False):
         try:
             if self.address is None:
-                self.address = self.findRileyLink()
+                self.address = self._findRileyLink()
 
             if self.peripheral is None:
                 self.peripheral = Peripheral()
 
             try:
                 state = self.peripheral.getState()
-                logging.debug("RL BLE connection state: %s" % state)
                 if state == "conn":
                     return
             except BTLEException:
@@ -150,19 +126,6 @@ class RileyLink:
                 self.disconnect()
             raise
 
-
-    def _connect_retry(self, retries):
-        while retries > 0:
-            retries -= 1
-            logging.info("Connecting to RileyLink, retries left: %d" % retries)
-            try:
-                self.peripheral.connect(self.address)
-                logging.info("Connected")
-                break
-            except BTLEException as btlee:
-                logging.warning("BTLE exception trying to connect: %s" % btlee)
-                time.sleep(2)
-
     def disconnect(self, ignore_errors=True):
         try:
             if self.peripheral is None:
@@ -188,18 +151,18 @@ class RileyLink:
     def init_radio(self, force_init=False):
         try:
             if not force_init:
-                response = self.__command(Command.READ_REGISTER, bytes([Register.SYNC1]))
+                response = self._command(Command.READ_REGISTER, bytes([Register.SYNC1]))
                 if response is not None and len(response) > 0 and response[0] == 0xA5:
                     return
 
-            response = self.__command(Command.GET_VERSION)
+            response = self._command(Command.GET_VERSION)
             if response is not None and len(response) > 0:
                 version = response.decode("ascii")
                 logging.debug("RL reports version string: %s" % version)
                 try:
                     m = re.search(".+([0-9]+)\\.([0-9]+)", version)
                     if m is None:
-                        raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
+                        raise RileyLinkError("Failed to parse firmware version string: %s" % version)
 
                     v_major = int(m.group(1))
                     v_minor = int(m.group(2))
@@ -209,38 +172,38 @@ class RileyLink:
                         logging.error("Firmware version is below 2.0")
                         raise RileyLinkError("Unsupported RileyLinkv firmware %d.%d (%s)" %
                                              (v_major, v_minor, version))
-                except IndexError as ex:
+                except Exception as ex:
                     raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
 
-            self.__command(Command.RADIO_RESET_CONFIG)
-            self.__command(Command.SET_SW_ENCODING, bytes([Encoding.MANCHESTER]))
+            self._command(Command.RADIO_RESET_CONFIG)
+            self._command(Command.SET_SW_ENCODING, bytes([Encoding.MANCHESTER]))
             frequency = int(433910000 / (24000000 / pow(2, 16)))
-            self.__command(Command.SET_PREAMBLE, bytes([0x66, 0x65]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, frequency & 0xff]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.FREQ1, (frequency >> 8) & 0xff]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, (frequency >> 16) & 0xff]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL1, 0x20]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL0, 0x00]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL1, 0x06]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG4, 0xCA]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG3, 0xBC]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG2, 0x06]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG1, 0x70]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG0, 0x11]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.DEVIATN, 0x44]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.MCSM0, 0x18]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.FOCCFG, 0x17]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.FSCAL3, 0xE9]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.FSCAL2, 0x2A]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.FSCAL1, 0x00]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 0x31]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.TEST0, 0x09]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x84]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
-            self.__command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
+            self._command(Command.SET_PREAMBLE, bytes([0x66, 0x65]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, frequency & 0xff]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ1, (frequency >> 8) & 0xff]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, (frequency >> 16) & 0xff]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL1, 0x20]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL0, 0x00]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL1, 0x06]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG4, 0xCA]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG3, 0xBC]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG2, 0x06]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG1, 0x70]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG0, 0x11]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.DEVIATN, 0x44]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM0, 0x18]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FOCCFG, 0x17]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL3, 0xE9]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL2, 0x2A]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL1, 0x00]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 0x31]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.TEST0, 0x09]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x84]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
 
-            response = self.__command(Command.GET_STATE)
+            response = self._command(Command.GET_STATE)
             if response != b"OK":
                 raise RileyLinkError("Rileylink state is not OK. Response returned: %s" % response)
 
@@ -250,7 +213,8 @@ class RileyLink:
 
     def get_packet(self, timeout=1.0):
         try:
-            return self.__command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)), timeout=float(timeout)+0.5)
+            self.connect()
+            return self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)), timeout=float(timeout)+0.5)
         except RileyLinkError as rle:
             logging.error("Error while receiving data: %s", rle)
             raise
@@ -259,7 +223,8 @@ class RileyLink:
 
         logging.debug("sending packet: %s" % packet.hex())
         try:
-            return self.__command(Command.SEND_AND_LISTEN,
+            self.connect()
+            return self._command(Command.SEND_AND_LISTEN,
                                   struct.pack(">BBHBLBH",
                                               0,
                                               repeat_count,
@@ -276,7 +241,8 @@ class RileyLink:
 
     def send_packet(self, packet, repeat_count, delay_ms, preamble_extension_ms):
         try:
-            result = self.__command(Command.SEND_PACKET, struct.pack(">BBHH", 0, repeat_count, delay_ms,
+            self.connect()
+            result = self._command(Command.SEND_PACKET, struct.pack(">BBHH", 0, repeat_count, delay_ms,
                                                                    preamble_extension_ms) + packet,
                                   timeout=30)
             return result
@@ -284,7 +250,42 @@ class RileyLink:
             logging.error("Error while sending data: %s", rle)
             raise
 
-    def __command(self, command_type, command_data=None, timeout=2.0):
+    def _findRileyLink(self):
+        scanner = Scanner()
+        found = None
+        logging.debug("Scanning for RileyLink")
+        retries = 10
+        while found is None and retries > 0:
+            retries -= 1
+            for result in scanner.scan(1.0):
+                if result.getValueText(7) == RILEYLINK_SERVICE_UUID:
+                    logging.debug("Found RileyLink")
+                    found = result.addr
+                    try:
+                        with open(RILEYLINK_MAC_FILE, "w") as stream:
+                            stream.write(result.addr)
+                    except IOError:
+                        logging.warning("Cannot store rileylink mac address for later")
+                    break
+
+        if found is None:
+            raise RileyLinkError("Could not find RileyLink")
+
+        return found
+
+    def _connect_retry(self, retries):
+        while retries > 0:
+            retries -= 1
+            logging.info("Connecting to RileyLink, retries left: %d" % retries)
+            try:
+                self.peripheral.connect(self.address)
+                logging.info("Connected")
+                break
+            except BTLEException as btlee:
+                logging.warning("BTLE exception trying to connect: %s" % btlee)
+                time.sleep(2)
+
+    def _command(self, command_type, command_data=None, timeout=2.0):
         if command_data is None:
             data = bytes([1, command_type])
         else:
