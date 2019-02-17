@@ -236,7 +236,21 @@ def acknowledge_alerts():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during get status: %s", e)
+        logging.error("Error during acknowledging alerts: %s", e)
+        return respond_error("Other error. Please check log files.")
+
+
+@app.route("/pdm/deactivate")
+def deactivate_pod():
+    try:
+        verify_auth(request)
+        pdm = get_pdm()
+        pdm.deactivate_pod()
+        return respond_ok(pdm.pod.__dict__)
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logging.error("Error during deactivation: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
