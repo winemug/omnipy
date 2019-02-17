@@ -1,3 +1,4 @@
+import re
 import logging
 import os
 import struct
@@ -7,7 +8,7 @@ from enum import IntEnum
 from threading import Event
 from .exceptions import RileyLinkError
 
-from bluepy.btle import Peripheral, Scanner, BTLEDisconnectError
+from bluepy.btle import Peripheral, Scanner, BTLEException
 
 RILEYLINK_SERVICE_UUID = "0235733b-99c5-4197-b856-69219c2a3845"
 RILEYLINK_DATA_CHAR_UUID = "c842e849-5028-42e2-867c-016adada9155"
@@ -77,7 +78,7 @@ class Encoding(IntEnum):
 
 class RileyLink:
     def __init__(self, address = None):
-        self.p = Peripheral()
+        self.peripheral = None
         self.data_handle = None
         if address is None:
             if os.path.exists(RILEYLINK_MAC_FILE):
@@ -105,54 +106,112 @@ class RileyLink:
                     except IOError:
                         logging.warning("Cannot store rileylink mac address for later")
                     break
+
+        if found is None:
+            raise RileyLinkError("Could not find RileyLink")
+
         return found
         
-    def connect(self):
-        if self.address is None:
-            self.address = self.findRileyLink()
+    def connect(self, force_initialize=False):
+        try:
+            if self.address is None:
+                self.address = self.findRileyLink()
 
-        self._connect_retry(3)
+            if self.peripheral is None:
+                self.peripheral = Peripheral()
 
-        self.service = self.p.getServiceByUUID(RILEYLINK_SERVICE_UUID)
-        data_char = self.service.getCharacteristics(RILEYLINK_DATA_CHAR_UUID)[0]
-        self.data_handle = data_char.getHandle()
+            try:
+                state = self.peripheral.getState()
+                logging.debug("RL BLE connection state: %s" % state)
+                if state == "conn":
+                    return
+            except BTLEException:
+                pass
 
-        char_response = self.service.getCharacteristics(RILEYLINK_RESPONSE_CHAR_UUID)[0]
-        self.response_handle = char_response.getHandle()
+            self._connect_retry(3)
 
-        response_notify_handle = self.response_handle + 1
-        notify_setup = b"\x01\x00"
-        self.p.writeCharacteristic(response_notify_handle, notify_setup)
+            self.service = self.peripheral.getServiceByUUID(RILEYLINK_SERVICE_UUID)
+            data_char = self.service.getCharacteristics(RILEYLINK_DATA_CHAR_UUID)[0]
+            self.data_handle = data_char.getHandle()
 
-        while self.p.waitForNotifications(0.05):
-            self.p.readCharacteristic(self.data_handle)
+            char_response = self.service.getCharacteristics(RILEYLINK_RESPONSE_CHAR_UUID)[0]
+            self.response_handle = char_response.getHandle()
+
+            response_notify_handle = self.response_handle + 1
+            notify_setup = b"\x01\x00"
+            self.peripheral.writeCharacteristic(response_notify_handle, notify_setup)
+
+            while self.peripheral.waitForNotifications(0.05):
+                self.peripheral.readCharacteristic(self.data_handle)
+
+            self.init_radio(force_initialize)
+        except BTLEException:
+            if self.peripheral is not None:
+                self.disconnect()
+            raise
+
 
     def _connect_retry(self, retries):
         while retries > 0:
             retries -= 1
             logging.info("Connecting to RileyLink, retries left: %d" % retries)
             try:
-                self.p.connect(self.address)
+                self.peripheral.connect(self.address)
                 logging.info("Connected")
                 break
-            except BTLEDisconnectError:
-                logging.warning("BTLE disconnect error received")
+            except BTLEException as btlee:
+                logging.warning("BTLE exception trying to connect: %s" % btlee)
                 time.sleep(2)
 
-    def disconnect(self):
-        logging.info("Disconnecting..")
-        response_notify_handle = self.response_handle + 1
-        notify_setup = b"\x00\x00"
-        self.p.writeCharacteristic(response_notify_handle, notify_setup)
-        self.p.disconnect()
-        logging.info("Disconnected")
-
-    def init_radio(self):
-        response = self.__command(Command.READ_REGISTER, bytes([Register.SYNC1]))
-        if response is not None and len(response) > 0 and response[0] == 0xA5:
-            return
-
+    def disconnect(self, ignore_errors=True):
         try:
+            if self.peripheral is None:
+                raise RileyLinkError("Not connected")
+            logging.info("Disconnecting..")
+            response_notify_handle = self.response_handle + 1
+            notify_setup = b"\x00\x00"
+            self.peripheral.writeCharacteristic(response_notify_handle, notify_setup)
+        except BTLEException:
+            if not ignore_errors:
+                raise
+        finally:
+            try:
+                if self.peripheral is not None:
+                    self.peripheral.disconnect()
+                    self.peripheral = None
+            except BTLEException as btlee:
+                if ignore_errors:
+                    logging.warning("Ignoring btle exception during disconnect: %s" % btlee)
+                else:
+                    raise
+
+    def init_radio(self, force_init=False):
+        try:
+            if not force_init:
+                response = self.__command(Command.READ_REGISTER, bytes([Register.SYNC1]))
+                if response is not None and len(response) > 0 and response[0] == 0xA5:
+                    return
+
+            response = self.__command(Command.GET_VERSION)
+            if response is not None and len(response) > 0:
+                version = response.decode("ascii")
+                logging.debug("RL reports version string: %s" % version)
+                try:
+                    m = re.search(".+([0-9]+)\\.([0-9]+)", version)
+                    if m is None:
+                        raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
+
+                    v_major = int(m.group(1))
+                    v_minor = int(m.group(2))
+                    logging.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
+
+                    if v_major < 2:
+                        logging.error("Firmware version is below 2.0")
+                        raise RileyLinkError("Unsupported RileyLinkv firmware %d.%d (%s)" %
+                                             (v_major, v_minor, version))
+                except IndexError as ex:
+                    raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
+
             self.__command(Command.RADIO_RESET_CONFIG)
             self.__command(Command.SET_SW_ENCODING, bytes([Encoding.MANCHESTER]))
             frequency = int(433910000 / (24000000 / pow(2, 16)))
@@ -231,12 +290,12 @@ class RileyLink:
         else:
             data = bytes([len(command_data) + 1, command_type]) + command_data
 
-        self.p.writeCharacteristic(self.data_handle, data, withResponse=True)
+        self.peripheral.writeCharacteristic(self.data_handle, data, withResponse=True)
 
-        if not self.p.waitForNotifications(timeout):
+        if not self.peripheral.waitForNotifications(timeout):
             raise RileyLinkError("Timed out while waiting for a response from RileyLink")
 
-        response = self.p.readCharacteristic(self.data_handle)
+        response = self.peripheral.readCharacteristic(self.data_handle)
 
         if response is None or len(response) == 0:
             raise RileyLinkError("RileyLink returned no response")
