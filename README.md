@@ -31,9 +31,9 @@ cd ~/omnipy
 python3 ./podgrab.py 11111 222222 mypod.json
 ```
 * Bolus 3.5 Units: <br/>
-```python3 ./bolus.py 2.35```
+```python3 ./bolus.py mypod.json 2.35```
 * Set a temp basal of 2.60 U/h over the course of 1.5 hours: <br/>
-```python3 ./tempbasal.py 2.60 1.5```
+```python3 ./tempbasal.py mypod.json 2.60 1.5```
 
 If you know a bit of python, feel free to look through the code and call the methods in the [pdm](https://github.com/winemug/omnipy/blob/master/podcomm/pdm.py) class to do more with the omnipod, based on the examples above.
 
