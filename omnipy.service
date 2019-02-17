@@ -3,7 +3,7 @@ Description=Omnipy Rest API
 After=network.target
 
 [Service]
-ExecStart=/bin/bash omnipy.sh
+ExecStart=/bin/bash /home/pi/omnipy.sh
 WorkingDirectory=/home/pi/omnipy
 StandardOutput=inherit
 StandardError=inherit
