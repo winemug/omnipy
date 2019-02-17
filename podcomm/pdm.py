@@ -295,6 +295,20 @@ class Pdm:
         finally:
             self._savePod()
 
+    def deactivate_pod(self):
+        try:
+            with pdmlock():
+                msg = self._createMessage(0x1c, bytes([0, 0, 0, 0]))
+                self._sendMessage(msg, with_nonce=True)
+        except PdmBusyError:
+            return True
+        except PdmError:
+            raise
+        except OmnipyError as oe:
+            raise PdmError("Command failed") from oe
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
+
     def _cancelActivity(self, cancelBasal=False, cancelBolus=False, cancelTempBasal=False, beep=False):
         logging.debug("Running cancel activity for basal: %s - bolus: %s - tempBasal: %s" % (
         cancelBasal, cancelBolus, cancelTempBasal))
@@ -477,6 +491,14 @@ class Pdm:
 
         if self.pod.address is None:
             raise PdmError("Radio address unknown")
+
+    def _assert_can_deactivate(self):
+        self._assert_pod_address_assigned()
+        self._assert_can_generate_nonce()
+        if self.pod.progress < PodProgress.PairingSuccess:
+            raise PdmError("Pod is not paired")
+        if self.pod.progress > PodProgress.AlertExpiredShuttingDown:
+            raise PdmError("Pod already deactivated")
 
     def _assert_can_acknowledge_alerts(self):
         self._assert_pod_address_assigned()
