@@ -33,8 +33,7 @@ fi
 
 echo
 echo ${bold}Step 4/35: ${normal}Installing dependencies
-sudo apt install -y bluez-tools python3 python3-pip screen git build-essential libglib2.0-dev vim
-sudo pip3 install paho-mqtt
+sudo apt install -y bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim
 sudo pip3 install simplejson
 sudo pip3 install Flask
 sudo pip3 install cryptography
@@ -70,7 +69,7 @@ echo This step will test if your RileyLink device is connectable and has the
 echo correct firmware version installed.
 echo
 read -p "Press Enter to continue..."
-/usr/bin/python3 ./verify_rl.py
+/usr/bin/python3 $HOME/omnipy/verify_rl.py
 
 echo ${bold}Step 8/35: ${normal}Setting up bluetooth personal area network
 echo
