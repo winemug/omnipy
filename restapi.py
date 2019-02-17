@@ -7,7 +7,7 @@ from decimal import *
 import Crypto.Cipher
 import simplejson as json
 from flask import Flask, request
-
+from datetime import datetime
 from podcomm.definitions import *
 from podcomm.crc import crc8
 from podcomm.packet import Packet
@@ -27,11 +27,19 @@ class RestApiException(Exception):
 
 
 def get_pod():
-    return Pod.Load(POD_FILE)
+    return Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
 
 
 def get_pdm():
     return Pdm(get_pod())
+
+
+def archive_pod():
+    archive_suffix = datetime.utcnow().strftime("_%Y%m%d_%H%M%S")
+    if os.path.isfile(POD_FILE + POD_FILE_SUFFIX):
+        os.rename(POD_FILE + POD_FILE_SUFFIX, POD_FILE + archive_suffix + POD_FILE_SUFFIX)
+    if os.path.isfile(POD_FILE + POD_LOG_SUFFIX):
+        os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
 
 
 def respond_ok(d="OK"):
@@ -145,12 +153,14 @@ def take_over():
         pod.lot = int(request.args.get('lot'))
         pod.tid = int(request.args.get('tid'))
 
+
         r = RileyLink()
-        r.connect()
-        r.init_radio()
-        p = None
         while True:
             data = r.get_packet(30000)
+            if data is None:
+                p = None
+                break
+
             if data is not None and len(data) > 2:
                 calc = crc8(data[2:-1])
                 if data[-1] == calc:
@@ -162,6 +172,9 @@ def take_over():
             respond_error("No pdm packet detected")
 
         pod.address = p.address
+
+        archive_pod()
+
         pod.Save(POD_FILE)
         return respond_ok(p.address)
     except RestApiException as rae:
@@ -252,6 +265,7 @@ def deactivate_pod():
         verify_auth(request)
         pdm = get_pdm()
         pdm.deactivate_pod()
+        archive_pod()
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))

@@ -5,7 +5,9 @@ PDM_LOCK_FILE = ".pdmlock"
 TOKENS_FILE = ".tokens"
 KEY_FILE = ".key"
 RESPONSE_FILE = ".response"
-POD_FILE = "pod.json"
+POD_FILE = "pod"
+POD_FILE_SUFFIX = ".json"
+POD_LOG_SUFFIX = ".log"
 
 API_VERSION_MAJOR = 1
 API_VERSION_MINOR = 0

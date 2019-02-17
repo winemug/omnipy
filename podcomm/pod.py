@@ -53,6 +53,7 @@ class Pod:
         self.maximumTempBasal=15
         self.utcOffset=0
         self.path = None
+        self.log_file_path = None
 
         self.last_enacted_temp_basal_start = None
         self.last_enacted_temp_basal_duration = None
@@ -64,17 +65,22 @@ class Pod:
     def Save(self, save_as = None):
         if save_as is not None:
             self.path = save_as
+            self.log_file_path = save_as + POD_LOG_SUFFIX
         if self.path is None:
             raise ValueError("No filename given")
         with open(self.path, "w") as stream:
             json.dump(self.__dict__, stream, indent=4, sort_keys=True)
 
     @staticmethod
-    def Load(path):
+    def Load(path, log_file_path=None):
+        if log_file_path is None:
+            log_file_path = path + POD_LOG_SUFFIX
+
         with open(path, "r") as stream:
             d = json.load(stream)
             p = Pod()
             p.path = path
+            p.log_file_path = log_file_path
             p.lot=d["lot"]
             p.tid=d["tid"]
         
@@ -229,9 +235,8 @@ class Pod:
 
     def log(self, log_message):
         try:
-            log_file_path = self.path + ".log"
-            with open(log_file_path, "a") as stream:
+            with open(self.log_file_path, "a") as stream:
                 stream.write(log_message)
         except Exception as e:
             logging.warning("Failed to write the following line to the pod log file %s:\n%s\nError: %s"
-                            %(log_file_path, log_message, e))
+                            %(self.log_file_path, log_message, e))
