@@ -5,6 +5,8 @@ omnipy is a PDM (personal diabetes manager) emulator for the OmniPod insulin pum
 
 *As of February 17th:*
 
+**Update 22:47 UTC: There was an error in the setup script preventing from proper installation. This is fixed now, please run the setup procedure again if it didn't work for you.**
+
 The good:
 * Release candidate is now in main branch
 * Installation script for Raspberry Pi
