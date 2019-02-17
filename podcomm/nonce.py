@@ -1,5 +1,7 @@
 from .crc import crc16_table
 
+FAKE_NONCE = 0xD012FA62
+
 
 class Nonce:
     def __init__(self, lot, tid, seekNonce = None, seed = 0):
@@ -15,8 +17,8 @@ class Nonce:
                 self.getNext(True)
 
     def getNext(self, seeking = False):
-        if not seeking and self.nonce_runs >= 15:
-            return 0xD012FA62
+        if not seeking and self.nonce_runs > 15:
+            return FAKE_NONCE
         nonce = self.table[self.ptr]
         self.table[self.ptr] = self._generate()
         self.ptr = (nonce & 0xF) + 2
@@ -25,8 +27,9 @@ class Nonce:
         return nonce
 
     def sync(self, syncWord, msgSequence):
-        sum = (self.lastNonce & 0xFFFF) + (crc16_table[msgSequence] & 0xFFFF) + (self.lot & 0xFFFF) + (self.tid & 0xFFFF)
-        self.seed = (sum & 0xFFFF) ^ syncWord
+        w_sum = (self.lastNonce & 0xFFFF) + (crc16_table[msgSequence] & 0xFFFF) \
+              + (self.lot & 0xFFFF) + (self.tid & 0xFFFF)
+        self.seed = (w_sum & 0xFFFF) ^ syncWord
         self.lastNonce = None
         self.nonce_runs = 0
         self._initialize()

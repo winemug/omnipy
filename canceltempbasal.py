@@ -10,6 +10,5 @@ pod = Pod.Load(sys.argv[1])
 pdm = Pdm(pod)
 
 pdm.cancelTempBasal()
-pdm.cleanUp()
 
 print(pdm.pod)

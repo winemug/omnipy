@@ -1,9 +1,8 @@
 from .packet import Packet
+from .exceptions import ProtocolError
 from enum import Enum
 from .crc import crc16
-import binascii
 import struct
-from datetime import datetime
 
 class MessageState(Enum):
     Incomplete = 0,
@@ -14,7 +13,7 @@ class MessageType(Enum):
     PDM = 0,
     POD = 1
 
-class Message():
+class Message:
     def __init__(self, mtype, address, unknownBits = 0, sequence = 0):
         self.type = mtype
         self.address = address
@@ -34,7 +33,7 @@ class Message():
         self.body = copy + self.calculateChecksum(copy)
         self.state = MessageState.Complete
 
-    def resetNonce(self, nonce):
+    def setNonce(self, nonce):
         copy = self.body[0:2]
         copy += struct.pack(">I", nonce)
         copy += self.body[6:-2]
@@ -48,7 +47,7 @@ class Message():
         elif packet.type == "POD":
             mType = MessageType.POD
         else:
-            raise ValueError()
+            raise ProtocolError("Packet type %s not valid for a first packet in a message" % packet.type)
 
         b0 = packet.body[0]
         b1 = packet.body[1]
@@ -64,7 +63,7 @@ class Message():
 
     def addConPacket(self, packet):
         if packet.type != "CON":
-            raise ValueError()
+            raise ProtocolError("Packet type is not CON.")
         self.body = self.body + packet.body
         self.acknowledged = False
         self.updateMessageState()
@@ -97,7 +96,7 @@ class Message():
 
         maxLength = 31
         conData = []
-        while (len(bodyToWrite) > 0):
+        while len(bodyToWrite) > 0:
             lenToWrite = min(maxLength, len(bodyToWrite))
             cond = struct.pack(">I", self.address)
             cond += b"\x80"
@@ -105,9 +104,9 @@ class Message():
             bodyToWrite = bodyToWrite[lenToWrite:]
             conData.append(cond)
 
-        packets = [ Packet(0, data) ]
+        packets = [Packet.from_data(data)]
         for cond in conData:
-            packets.append(Packet(0, cond))
+            packets.append(Packet.from_data(cond))
 
         packets[-1].data += crc
         return packets
@@ -118,10 +117,12 @@ class Message():
                 self.state = MessageState.Complete
             else:
                 self.state = MessageState.Invalid
+                raise ProtocolError("Message checksum failed")
         elif len(self.body) < self.length + 2:
             self.state = MessageState.Incomplete
         else:
             self.state = MessageState.Invalid
+            raise ProtocolError("Message data exceeds announced message length")
 
     def verifyChecksum(self):
         checksum = self.calculateChecksum(self.body[:-2])
@@ -151,26 +152,22 @@ class Message():
         return contents
 
     def __str__(self):
-        return self.prettyPrint()
-        # return "Msg %s: %s (%s, %s) (seq: 0x%02x, unkn.: 0x%02x)" % (self.type, binascii.hexlify(self.body[:-2]),
-        #     "OK" if self.state == MessageState.Complete else "ERROR", "ACK'd" if self.acknowledged else "NOACK",
-        #     self.sequence, self.unknownBits)
-
-    def prettyPrint(self):
         s = "%s %s %s\n" % (self.type, self.sequence, self.unknownBits)
         for contentType, content in self.getContents():
             s += "Type: %02x " % contentType
             if contentType == 0x1a:
-                s += separate(content, [4,1,2,1,2]) + "\n"
+                s += separate(content, [4, 1, 2, 1, 2]) + "\n"
             elif contentType == 0x16:
-                s += separate(content, [1,1,2,4,2,4]) + "\n"
+                s += separate(content, [1, 1, 2, 4, 2, 4]) + "\n"
             else:
                 s += "Type: %02x Body: %s\n" % (contentType, content.hex())
         return s
 
+
 def separate(content, separations):
     r = ""
     ptr = 0
+    s = 0
     for s in separations:
         if r != "":
             r += " "
@@ -182,6 +179,4 @@ def separate(content, separations):
             r += content[ptr:ptr+s].hex()
             ptr += s
     return r
-
-
 

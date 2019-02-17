@@ -1,20 +1,19 @@
 #!/usr/bin/python3
-import os
-import simplejson as json
-from flask import Flask, request, g
-from podcomm.pdm import Pdm
-from podcomm.pod import Pod
-from podcomm.packet import Packet
-from podcomm.rileylink import RileyLink
-from podcomm.crc import crc8
 import base64
-import Crypto.Cipher
 import logging
+import os
 from decimal import *
 
-TOKENS_FILE = ".tokens"
-KEY_FILE = ".key"
-POD_FILE = "pod.json"
+import Crypto.Cipher
+import simplejson as json
+from flask import Flask, request
+from datetime import datetime
+from podcomm.definitions import *
+from podcomm.crc import crc8
+from podcomm.packet import Packet
+from podcomm.pdm import Pdm
+from podcomm.pod import Pod
+from podcomm.rileylink import RileyLink
 
 app = Flask(__name__)
 
@@ -28,15 +27,23 @@ class RestApiException(Exception):
 
 
 def get_pod():
-    return Pod.Load(POD_FILE)
+    return Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
 
 
 def get_pdm():
     return Pdm(get_pod())
 
 
-def respond_ok(d):
-    return json.dumps({ "success": True, "result": d})
+def archive_pod():
+    archive_suffix = datetime.utcnow().strftime("_%Y%m%d_%H%M%S")
+    if os.path.isfile(POD_FILE + POD_FILE_SUFFIX):
+        os.rename(POD_FILE + POD_FILE_SUFFIX, POD_FILE + archive_suffix + POD_FILE_SUFFIX)
+    if os.path.isfile(POD_FILE + POD_LOG_SUFFIX):
+        os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
+
+
+def respond_ok(d="OK"):
+    return json.dumps({"success": True, "result": d})
 
 
 def respond_error(msg="Unknown"):
@@ -90,6 +97,25 @@ def verify_auth(request_obj):
         logging.error("Error during verify_auth: %s", e)
         raise
 
+@app.route("/omnipy/result")
+def get_result():
+    try:
+        return respond_ok("%d.%d" % (API_VERSION_MAJOR, API_VERSION_MINOR))
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logging.error("Error during result req: %s", e)
+        return respond_error("Other error. Please check log files.")
+
+@app.route("/omnipy/version")
+def get_api_version():
+    try:
+        return respond_ok("%d.%d" % (API_VERSION_MAJOR, API_VERSION_MINOR))
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logging.error("Error during version req: %s", e)
+        return respond_error("Other error. Please check log files.")
 
 @app.route("/omnipy/token")
 def create_token():
@@ -100,7 +126,8 @@ def create_token():
         return respond_ok(base64.b64encode(token))
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception:
+    except Exception as e:
+        logging.error("Error during create token: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -112,7 +139,8 @@ def check_password():
         return respond_ok()
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception:
+    except Exception as e:
+        logging.error("Error during check pwd: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -125,16 +153,18 @@ def take_over():
         pod.lot = int(request.args.get('lot'))
         pod.tid = int(request.args.get('tid'))
 
+
         r = RileyLink()
-        r.connect()
-        r.init_radio()
-        p = None
         while True:
             data = r.get_packet(30000)
+            if data is None:
+                p = None
+                break
+
             if data is not None and len(data) > 2:
                 calc = crc8(data[2:-1])
                 if data[-1] == calc:
-                    p = Packet(0, data[2:-1])
+                    p = Packet.from_data(data[2:-1])
                     break
         r.disconnect()
 
@@ -142,11 +172,15 @@ def take_over():
             respond_error("No pdm packet detected")
 
         pod.address = p.address
+
+        archive_pod()
+
         pod.Save(POD_FILE)
-        return respond_ok({"address": p.address})
+        return respond_ok(p.address)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception:
+    except Exception as e:
+        logging.error("Error during takeover: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -167,7 +201,8 @@ def set_pod_parameters():
         return respond_ok()
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception:
+    except Exception as e:
+        logging.error("Error during set pod params: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -183,7 +218,23 @@ def set_limits():
         return respond_ok()
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception:
+    except Exception as e:
+        logging.error("Error during set limits: %s", e)
+        return respond_error("Other error. Please check log files.")
+
+
+@app.route("/rl/battery")
+def get_rl_battery_level():
+    try:
+        verify_auth(request)
+
+        r = RileyLink()
+        level = r.get_battery_level()
+        return respond_ok(str(level))
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logging.error("Error during get status: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -192,12 +243,49 @@ def get_status():
     try:
         verify_auth(request)
 
+        t = request.args.get('type')
+        if t is not None:
+            req_type = int(t)
+        else:
+            req_type = 0
+
         pdm = get_pdm()
-        pdm.updatePodStatus()
+        pdm.updatePodStatus(req_type)
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception:
+    except Exception as e:
+        logging.error("Error during get status: %s", e)
+        return respond_error("Other error. Please check log files.")
+
+
+@app.route("/pdm/ack")
+def acknowledge_alerts():
+    try:
+        verify_auth(request)
+        mask = Decimal(request.args.get('alertmask'))
+        pdm = get_pdm()
+        pdm.acknowledge_alerts(mask)
+        return respond_ok(pdm.pod.__dict__)
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logging.error("Error during acknowledging alerts: %s", e)
+        return respond_error("Other error. Please check log files.")
+
+
+@app.route("/pdm/deactivate")
+def deactivate_pod():
+    try:
+        verify_auth(request)
+        pdm = get_pdm()
+        pdm.deactivate_pod()
+        archive_pod()
+        return respond_ok(pdm.pod.__dict__)
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logging.error("Error during deactivation: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -212,7 +300,8 @@ def bolus():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception:
+    except Exception as e:
+        logging.error("Error during bolus: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -226,7 +315,8 @@ def cancel_bolus():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception:
+    except Exception as e:
+        logging.error("Error during cancel bolus: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -242,7 +332,8 @@ def set_temp_basal():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception:
+    except Exception as e:
+        logging.error("Error during set temp basal: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -256,11 +347,14 @@ def cancel_temp_basal():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception:
+    except Exception as e:
+        logging.error("Error during cancel temp basal: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
 if __name__ == '__main__':
     if os.path.isfile(TOKENS_FILE):
         os.remove(TOKENS_FILE)
+    if os.path.isfile(RESPONSE_FILE):
+        os.remove(RESPONSE_FILE)
     app.run(host='0.0.0.0', port=4444)

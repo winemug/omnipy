@@ -1,10 +1,8 @@
-import datetime
 import logging
 import time
 import requests
 from decimal import Decimal
 from queue import Queue, Empty
-import subprocess
 from threading import Thread, Event
 
 class Processor:
@@ -38,19 +36,18 @@ class Processor:
         self.mqtt_client.loop_stop()
         self.mqtt_client.disconnect()
 
-
-    def on_mqtt_connect(self, client, userdata, flags, rc):
+    def on_mqtt_connect(self, _client, _userdata, _flags, rc):
         logging.info("Connected to mqtt server with result code "+str(rc))
         self.mqtt_client.subscribe(self.main_topic + "/command")
         logging.info("Subscribed")
 
-    def on_mqtt_disconnect(self, client, userdata, rc):
+    def on_mqtt_disconnect(self, _client, _userdata, rc):
         logging.info("Disconnected from mqtt with result code "+str(rc))
 
-    def on_mqtt_message_publish(self, client, userdata, mid):
+    def on_mqtt_message_publish(self, _client, _userdata, mid):
         logging.info("mqtt message published: " + str(mid))
 
-    def on_mqtt_message_receive(self, client, userdata, msg):
+    def on_mqtt_message_receive(self, _client, _userdata, msg):
         self.receive_queue.put(msg)
 
     def parse_and_execute(self, message_data):
@@ -153,7 +150,7 @@ class Processor:
                         logging.info("Trying %d more time(s)" % retries)
             self.send_result(result, reference)
         except Exception as e:
-            logging.error("Error parsing message: %s" % e.message)
+            logging.error("Error parsing message: %s" % e)
 
     def process_send(self, msg):
         message_id = int(self.mqtt_client.publish(self.main_topic + "/response", payload=msg, retain=False, qos=2).mid)

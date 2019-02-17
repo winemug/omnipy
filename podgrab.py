@@ -14,7 +14,7 @@ pod.lot = int(sys.argv[1])
 pod.tid = int(sys.argv[2])
 pod.lastNonce = None
 
-r = RileyLink("88:6b:0f:44:fc:1b")
+r = RileyLink()
 print("connecting to RL")
 r.connect()
 print("initializing")
@@ -27,7 +27,7 @@ while True:
     if data is not None and len(data) > 2:
         calc = crc8(data[2:-1])
         if data[-1] == calc:
-            p = Packet(0, data[2:-1])
+            p = Packet.from_data(data[2:-1])
             break
 
 r.disconnect()
@@ -43,7 +43,6 @@ input("press enter to continue")
 pdm = Pdm(pod)
 pdm.updatePodStatus()
 print(pod)
-pdm.cleanUp()
 
 print("done.")
 
