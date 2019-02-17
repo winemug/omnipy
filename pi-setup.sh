@@ -46,6 +46,9 @@ git clone https://github.com/IanHarvey/bluepy.git
 cd bluepy
 python3 ./setup.py build
 sudo python3 ./setup.py install
+
+sudo chown -R pi.pi /home/pi/bluepy
+sudo chown -R pi.pi /home/pi/omnipy
 cd /home/pi/omnipy
 
 echo
