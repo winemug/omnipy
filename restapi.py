@@ -215,8 +215,14 @@ def get_status():
     try:
         verify_auth(request)
 
+        t = request.args.get('type')
+        if t is not None:
+            req_type = int(t)
+        else:
+            req_type = 0
+
         pdm = get_pdm()
-        pdm.updatePodStatus()
+        pdm.updatePodStatus(req_type)
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
