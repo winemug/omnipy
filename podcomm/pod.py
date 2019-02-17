@@ -184,7 +184,8 @@ class Pod:
         msg_sequence = (s[1] & 0x00007800) >> 11
         canceled_pulses = s[1] & 0x000007FF
 
-        pod_alarm = (s[2] & 0xFF000000) >> 25
+        self.faulted = ((s[2] >> 31) != 0)
+        pod_alarm = (s[2] >> 23) & 0xFF
         pod_active_time = (s[2] & 0x007FFC00) >> 10
         pod_reservoir = s[2] & 0x000003FF
 
