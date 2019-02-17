@@ -41,8 +41,6 @@ class Pdm:
         try:
             self._assert_can_acknowledge_alerts()
 
-            # TODO: verify alert state
-
             with pdmlock():
                 logging.debug("acknowledging alerts with bitmask %d" % alert_mask)
                 self._acknowledge_alerts(alert_mask)
@@ -72,8 +70,6 @@ class Pdm:
     # def clear_alert(self, alert_bit):
     #     try:
     #         self._assert_can_acknowledge_alerts()
-    #
-    #         # TODO: verify alert state
     #
     #         with pdmlock():
     #             logging.debug("clearing alert %d" % alert_bit)
@@ -372,23 +368,66 @@ class Pdm:
         msg = self._createMessage(commandType, commandBody)
         self._sendMessage(msg, with_nonce=True)
 
-    # def _configure_alert(self, alert_bit, activate, alert_trigger_type, alert_auto_off):
-    #     commandType = 0x19
-    #     commandBody = bytes([0, 0, 0, 0])
-    #
-    #     b_activate = 0
-    #     b_trigger_low_reservoir = 0
-    #     b_trigger_auto_off = 0
-    #
-    #     alert_duration_minutes = 0
-    #     alert_trigger_in_minutes = 0
-    #     alert_trigger_at_reservoir_level = 0
-    #
-    #     beep_pattern = 0
-    #     beep_type = 0
-    #
-    #     msg = self._createMessage(commandType, commandBody)
-    #     self._sendMessage(msg, with_nonce=True)
+    def _configure_alerts(self, alerts):
+        commandType = 0x19
+        commandBody = bytes([0, 0, 0, 0])
+
+        for alert in alerts:
+            commandBody += self._configure_alert(alert)
+
+        msg = self._createMessage(commandType, commandBody)
+        self._sendMessage(msg, with_nonce=True)
+
+    def _configure_alert(self, alert_bit, activate, trigger_reservoir, trigger_auto_off,
+                         duration_minutes, alert_after_minutes, alert_after_reservoir,
+                         beep_repeat_type, beep_type):
+
+        if alert_after_minutes is None:
+            if alert_after_reservoir is None:
+                raise PdmError("Either alert_after_minutes or alert_after_reservoir must be set")
+            elif not trigger_reservoir:
+                raise PdmError("Trigger reservoir must be True if alert_after_reservoir is to be set")
+        else:
+            if alert_after_reservoir is not None:
+                raise PdmError("Only one of alert_after_minutes or alert_after_reservoir must be set")
+            elif trigger_reservoir:
+                raise PdmError("Trigger reservoir must be False if alert_after_minutes is to be set")
+
+        if duration_minutes > 0x1FF:
+            raise PdmError("Alert duration in minutes cannot be more than %d", 0x1ff)
+        elif duration_minutes < 0:
+            raise PdmError("Invalid alert duration value")
+
+        if alert_after_minutes is not None and alert_after_minutes > 4800:
+            raise PdmError("Alert cannot be set beyond 80 hours")
+        if alert_after_minutes is not None and alert_after_minutes < 0:
+            raise PdmError("Invalid value for alert_after_minutes")
+
+        if alert_after_reservoir is not None and alert_after_reservoir > 50:
+            raise PdmError("Alert cannot be set for more than 50 units")
+        if alert_after_reservoir is not None and alert_after_minutes < 0:
+            raise PdmError("Invalid value for alert_after_reservoir")
+
+        b0 = alert_bit << 4
+        if activate:
+            b0 |= 0x08
+        if trigger_reservoir:
+            b0 |= 0x04
+        if trigger_auto_off:
+            b0 |= 0x02
+
+        b0 |= (duration_minutes >> 8) & 0x0001
+        b1 = duration_minutes & 0x00ff
+
+        if alert_after_minutes is not None:
+            b2 = alert_after_minutes >> 8
+            b3 = alert_after_minutes & 0x00ff
+        else:
+            reservoir_limit = int(alert_after_reservoir * 10)
+            b2 = reservoir_limit >> 8
+            b3 = reservoir_limit & 0x00ff
+
+        return bytes([b0, b1, b2, b3, beep_repeat_type, beep_type])
 
     def _is_bolus_running(self):
         if self.pod.lastUpdated is not None and self.pod.bolusState != BolusState.Immediate:
