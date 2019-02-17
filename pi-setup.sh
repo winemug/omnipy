@@ -16,9 +16,24 @@ echo
 echo ${bold}Step 2/35: ${normal}Upgrading existing packages
 sudo apt upgrade -y
 
+if [ ! -d $HOME/omnipy ]
+then
 echo
-echo ${bold}Step 3/35: ${normal}Installing dependencies
-sudo apt install -y bluez-tools python3 python3-pip screen git build-essential libglib2.0-dev vim screen
+echo ${bold}Step 3/35: ${normal}Downloading and installing omnipy
+cd $HOME
+git clone https://github.com/winemug/omnipy.git
+cd $HOME/omnipy
+else
+echo
+echo ${bold}Step 3/35: ${normal}Updating omnipy
+cd $HOME/omnipy
+git stash
+git pull
+fi
+
+echo
+echo ${bold}Step 4/35: ${normal}Installing dependencies
+sudo apt install -y bluez-tools python3 python3-pip screen git build-essential libglib2.0-dev vim
 sudo pip3 install paho-mqtt
 sudo pip3 install simplejson
 sudo pip3 install Flask
@@ -27,9 +42,12 @@ sudo pip3 install requests
 
 echo
 echo ${bold}Step 4/35: ${normal}Configuring and installing bluepy
+cd $HOME
 git clone https://github.com/IanHarvey/bluepy.git
-python ./bluepy/setup.py build
-sudo python ./bluepy/setup.py install
+cd bluepy
+python3 ./setup.py build
+sudo python3 ./setup.py install
+cd $HOME/omnipy
 
 echo
 echo ${bold}Step 5/35: ${normal}Enabling bluetooth management for users
@@ -41,7 +59,20 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-network`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
 sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
-echo ${bold}Step 4/35: ${normal}Setting up bluetooth personal area network
+echo
+echo ${bold}Step 6/35: ${normal}Omnipy HTTP API Password configuration
+/usr/bin/python3 ./set_api_password.py
+
+echo
+echo ${bold}Step 7/35: ${normal}RileyLink test
+echo
+echo This step will test if your RileyLink device is connectable and has the
+echo correct firmware version installed.
+echo
+read -p "Press Enter to continue..."
+/usr/bin/python3 ./verify_rl.py
+
+echo ${bold}Step 8/35: ${normal}Setting up bluetooth personal area network
 echo
 echo "Removing existing bluetooth devices"
 sudo btmgmt power on
@@ -98,3 +129,17 @@ echo
 echo "${bold}Connection test succeeeded${normal}. IP address: $ipaddr"
 sudo killall -9 btnap.sh > /dev/null 2>&1
 sudo killall -9 bt-network > /dev/null 2>&1
+
+echo
+echo ${bold}Step 9/35: ${normal}Creating and starting omnipy service
+sudo cp $HOME/omnipy/omnipy.service /etc/systemd/system/
+sudo systemctl enable omnipy.service
+sudo systemctl start omnipy.service
+
+echo
+echo ${bold}Step 10/35: ${normal}Informing the user about the actual number of steps
+echo
+echo Setup needed no more than 10 steps.
+echo
+echo ${bold}Setup completed.${normal}
+
