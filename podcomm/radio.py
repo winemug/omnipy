@@ -1,14 +1,10 @@
-import binascii
 import logging
 import threading
-import time
-
-from .exceptions import ProtocolError, RileyLinkError
+from .exceptions import ProtocolError, RileyLinkError, TransmissionOutOfSyncError
 from podcomm import crc
 from podcomm.rileylink import RileyLink
 from .message import Message, MessageState
 from .packet import Packet
-
 
 
 class Radio:
@@ -20,51 +16,20 @@ class Radio:
         self.responseTimeout = 1000
         self.rileyLink = RileyLink()
 
-    def __logPacket(self, p):
-        logging.debug("Packet received: %s" % p)
-
-    def __logMessage(self, msg):
-        logging.debug("Message received: %s" % msg)
-
-    def sendRequestToPod(self, message, try_resync=True, stay_connected=True):
+    def send_request_get_response(self, message, try_resync=True, stay_connected=True):
         try:
-            return self._sendRequest(message)
-        except ProtocolError as pe:
+            return self._send_request(message)
+        except TransmissionOutOfSyncError:
             if try_resync:
-                logging.error("Protocol error: %s" % pe)
-                logging.info("Trying to resync sequences with pod")
-                self._resyncPod(message.address)
-                logging.info("Retrying request one more time")
-                return self._sendRequest(message)
+                logging.warning("Transmission out of sync, resyncing radios")
+                return self._send_request(message)
             else:
                 raise
         finally:
             if not stay_connected:
                 self.rileyLink.disconnect()
 
-    def _resyncPod(self, address):
-        logging.info("Checking if the pod is still broadcasting")
-        while True:
-            logging.info("Listening to pod")
-            received = self.rileyLink.get_packet(0.3)
-            if received is None:
-                break
-            p = self.__getPacket(received)
-            if p is None or p.address != address:
-                continue
-            logging.info("Received broadcast from pod, responding to it")
-            ack = Packet.Ack(address, True)
-            self.packetSequence = (p.sequence + 1) % 32
-            ack.setSequence(self.packetSequence)
-            self.packetSequence = (self.packetSequence + 1) % 32
-            data = ack.data
-            data += bytes([crc.crc8(data)])
-            self.rileyLink.send_packet(data, 10, 100, 45)
-
-        logging.info("Radio silence confirmed")
-        time.sleep(5)
-
-    def _sendRequest(self, message):
+    def _send_request(self, message):
         message.setSequence(self.messageSequence)
         logging.debug("SENDING MSG: %s" % message)
         packets = message.getPackets()
@@ -76,7 +41,7 @@ class Radio:
                 expected_type = "POD"
             else:
                 expected_type = "ACK"
-            received = self._sendPacketAndGetPacket(packet, expected_type)
+            received = self._exchange_packets(packet, expected_type)
             if received is None:
                 raise ProtocolError("Timeout reached waiting for a response.")
 
@@ -89,7 +54,7 @@ class Radio:
 
         while pod_response.state == MessageState.Incomplete:
             ack_packet = Packet.Ack(message.address, False)
-            received = self._sendPacketAndGetPacket(ack_packet, "CON")
+            received = self._exchange_packets(ack_packet, "CON")
             if received is None:
                 raise ProtocolError("Timeout reached waiting for a response.")
             if received.type != "CON":
@@ -103,39 +68,17 @@ class Radio:
 
         logging.debug("Sending end of conversation")
         ack_packet = Packet.Ack(message.address, True)
-        self._sendPacket(ack_packet)
+        self._send_packet(ack_packet)
         logging.debug("Conversation ended")
 
         self.messageSequence = (pod_response.sequence + 1) % 16
         return pod_response
 
-    def _eval_received_unexpected_packet(self, data, expected_address, expected_sequence, expected_type):
-        pass
-
-    def _eval_received_data_as_packet(self, data, expected_address, expected_sequence, expected_type):
-        if data is None:
-            logging.debug("Receive timed out.")
-            return None
-        p = self.__getPacket(data)
-        if p is None:
-            logging.debug("Received invalid packet. " % binascii.hexlify(data))
-            return None
-        if p.address != expected_address:
-            logging.debug("Received packet address mismatch. %s" % p)
-            return None
-        elif p.sequence != expected_sequence:
-            logging.debug("Received packet sequence mismatch. %s" % p)
-            return None
-        elif p.type != expected_type:
-            logging.debug("Received unexpected packet type %s" % p.type)
-            return None
-        return p
-
-    def _sendPacketAndGetPacket(self, packet_to_send, expected_type):
+    def _exchange_packets(self, packet_to_send, expected_type):
         packet_to_send.setSequence(self.packetSequence)
         expected_sequence = (self.packetSequence + 1) % 32
         expected_address = packet_to_send.address
-        send_retries = 3
+        send_retries = 10
         while send_retries > 0:
             try:
                 send_retries -= 1
@@ -144,29 +87,26 @@ class Radio:
                 data += bytes([crc.crc8(data)])
 
                 if packet_to_send.type == "PDM":
-                    received = self.rileyLink.send_and_receive_packet(data, 0, 0, 300, 10, 80)
+                    received = self.rileyLink.send_and_receive_packet(data, 0, 300, 300, 10, 80)
                 else:
-                    received = self.rileyLink.send_and_receive_packet(data, 3, 20, 300, 10, 20)
+                    received = self.rileyLink.send_and_receive_packet(data, 0, 20, 300, 10, 20)
 
-                packet_response = self._eval_received_data_as_packet(received,
-                                                                     expected_address, expected_sequence, expected_type)
-                if packet_response is not None:
-                    return packet_response
+                if received is None:
+                    continue
+                p = self._get_packet(received)
+                if p is None or p.address != expected_address:
+                    continue
 
-                receive_retries = 15
-                while received is None and receive_retries > 0:
-                    receive_retries -= 1
-                    received = self.rileyLink.get_packet(0.1)
-                    packet_response = self._eval_received_data_as_packet(received,
-                                                                         expected_address, expected_sequence,
-                                                                         expected_type)
-                    if packet_response is not None:
-                        return packet_response
+                if p.type != expected_type or p.sequence != expected_sequence:
+                    self.packetSequence = (p.sequence + 1) % 32
+                    self.messageSequence = 0
+                    raise TransmissionOutOfSyncError()
+                return p
             except RileyLinkError as rle:
                 raise ProtocolError("Radio error during send and receive") from rle
         raise ProtocolError("Send and receive handshake failed")
 
-    def _sendPacket(self, packetToSend):
+    def _send_packet(self, packetToSend):
         packetToSend.setSequence(self.packetSequence)
         try:
             data = packetToSend.data
@@ -179,17 +119,24 @@ class Radio:
                 received = self.rileyLink.get_packet(0.3)
                 if received is None:
                     break
-
-                p = self.__getPacket(received)
-                if p is None or p.address != packetToSend.address:
+                p = self._get_packet(received)
+                if p is None:
                     break
+                if p.address != packetToSend.address:
+                    continue
                 logging.warning("Still receiving POD packets")
+                if p.sequence == packetToSend.sequence:
+                    self.packetSequence = (self.packetSequence + 1) % 32
+                    self.messageSequence = 0
+                    raise TransmissionOutOfSyncError()
+
             self.packetSequence = (self.packetSequence + 1) % 32
             logging.debug("SEND FINAL complete")
         except RileyLinkError as rle:
             logging.error("Error while sending %s" % rle)
 
-    def __getPacket(self, data):
+    @staticmethod
+    def _get_packet(data):
         p = None
         if data is not None and len(data) > 2:
             calc = crc.crc8(data[2:-1])

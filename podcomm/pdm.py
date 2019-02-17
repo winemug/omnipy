@@ -353,7 +353,7 @@ class Pdm:
             if nonce == FAKE_NONCE:
                 stay_connected = True
             message.setNonce(nonce)
-        response_message = self.radio.sendRequestToPod(message, stay_connected=stay_connected)
+        response_message = self.radio.send_request_get_response(message, stay_connected=stay_connected)
         contents = response_message.getContents()
         for (ctype, content) in contents:
             # if ctype == 0x01:  # pod info response
@@ -379,7 +379,7 @@ class Pdm:
         commandType = 0x0e
         commandBody = bytes([update_type])
         msg = self._createMessage(commandType, commandBody)
-        self._sendMessage(msg, True)
+        self._sendMessage(msg, stay_connected=True)
 
     def _acknowledge_alerts(self, alert_mask):
         commandType = 0x11

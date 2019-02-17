@@ -16,6 +16,10 @@ class ProtocolError(OmnipyError):
     pass
 
 
+class TransmissionOutOfSyncError(ProtocolError):
+    pass
+
+
 class PdmError(OmnipyError):
     pass
 
