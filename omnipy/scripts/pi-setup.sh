@@ -49,7 +49,7 @@ sudo python3 ./setup.py install
 
 sudo chown -R pi.pi /home/pi/bluepy
 sudo chown -R pi.pi /home/pi/omnipy
-cd /home/pi/omnipy
+cd /home/pi/omnipy/omnipy
 
 echo
 echo ${bold}Step 5/35: ${normal}Enabling bluetooth management for users
@@ -63,7 +63,7 @@ sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} 
 
 echo
 echo ${bold}Step 6/35: ${normal}Omnipy HTTP API Password configuration
-/usr/bin/python3 ./set_api_password.py
+/usr/bin/python3 ./tools/set_api_password.py
 
 echo
 echo ${bold}Step 7/35: ${normal}RileyLink test
@@ -72,7 +72,7 @@ echo This step will test if your RileyLink device is connectable and has the
 echo correct firmware version installed.
 echo
 read -p "Press Enter to continue..."
-/usr/bin/python3 /home/pi/omnipy/verify_rl.py
+/usr/bin/python3 ./tools/verify_rl.py
 
 # echo ${bold}Step 8/35: ${normal}Setting up bluetooth personal area network
 # echo
@@ -133,10 +133,16 @@ read -p "Press Enter to continue..."
 # sudo killall -9 bt-network > /dev/null 2>&1
 
 echo
-echo ${bold}Step 9/35: ${normal}Creating and starting omnipy service
-sudo cp /home/pi/omnipy/omnipy.service /etc/systemd/system/
+echo ${bold}Step 9/35: ${normal}Creating and starting omnipy services
+sudo cp /home/pi/omnipy/omnipy/scripts/omnipy.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
 sudo systemctl enable omnipy.service
+sudo systemctl enable omnipy-beacon.service
+#sudo systemctl enable omnipy-pan.service
 sudo systemctl start omnipy.service
+sudo systemctl start omnipy-beacon.service
+#sudo systemctl start omnipy-pan.service
 
 echo
 echo ${bold}Step 10/35: ${normal}Informing the user about the actual number of steps
