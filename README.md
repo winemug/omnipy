@@ -1,35 +1,29 @@
 # About
 omnipy is a PDM (personal diabetes manager) emulator for the OmniPod insulin pump and it can be used to command the pump to perform various functions over a Raspberry Pi on a local network. It exposes a basic HTTP API to be utilized by APS systems, such as Android APS.
 
-# Project status update
+![rileylink android raspberrypi](https://github.com/winemug/omnipy/raw/master/img/droidrlpi.jpg)
 
-*As of February 17th:*
+# Project status as of February 18th
 
-**Update 22:47 UTC: There was an error in the setup script preventing from proper installation. This is fixed now, please run the setup procedure again if it didn't work for you.**
+Omnipy is now working offline (without internet) on the raspberry pi. An update to [AndroidAPS integration](https://github.com/winemug/AndroidAPS) is on its way, expected release date: **February 21st**
 
-The good:
-* Release candidate is now in main branch
-* Installation script for Raspberry Pi
-* Lots of improvements, some new features
+## Information on RileyLink "433"
+It seems that the release announcement of [RileyLink433](https://getrileylink.org/product/rileylink433/) got people excited about OmniPod loopability. For clarification: RL 433 is **not** an absolute requirement. If you have the old RileyLink, it will still work. Please see the [requirements](https://github.com/winemug/omnipy/wiki/Requirements) section in the wiki and [Increasing Radio Range](https://github.com/winemug/omnipy/wiki/Increasing-Radio-Range) for what you can further do with your RileyLink.
 
-The bad:
-* AndroidAPS integration for the new omnipy API is _not_ finished
-* Documentation not updated
+## Note about software and hardware
 
-The ugly:
-* Some last minute changes not well tested
-* No proper client for running tests, unless you can program in python
+The raspberry pi is still a requirement, since this is a prototype for looping on AndroidAPS. I am doing my best to make the software easy to install and run on the Raspberry Pi and Android, however if you're not technically inclined, I suggest to stay tuned for my next project [OmniCore](https://github.com/winemug/OmniCore) which features full control of the Omnipod and will run directly on Android (and eventually other platforms) without the need for a raspberry pi. 
 
-**What's coming:**
-* A simple client for running omnipy commands & documentation (very soon)
-* Android APS release with the updated Omnipod driver (soon)
+While both projects require a RileyLink, OmniCore will also provide options to connect with alternative hardware radios.
+
+Please also see the [F.A.Q.](https://github.com/winemug/omnipy/wiki/Frequently-Asked-Questions)
 
 **What you can do now:**
 * Install on the raspberry pi:<br/>
 ```curl https://raw.githubusercontent.com/winemug/omnipy/master/pi-setup.sh | sudo bash```
 * Grab yourself a pod:<br/>
 ```
-cd ~/omnipy
+cd ~/omnipy/omnipy/tools
 python3 ./podgrab.py 11111 222222 mypod.json
 ```
 * Bolus 3.5 Units: <br/>
@@ -37,10 +31,7 @@ python3 ./podgrab.py 11111 222222 mypod.json
 * Set a temp basal of 2.60 U/h over the course of 1.5 hours: <br/>
 ```python3 ./tempbasal.py mypod.json 2.60 1.5```
 
-If you know a bit of python, feel free to look through the code and call the methods in the [pdm](https://github.com/winemug/omnipy/blob/master/podcomm/pdm.py) class to do more with the omnipod, based on the examples above.
-
 File an issue if you find something that doesn't work right, get in touch or both.
-
 
 # Important Background Information
 This used to be a pet project, where I investigated the radio communication between the OmniPod and the PDM. Whilst still studying the OmniPod, I have decided that there was enough information available to let it execute basic commands which would make it usable in an artifical pancreas system. I've put together a prototype and integrated it into AndroidAPS for my own use, which became what it is today.
@@ -54,15 +45,12 @@ You are welcome to test it and report issues, but be aware you are doing this on
 * A linux computer with bluetooth (e.g. Raspberry Pi)
 * An android phone capable of running AndroidAPS
 
-i.e., these:
-![rileylink android raspberrypi](https://i.imgur.com/5eJU85Z.jpg)
-
 # How it works and how to set it up
 Please click on the [wiki link](https://github.com/winemug/omnipy/wiki) for information on how it works and how to set it up.
   
 # What's next?
 
-This was intended to be a throw-away prototype and I want to keep it that way. Python is not my language of choice and the raspberry pi and android are redundant, as both have enough processing power to perform the operations. My focus on Omnipod related development is on the [OmniCore](https://github.com/winemug/OmniCore) project, which will be ready for public testing by end of February 2019.
+This was intended to be a throw-away prototype and I want to keep it that way. Python is not my language of choice and the raspberry pi and android are redundant, as both have enough processing power to perform the operations. My focus on Omnipod related development is on the [OmniCore](https://github.com/winemug/OmniCore) project, which will be ready for public testing by ~~end of February 2019~~mid March 2019.
 
 In the mean time, please do report any issues you find and I will do my best to get it fixed.
 
