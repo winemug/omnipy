@@ -20,7 +20,7 @@ Please also see the [F.A.Q.](https://github.com/winemug/omnipy/wiki/Frequently-A
 
 **What you can do now:**
 * Install on the raspberry pi:<br/>
-```curl https://raw.githubusercontent.com/winemug/omnipy/master/pi-setup.sh | sudo bash```
+``` curl https://raw.githubusercontent.com/winemug/omnipy/master/omnipy/scripts/pi-setup.sh | sudo bash```
 * Grab yourself a pod:<br/>
 ```
 cd ~/omnipy/omnipy/tools
