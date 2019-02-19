@@ -74,63 +74,63 @@ echo
 read -p "Press Enter to continue..."
 /usr/bin/python3 ./tools/verify_rl.py
 
-# echo ${bold}Step 8/35: ${normal}Setting up bluetooth personal area network
-# echo
-# echo "Removing existing bluetooth devices"
-# sudo btmgmt power on
-# sudo bt-device -l | grep -e \(.*\) --color=never -o| cut -d'(' -f2 | cut -d')' -f1 | while read -r mac
-# do
-#         if [ !mac ]; then
-#                 sudo bt-device -d $mac
-#                 sudo bt-device -r $mac
-#         fi
-# done
-# echo
-# echo "Activating bluetooth pairing mode"
-# sudo btmgmt connectable yes
-# sudo btmgmt discov yes
-# sudo btmgmt pairable yes
-# sudo killall bt-agent
-# sudo bt-agent -c NoInputNoOutput -d
-# echo "Bluetooth device is now discoverable"
-# echo
-# echo "Open ${bold}bluetooth settings${normal} on your phone to search for and ${bold}pair${normal} with this device"
-# echo "If you have already paired it on your phone, please unpair it first, then pair again"
-# echo
-# printf "Waiting for connection.."
+echo ${bold}Step 8/35: ${normal}Setting up bluetooth personal area network
+echo
+echo "Removing existing bluetooth devices"
+sudo btmgmt power on
+sudo bt-device -l | grep -e \(.*\) --color=never -o| cut -d'(' -f2 | cut -d')' -f1 | while read -r mac
+do
+        if [ !mac ]; then
+                sudo bt-device -d $mac
+                sudo bt-device -r $mac
+        fi
+done
+echo
+echo "Activating bluetooth pairing mode"
+sudo btmgmt connectable yes
+sudo btmgmt discov yes
+sudo btmgmt pairable yes
+sudo killall bt-agent
+sudo bt-agent -c NoInputNoOutput -d
+echo "Bluetooth device is now discoverable"
+echo
+echo "Open ${bold}bluetooth settings${normal} on your phone to search for and ${bold}pair${normal} with this device"
+echo "If you have already paired it on your phone, please unpair it first, then pair again"
+echo
+printf "Waiting for connection.."
 
-# btdevice=
-# while [ -z "$btdevice" ]
-# do
-#         printf "."
-#         sleep 1
-#         btdevice=`sudo bt-device -l | grep -e \(.*\)`
-# done
+btdevice=
+while [ -z "$btdevice" ]
+do
+        printf "."
+        sleep 1
+        btdevice=`sudo bt-device -l | grep -e \(.*\)`
+done
 
-# sudo btmgmt discov no
+sudo btmgmt discov no
 
-# echo
+echo
 
-# echo "${bold}Paired with $btdevice.${normal}"
-# mac=`echo $btdevice | cut -d'(' -f2 | cut -d')' -f1`
+echo "${bold}Paired with $btdevice.${normal}"
+mac=`echo $btdevice | cut -d'(' -f2 | cut -d')' -f1`
 
-# echo
-# echo
-# echo "Please ${bold}enable bluetooth tethering${normal} on your phone if it's not already enabled"
-# echo "Waiting for connection."
-# sudo /bin/bash ./btnap.sh $mac & > /dev/null 2>&1
-# ipaddr=
-# while [ -z "$ipaddr" ]
-# do
-#         printf "."
-#         sleep 1
-#         ipaddr=`sudo ip -o -4 address | grep bnep0 | grep -e inet.*/ -o | cut -d' ' -f2 | cut -d'/' -f1`
-# done
-# echo
-# echo
-# echo "${bold}Connection test succeeeded${normal}. IP address: $ipaddr"
-# sudo killall -9 btnap.sh > /dev/null 2>&1
-# sudo killall -9 bt-network > /dev/null 2>&1
+echo
+echo
+echo "Please ${bold}enable bluetooth tethering${normal} on your phone if it's not already enabled"
+echo "Waiting for connection."
+sudo /bin/bash ./btnap.sh $mac & > /dev/null 2>&1
+ipaddr=
+while [ -z "$ipaddr" ]
+do
+        printf "."
+        sleep 1
+        ipaddr=`sudo ip -o -4 address | grep bnep0 | grep -e inet.*/ -o | cut -d' ' -f2 | cut -d'/' -f1`
+done
+echo
+echo
+echo "${bold}Connection test succeeeded${normal}. IP address: $ipaddr"
+sudo killall -9 btnap.sh > /dev/null 2>&1
+sudo killall -9 bt-network > /dev/null 2>&1
 
 echo
 echo ${bold}Step 9/35: ${normal}Creating and starting omnipy services
