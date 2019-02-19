@@ -15,7 +15,7 @@ from podcomm.pdm import Pdm
 from podcomm.pod import Pod
 from podcomm.rileylink import RileyLink
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path="/")
 
 
 class RestApiException(Exception):
@@ -96,6 +96,10 @@ def verify_auth(request_obj):
     except Exception as e:
         logging.error("Error during verify_auth: %s", e)
         raise
+
+@app.route("/")
+def main_page():
+    return app.send_static_file("omnipy.html")
 
 @app.route("/omnipy/result")
 def get_result():
