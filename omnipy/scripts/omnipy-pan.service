@@ -1,10 +1,10 @@
 [Unit]
-Description=Omnipy Rest API
+Description=Omnipy Bluetooth PAN service
 After=network.target
 
 [Service]
-ExecStart=/bin/bash /home/pi/omnipy.sh
-WorkingDirectory=/home/pi/omnipy
+ExecStart=/bin/bash $HOME/omnipy/omnipy/tools/btnap.sh
+WorkingDirectory=$HOME/omnipy/omnipy/tools/
 StandardOutput=inherit
 StandardError=inherit
 Restart=always

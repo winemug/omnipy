@@ -1,0 +1,14 @@
+[Unit]
+Description=Omnipy Rest API
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 -u $HOME/omnipy/omnipy/restapi.py
+WorkingDirectory=$HOME/omnipy/omnipy
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=pi
+
+[Install]
+WantedBy=multi-user.target
