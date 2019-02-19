@@ -5,7 +5,7 @@ from socketserver import UDPServer, BaseRequestHandler
 class OmnipyBeacon(BaseRequestHandler):
     def handle(self):
         socket = self.request[1]
-        socket.sendto("wut", self.client_address)
+        socket.sendto("wut".encode("ascii"), self.client_address)
 
 
 addr = ("", 6664)

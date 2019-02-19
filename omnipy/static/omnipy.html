@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>title</title>
+  <style type="text/css">
+body {
+  background: #20262E;
+  padding: 20px;
+  font-family: Helvetica;
+}
+
+#app {
+  background: #fff;
+  border-radius: 4px;
+  padding: 20px;
+  transition: all 0.2s;
+}
+
+li {
+  margin: 8px 0;
+}
+
+h2 {
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+del {
+  color: rgba(0, 0, 0, 0.3);
+}
+  </style>
+  </head>
+  <body>
+        <div id="app">
+                <div id="result">  {{ result }}  </div>
+                <button v-on:click="doit">Do it</button>
+        </div>
+  <script src="https://cdn.jsdelivr.net/npm/vue" type="text/javascript"></script>
+  <script type="text/javascript">
+   function autorun()
+   {
+    new Vue({
+        el: "#app",
+        data: {
+            result: "nothing yet"
+        },
+        methods: {
+            doit: function() {
+            var req = new XMLHttpRequest();
+            var url = "pdm/status";
+
+            req.onreadystatechange = function(v) {
+            if (this.readyState == XMLHttpRequest.DONE && this.status == 200) {
+                v.result = this.responseText;
+            };
+            }.bind(req, this);
+            req.open("GET", url, true);
+            req.send();
+            }
+        }
+        })
+   }
+   if (document.addEventListener) document.addEventListener("DOMContentLoaded", autorun, false);
+   else if (document.attachEvent) document.attachEvent("onreadystatechange", autorun);
+   else window.onload = autorun;
+  </script>
+  </body>
+</html>
