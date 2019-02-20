@@ -71,7 +71,7 @@ echo
 echo This step will test if your RileyLink device is connectable and has the
 echo correct firmware version installed.
 echo
-echo -n 1 -p "Do you want to test the Rileylink now (y/n) " answer
+read -n 1 -p "Do you want to test the Rileylink now (y/n) " answer
 if [ -z "$answer"] || answer == "Y" || answer == "y";then
     echo
     /usr/bin/python3 ./verify_rl.py
@@ -79,7 +79,7 @@ fi
 
 echo ${bold}Step 8/10: ${normal}Setting up bluetooth personal area network
 echo
-echo -n 1 -p "Do you want to set up a bluetooth personal area network between your phone and this raspberry pi? (y/n) " answer
+read -n 1 -p "Do you want to set up a bluetooth personal area network between your phone and this raspberry pi? (y/n) " answer
 if [ -z "$answer"] || answer == "Y" || answer == "y";then
     echo
     echo "Removing existing bluetooth devices"
@@ -124,7 +124,7 @@ if [ -z "$answer"] || answer == "Y" || answer == "y";then
     echo
     echo "Please ${bold}enable bluetooth tethering${normal} on your phone if it's not already enabled"
     echo "Waiting for connection."
-    sudo /bin/bash ./btnap.sh $mac & > /dev/null 2>&1
+    sudo /bin/bash ./scripts/btnap.sh $mac & > /dev/null 2>&1
     ipaddr=
     while [ -z "$ipaddr" ]
     do
