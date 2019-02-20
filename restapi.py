@@ -103,17 +103,8 @@ def verify_auth(request_obj):
 def main_page():
     return app.send_static_file("omnipy.html")
 
-@app.route("/omnipy/result")
-def get_result():
-    try:
-        return respond_ok("%d.%d" % (API_VERSION_MAJOR, API_VERSION_MINOR))
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during result req: %s", e)
-        return respond_error("Other error. Please check log files.")
 
-@app.route("/omnipy/version")
+@app.route(REST_URL_GET_VERSION)
 def get_api_version():
     try:
         return respond_ok("%d.%d" % (API_VERSION_MAJOR, API_VERSION_MINOR))
@@ -123,7 +114,8 @@ def get_api_version():
         logger.error("Error during version req: %s", e)
         return respond_error("Other error. Please check log files.")
 
-@app.route("/omnipy/token")
+
+@app.route(REST_URL_TOKEN)
 def create_token():
     try:
         with open(TOKENS_FILE, "a+b") as tokens:
@@ -137,7 +129,7 @@ def create_token():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/omnipy/pwcheck")
+@app.route(REST_URL_CHECK_PASSWORD)
 def check_password():
     try:
         verify_auth(request)
@@ -150,7 +142,7 @@ def check_password():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/omnipy/takeover")
+@app.route(REST_URL_TAKEOVER_EXISTING_POD)
 def take_over():
     try:
         verify_auth(request)
@@ -190,7 +182,7 @@ def take_over():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/omnipy/parameters")
+@app.route(REST_URL_SET_POD_PARAMETERS)
 def set_pod_parameters():
     try:
         verify_auth(request)
@@ -212,7 +204,7 @@ def set_pod_parameters():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/omnipy/limits")
+@app.route(REST_URL_SET_LIMITS)
 def set_limits():
     try:
         verify_auth(request)
@@ -229,7 +221,7 @@ def set_limits():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/rl/battery")
+@app.route(REST_URL_RL_BATTERY)
 def get_rl_battery_level():
     try:
         verify_auth(request)
@@ -244,7 +236,7 @@ def get_rl_battery_level():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/status")
+@app.route(REST_URL_STATUS)
 def get_status():
     try:
         verify_auth(request)
@@ -265,7 +257,7 @@ def get_status():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/ack")
+@app.route(REST_URL_ACK_ALERTS)
 def acknowledge_alerts():
     try:
         verify_auth(request)
@@ -280,7 +272,7 @@ def acknowledge_alerts():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/deactivate")
+@app.route(REST_URL_DEACTIVATE_POD)
 def deactivate_pod():
     try:
         verify_auth(request)
@@ -295,7 +287,7 @@ def deactivate_pod():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/bolus")
+@app.route(REST_URL_BOLUS)
 def bolus():
     try:
         verify_auth(request)
@@ -311,7 +303,7 @@ def bolus():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/cancelbolus")
+@app.route(REST_URL_CANCEL_BOLUS)
 def cancel_bolus():
     try:
         verify_auth(request)
@@ -326,7 +318,7 @@ def cancel_bolus():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/settempbasal")
+@app.route(REST_URL_SET_TEMP_BASAL)
 def set_temp_basal():
     try:
         verify_auth(request)
@@ -343,7 +335,7 @@ def set_temp_basal():
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/canceltempbasal")
+@app.route(REST_URL_CANCEL_TEMP_BASAL)
 def cancel_temp_basal():
     try:
         verify_auth(request)
