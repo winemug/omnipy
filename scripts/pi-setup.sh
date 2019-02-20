@@ -16,12 +16,13 @@ echo
 echo ${bold}Step 2/10: ${normal}Upgrading existing packages
 sudo apt upgrade -y
 
-if [ ! -d /home/pi/omnipy ]
+if [[ ! -d /home/pi/omnipy ]]
 then
 echo
 echo ${bold}Step 3/10: ${normal}Downloading and installing omnipy
 cd /home/pi
 git clone https://github.com/winemug/omnipy.git
+cd /home/pi/omnipy
 git checkout dev
 cd /home/pi/omnipy
 else
@@ -45,11 +46,15 @@ sudo pip3 install requests
 echo
 echo ${bold}Step 4/10: ${normal}Configuring and installing bluepy
 cd /home/pi
+if [[ ! -d /home/pi/omnipy ]]
+then
+echo Skipping step, bluepy directory exists
+else
 git clone https://github.com/IanHarvey/bluepy.git
 cd bluepy
 python3 ./setup.py build
 sudo python3 ./setup.py install
-
+fi
 cd /home/pi/omnipy
 
 echo
@@ -72,16 +77,18 @@ echo
 echo This step will test if your RileyLink device is connectable and has the
 echo correct firmware version installed.
 echo
-read -n 1 -p "Do you want to test the Rileylink now (Y/n) " answer
-if [ -z "$answer" ] || [ answer == "Y" ] || [ answer == "y" ]; then
-    echo
+read -p "Do you want to test the Rileylink now? (y/n) " -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
     /usr/bin/python3 /home/pi/omnipy/verify_rl.py
 fi
 
 echo ${bold}Step 8/10: ${normal}Setting up bluetooth personal area network
 echo
-read -n 1 -p "Do you want to set up a bluetooth personal area network between your phone and this raspberry pi? (Y/n) " answer
-if [ -z "$answer" ] || [ answer == "Y" ] || [ answer == "y" ]; then
+read -p "Do you want to set up a bluetooth personal area network? (y/n) " -r
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
     echo
     echo "Removing existing bluetooth devices"
     sudo btmgmt power on
@@ -107,7 +114,7 @@ if [ -z "$answer" ] || [ answer == "Y" ] || [ answer == "y" ]; then
     printf "Waiting for connection.."
 
     btdevice=
-    while [ -z "$btdevice" ]
+    while [[ -z "$btdevice" ]]
     do
             printf "."
             sleep 1
@@ -127,7 +134,7 @@ if [ -z "$answer" ] || [ answer == "Y" ] || [ answer == "y" ]; then
     echo "Waiting for connection."
     sudo /bin/bash /home/pi/omnipy/scripts/btnap.sh $mac & > /dev/null 2>&1
     ipaddr=
-    while [ -z "$ipaddr" ]
+    while [[ -z "$ipaddr" ]]
     do
             printf "."
             sleep 1
@@ -142,6 +149,7 @@ if [ -z "$answer" ] || [ answer == "Y" ] || [ answer == "y" ]; then
     sudo systemctl enable omnipy-pan.service
     sudo systemctl start omnipy-pan.service
 fi
+
 echo
 echo ${bold}Step 9/10: ${normal}Creating and starting omnipy services
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
