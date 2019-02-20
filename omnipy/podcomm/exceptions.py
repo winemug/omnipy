@@ -1,3 +1,4 @@
+
 class OmnipyError(Exception):
     def __init__(self, message="Unknown"):
         self.error_message = message

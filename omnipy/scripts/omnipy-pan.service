@@ -3,8 +3,8 @@ Description=Omnipy Bluetooth PAN service
 After=network.target
 
 [Service]
-ExecStart=/bin/bash $HOME/omnipy/omnipy/tools/btnap.sh
-WorkingDirectory=$HOME/omnipy/omnipy/tools/
+ExecStart=/bin/bash $HOME/omnipy/omnipy/scripts/btnap.sh
+WorkingDirectory=$HOME/omnipy/omnipy/scripts/
 StandardOutput=inherit
 StandardError=inherit
 Restart=always

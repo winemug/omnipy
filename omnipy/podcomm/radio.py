@@ -1,4 +1,3 @@
-import logging
 import threading
 from .exceptions import ProtocolError, RileyLinkError, TransmissionOutOfSyncError
 from podcomm import crc
@@ -14,6 +13,7 @@ class Radio:
         self.packetSequence = pkt_sequence
         self.lastPacketReceived = None
         self.responseTimeout = 1000
+        self.logging = getLogger()
         self.rileyLink = RileyLink()
 
     def send_request_get_response(self, message, try_resync=True, stay_connected=True):
@@ -21,7 +21,7 @@ class Radio:
             return self._send_request(message)
         except TransmissionOutOfSyncError:
             if try_resync:
-                logging.warning("Transmission out of sync, resyncing radios")
+                self.logger.warning("Transmission out of sync, resyncing radios")
                 return self._send_request(message)
             else:
                 raise
@@ -31,7 +31,7 @@ class Radio:
 
     def _send_request(self, message):
         message.setSequence(self.messageSequence)
-        logging.debug("SENDING MSG: %s" % message)
+        self.logger.debug("SENDING MSG: %s" % message)
         packets = message.getPackets()
         received = None
         packet_index = 1
@@ -64,12 +64,12 @@ class Radio:
         if pod_response.state == MessageState.Invalid:
             raise ProtocolError("Received message is not valid")
 
-        logging.debug("RECEIVED MSG: %s" % pod_response)
+        self.logger.debug("RECEIVED MSG: %s" % pod_response)
 
-        logging.debug("Sending end of conversation")
+        self.logger.debug("Sending end of conversation")
         ack_packet = Packet.Ack(message.address, True)
         self._send_packet(ack_packet)
-        logging.debug("Conversation ended")
+        self.logger.debug("Conversation ended")
 
         self.messageSequence = (pod_response.sequence + 1) % 16
         return pod_response
@@ -82,7 +82,7 @@ class Radio:
         while send_retries > 0:
             try:
                 send_retries -= 1
-                logging.debug("SENDING PACKET EXP RESPONSE: %s (retries left: %d)" % (packet_to_send, send_retries))
+                self.logger.debug("SENDING PACKET EXP RESPONSE: %s (retries left: %d)" % (packet_to_send, send_retries))
                 data = packet_to_send.data
                 data += bytes([crc.crc8(data)])
 
@@ -113,7 +113,7 @@ class Radio:
             data += bytes([crc.crc8(data)])
             receive_retries = 10
             while receive_retries > 0:
-                logging.debug("SENDING FINAL PACKET: %s (retries left: %d)" % (packetToSend, receive_retries))
+                self.logger.debug("SENDING FINAL PACKET: %s (retries left: %d)" % (packetToSend, receive_retries))
                 self.rileyLink.send_packet(data, 3, 20, 42)
                 receive_retries -= 1
                 received = self.rileyLink.get_packet(0.3)
@@ -124,16 +124,16 @@ class Radio:
                     break
                 if p.address != packetToSend.address:
                     continue
-                logging.warning("Still receiving POD packets")
+                self.logger.warning("Still receiving POD packets")
                 if p.sequence == packetToSend.sequence:
                     self.packetSequence = (self.packetSequence + 1) % 32
                     self.messageSequence = 0
                     raise TransmissionOutOfSyncError()
 
             self.packetSequence = (self.packetSequence + 1) % 32
-            logging.debug("SEND FINAL complete")
+            self.logger.debug("SEND FINAL complete")
         except RileyLinkError as rle:
-            logging.error("Error while sending %s" % rle)
+            self.logger.error("Error while sending %s" % rle)
 
     @staticmethod
     def _get_packet(data):
@@ -144,5 +144,5 @@ class Radio:
                 try:
                     p = Packet.from_data(data[2:-1])
                 except ProtocolError as pe:
-                    logging.warning("Crc match on an invalid packet, error: %s" % pe)
+                    getLogger().warning("Crc match on an invalid packet, error: %s" % pe)
         return p

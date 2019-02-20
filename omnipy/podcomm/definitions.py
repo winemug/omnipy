@@ -8,9 +8,29 @@ RESPONSE_FILE = ".response"
 POD_FILE = "pod"
 POD_FILE_SUFFIX = ".json"
 POD_LOG_SUFFIX = ".log"
+OMNIPY_LOGGER = "OMNIPY"
+OMNIPY_LOGFILE = "omnipy.log"
 
 API_VERSION_MAJOR = 1
 API_VERSION_MINOR = 0
+
+
+def getLogger():
+    logging.getLogger(REST_LOGGER)
+
+
+def configureLogging():
+    logger = getLogger()
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    fh = logging.FileHandler(OMNIPY_LOGFILE)
+    ch = logging.StreamHandler()
+    fh.setLevel(logging.DEBUG)
+    ch.setLevel(logging.WARNING)
+    fh.setFormatter(formatter)
+    ch.setFormatter(formatter)
+    logger.addHandler(fh)
+    logger.addHandler(ch)
 
 
 class BolusState(IntEnum):
