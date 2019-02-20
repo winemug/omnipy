@@ -23,14 +23,11 @@ echo ${bold}Step 3/10: ${normal}Downloading and installing omnipy
 cd /home/pi
 git clone https://github.com/winemug/omnipy.git
 cd /home/pi/omnipy
-git checkout dev
-cd /home/pi/omnipy
 else
 echo
 echo ${bold}Step 3/10: ${normal}Updating omnipy
 cd /home/pi/omnipy
 git stash
-git checkout dev
 git pull
 fi
 mkdir /home/pi/omnipy/data > /dev/null 2>&1
