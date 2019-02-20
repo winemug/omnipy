@@ -1,8 +1,5 @@
-#!/usr/bin/python3
-
 from .exceptions import ProtocolError
 from .definitions import *
-import logging
 import simplejson as json
 import struct
 from datetime import datetime, timedelta
@@ -238,5 +235,5 @@ class Pod:
             with open(self.log_file_path, "a") as stream:
                 stream.write(log_message)
         except Exception as e:
-            logging.warning("Failed to write the following line to the pod log file %s:\n%s\nError: %s"
+            getLogger().warning("Failed to write the following line to the pod log file %s:\n%s\nError: %s"
                             %(self.log_file_path, log_message, e))

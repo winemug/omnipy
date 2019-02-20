@@ -1,0 +1,14 @@
+[Unit]
+Description=Omnipy Bluetooth PAN service
+After=network.target
+
+[Service]
+ExecStart=/bin/bash /home/pi/omnipy/scripts/btnap-custom.sh
+WorkingDirectory=/home/pi/omnipy/scripts/
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+User=root
+
+[Install]
+WantedBy=multi-user.target

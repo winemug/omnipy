@@ -1,21 +1,23 @@
 #!/usr/bin/python3
 import base64
-import logging
 import os
 from decimal import *
 
-import Crypto.Cipher
+from Crypto.Cipher import AES
 import simplejson as json
 from flask import Flask, request
 from datetime import datetime
-from podcomm.definitions import *
 from podcomm.crc import crc8
 from podcomm.packet import Packet
 from podcomm.pdm import Pdm
 from podcomm.pod import Pod
 from podcomm.rileylink import RileyLink
+from podcomm.definitions import *
 
-app = Flask(__name__)
+
+app = Flask(__name__, static_url_path="/")
+configureLogging()
+logger = getLogger()
 
 
 class RestApiException(Exception):
@@ -63,7 +65,7 @@ def verify_auth(request_obj):
         with open(KEY_FILE, "rb") as keyfile:
             key = keyfile.read(32)
 
-        cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv)
+        cipher = AES.new(key, AES.MODE_CBC, iv)
         token = cipher.decrypt(auth)
 
         with open(TOKENS_FILE, "a+b") as tokens:
@@ -91,33 +93,29 @@ def verify_auth(request_obj):
         if not found:
             raise RestApiException("Invalid authentication token")
     except RestApiException as rae:
-        logging.error("Authentication error: %s", rae)
+        logger.error("Authentication error: %s", rae)
         raise
     except Exception as e:
-        logging.error("Error during verify_auth: %s", e)
+        logger.error("Error during verify_auth: %s", e)
         raise
 
-@app.route("/omnipy/result")
-def get_result():
-    try:
-        return respond_ok("%d.%d" % (API_VERSION_MAJOR, API_VERSION_MINOR))
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception as e:
-        logging.error("Error during result req: %s", e)
-        return respond_error("Other error. Please check log files.")
+@app.route("/")
+def main_page():
+    return app.send_static_file("omnipy.html")
 
-@app.route("/omnipy/version")
+
+@app.route(REST_URL_GET_VERSION)
 def get_api_version():
     try:
         return respond_ok("%d.%d" % (API_VERSION_MAJOR, API_VERSION_MINOR))
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during version req: %s", e)
+        logger.error("Error during version req: %s", e)
         return respond_error("Other error. Please check log files.")
 
-@app.route("/omnipy/token")
+
+@app.route(REST_URL_TOKEN)
 def create_token():
     try:
         with open(TOKENS_FILE, "a+b") as tokens:
@@ -127,11 +125,11 @@ def create_token():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during create token: %s", e)
+        logger.error("Error during create token: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/omnipy/pwcheck")
+@app.route(REST_URL_CHECK_PASSWORD)
 def check_password():
     try:
         verify_auth(request)
@@ -140,11 +138,11 @@ def check_password():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during check pwd: %s", e)
+        logger.error("Error during check pwd: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/omnipy/takeover")
+@app.route(REST_URL_TAKEOVER_EXISTING_POD)
 def take_over():
     try:
         verify_auth(request)
@@ -175,16 +173,16 @@ def take_over():
 
         archive_pod()
 
-        pod.Save(POD_FILE)
+        pod.Save(POD_FILE + POD_FILE_SUFFIX)
         return respond_ok(p.address)
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during takeover: %s", e)
+        logger.error("Error during takeover: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/omnipy/parameters")
+@app.route(REST_URL_SET_POD_PARAMETERS)
 def set_pod_parameters():
     try:
         verify_auth(request)
@@ -202,11 +200,11 @@ def set_pod_parameters():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during set pod params: %s", e)
+        logger.error("Error during set pod params: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/omnipy/limits")
+@app.route(REST_URL_SET_LIMITS)
 def set_limits():
     try:
         verify_auth(request)
@@ -219,11 +217,11 @@ def set_limits():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during set limits: %s", e)
+        logger.error("Error during set limits: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/rl/battery")
+@app.route(REST_URL_RL_BATTERY)
 def get_rl_battery_level():
     try:
         verify_auth(request)
@@ -234,11 +232,11 @@ def get_rl_battery_level():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during get status: %s", e)
+        logger.error("Error during get status: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/status")
+@app.route(REST_URL_STATUS)
 def get_status():
     try:
         verify_auth(request)
@@ -255,11 +253,11 @@ def get_status():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during get status: %s", e)
+        logger.error("Error during get status: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/ack")
+@app.route(REST_URL_ACK_ALERTS)
 def acknowledge_alerts():
     try:
         verify_auth(request)
@@ -270,11 +268,11 @@ def acknowledge_alerts():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during acknowledging alerts: %s", e)
+        logger.error("Error during acknowledging alerts: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/deactivate")
+@app.route(REST_URL_DEACTIVATE_POD)
 def deactivate_pod():
     try:
         verify_auth(request)
@@ -285,11 +283,11 @@ def deactivate_pod():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during deactivation: %s", e)
+        logger.error("Error during deactivation: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/bolus")
+@app.route(REST_URL_BOLUS)
 def bolus():
     try:
         verify_auth(request)
@@ -301,11 +299,11 @@ def bolus():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during bolus: %s", e)
+        logger.error("Error during bolus: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/cancelbolus")
+@app.route(REST_URL_CANCEL_BOLUS)
 def cancel_bolus():
     try:
         verify_auth(request)
@@ -316,11 +314,11 @@ def cancel_bolus():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during cancel bolus: %s", e)
+        logger.error("Error during cancel bolus: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/settempbasal")
+@app.route(REST_URL_SET_TEMP_BASAL)
 def set_temp_basal():
     try:
         verify_auth(request)
@@ -333,11 +331,11 @@ def set_temp_basal():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during set temp basal: %s", e)
+        logger.error("Error during set temp basal: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route("/pdm/canceltempbasal")
+@app.route(REST_URL_CANCEL_TEMP_BASAL)
 def cancel_temp_basal():
     try:
         verify_auth(request)
@@ -348,13 +346,24 @@ def cancel_temp_basal():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logging.error("Error during cancel temp basal: %s", e)
+        logger.error("Error during cancel temp basal: %s", e)
         return respond_error("Other error. Please check log files.")
 
 
 if __name__ == '__main__':
-    if os.path.isfile(TOKENS_FILE):
-        os.remove(TOKENS_FILE)
-    if os.path.isfile(RESPONSE_FILE):
-        os.remove(RESPONSE_FILE)
-    app.run(host='0.0.0.0', port=4444)
+    try:
+        logger.info("Rest api is starting")
+        if os.path.isfile(TOKENS_FILE):
+            logger.debug("removing tokens from previous session")
+            os.remove(TOKENS_FILE)
+        if os.path.isfile(RESPONSE_FILE):
+            logger.debug("removing response queue from previous session")
+            os.remove(RESPONSE_FILE)
+    except IOError as ioe:
+        logger.warning("Error while removing stale files: %s" % ioe)
+
+    try:
+        app.run(host='0.0.0.0', port=4444)
+    except Exception as e:
+        logger.error("Error while running rest api, exiting. %s" % e)
+        raise

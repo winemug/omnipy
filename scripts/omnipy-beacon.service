@@ -1,10 +1,10 @@
 [Unit]
-Description=Omnipy Bluetooth PAN service
+Description=Omnipy UDP broadcast receiver
 After=network.target
 
 [Service]
-ExecStart=/bin/bash $HOME/omnipy/omnipy/tools/btnap.sh
-WorkingDirectory=$HOME/omnipy/omnipy/tools/
+ExecStart=/usr/bin/python3 -u /home/pi/omnipy_beacon.py
+WorkingDirectory=/home/pi/omnipy
 StandardOutput=inherit
 StandardError=inherit
 Restart=always

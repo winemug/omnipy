@@ -8,7 +8,6 @@ from .definitions import *
 from decimal import *
 import time
 import struct
-import logging
 
 
 class Pdm:
@@ -16,6 +15,7 @@ class Pdm:
         self.nonce = Nonce(pod.lot, pod.tid, seekNonce=pod.lastNonce, seed=pod.nonceSeed)
         self.pod = pod
         self.radio = Radio(pod.msgSequence, pod.packetSequence)
+        self.logger = getLogger()
 
     def updatePodStatus(self, update_type=0):
         try:
@@ -25,7 +25,7 @@ class Pdm:
                     time.time() - self.pod.lastUpdated < 60:
                 return
             with pdmlock():
-                logging.debug("updating pod status")
+                self.logger.debug("updating pod status")
                 self._update_status(update_type)
 
         except PdmError:
@@ -42,7 +42,7 @@ class Pdm:
             self._assert_can_acknowledge_alerts()
 
             with pdmlock():
-                logging.debug("acknowledging alerts with bitmask %d" % alert_mask)
+                self.logger.debug("acknowledging alerts with bitmask %d" % alert_mask)
                 self._acknowledge_alerts(alert_mask)
 
         except PdmError:
@@ -72,7 +72,7 @@ class Pdm:
     #         self._assert_can_acknowledge_alerts()
     #
     #         with pdmlock():
-    #             logging.debug("clearing alert %d" % alert_bit)
+    #             self.logger.debug("clearing alert %d" % alert_bit)
     #             self._configure_alert(alert_bit, clear=True)
     #     except PdmError:
     #         raise
@@ -163,7 +163,7 @@ class Pdm:
                 self._assert_status_running()
 
                 if self._is_bolus_running():
-                    logging.debug("Canceling running bolus")
+                    self.logger.debug("Canceling running bolus")
                     self._cancelActivity(cancelBolus=True, beep=beep)
                     if self.pod.bolusState == BolusState.Immediate:
                         raise PdmError("Failed to cancel bolus")
@@ -192,7 +192,7 @@ class Pdm:
                 self._assert_status_running()
 
                 if self._is_temp_basal_active():
-                    logging.debug("Canceling temp basal")
+                    self.logger.debug("Canceling temp basal")
                     self._cancelActivity(cancelTempBasal=True, beep=beep)
                     if self.pod.basalState == BasalState.TempBasal:
                         raise PdmError("Failed to cancel temp basal")
@@ -310,7 +310,7 @@ class Pdm:
             raise PdmError("Unexpected error") from e
 
     def _cancelActivity(self, cancelBasal=False, cancelBolus=False, cancelTempBasal=False, beep=False):
-        logging.debug("Running cancel activity for basal: %s - bolus: %s - tempBasal: %s" % (
+        self.logger.debug("Running cancel activity for basal: %s - bolus: %s - tempBasal: %s" % (
         cancelBasal, cancelBolus, cancelTempBasal))
         commandBody = struct.pack(">I", 0)
         if beep:
@@ -336,13 +336,13 @@ class Pdm:
 
     def _savePod(self):
         try:
-            logging.debug("Saving pod status")
+            self.logger.debug("Saving pod status")
             self.pod.msgSequence = self.radio.messageSequence
             self.pod.packetSequence = self.radio.packetSequence
             self.pod.lastNonce = self.nonce.lastNonce
             self.pod.nonceSeed = self.nonce.seed
             self.pod.Save()
-            logging.debug("Saved pod status")
+            self.logger.debug("Saved pod status")
         except Exception as e:
             raise PdmError("Pod status was not saved") from e
 
@@ -365,7 +365,7 @@ class Pdm:
             elif ctype == 0x06:
                 if content[0] == 0x14:  # bad nonce error
                     if nonce_retry_count == 0:
-                        logging.debug("Bad nonce error - renegotiating")
+                        self.logger.debug("Bad nonce error - renegotiating")
                     elif nonce_retry_count > 3:
                         raise PdmError("Nonce re-negotiation failed")
                     nonce_sync_word = struct.unpack(">H", content[1:])[0]
@@ -650,7 +650,7 @@ class Pdm:
     #         self._savePod()
 
     # def cancelBasal(self, beep=False):
-    #     logging.debug("Canceling current basal schedule")
+    #     self.logger.debug("Canceling current basal schedule")
     #     self.updatePodStatus()
     #     if self.pod.basalState == BasalState.Program:
     #         self.__cancelActivity(cancelBasal=True, alarm=beep)
@@ -658,5 +658,5 @@ class Pdm:
     #         raise PdmError()
 
     # def deactivatePod(self):
-    #     # logging.debug("deactivating pod")
+    #     # self.logger.debug("deactivating pod")
     #     # self.__savePod()
