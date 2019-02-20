@@ -22,12 +22,14 @@ echo
 echo ${bold}Step 3/10: ${normal}Downloading and installing omnipy
 cd /home/pi
 git clone https://github.com/winemug/omnipy.git
+git checkout dev
 cd /home/pi/omnipy
 else
 echo
 echo ${bold}Step 3/10: ${normal}Updating omnipy
 cd /home/pi/omnipy
 git stash
+git checkout dev
 git pull
 fi
 
@@ -63,7 +65,7 @@ sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} 
 
 echo
 echo ${bold}Step 6/10: ${normal}Omnipy HTTP API Password configuration
-/usr/bin/python3 ./set_api_password.py
+/usr/bin/python3 /home/pi/omnipy/omnipy/set_api_password.py
 
 echo
 echo ${bold}Step 7/10: ${normal}RileyLink test
@@ -74,7 +76,7 @@ echo
 read -n 1 -p "Do you want to test the Rileylink now (Y/n) " answer
 if [ -z "$answer" ] || [ answer == "Y" ] || [ answer == "y" ]; then
     echo
-    /usr/bin/python3 ./verify_rl.py
+    /usr/bin/python3 /home/pi/omnipy/omnipy/verify_rl.py
 fi
 
 echo ${bold}Step 8/10: ${normal}Setting up bluetooth personal area network
