@@ -32,7 +32,7 @@ git stash
 git checkout dev
 git pull
 fi
-mkdir -f /home/pi/omnipy/data
+mkdir /home/pi/omnipy/data > /dev/null 2>&1
 
 echo
 echo ${bold}Step 4/10: ${normal}Installing dependencies
@@ -50,8 +50,6 @@ cd bluepy
 python3 ./setup.py build
 sudo python3 ./setup.py install
 
-sudo chown -R pi.pi /home/pi/bluepy
-sudo chown -R pi.pi /home/pi/omnipy
 cd /home/pi/omnipy
 
 echo
@@ -148,6 +146,8 @@ echo
 echo ${bold}Step 9/10: ${normal}Creating and starting omnipy services
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
+sudo chown -R pi.pi /home/pi/bluepy
+sudo chown -R pi.pi /home/pi/omnipy
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
 sudo systemctl start omnipy.service
