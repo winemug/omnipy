@@ -31,6 +31,7 @@ git stash
 git pull
 fi
 mkdir /home/pi/omnipy/data > /dev/null 2>&1
+chmod 755 /home/pi/omnipy/omni.py
 
 echo
 echo ${bold}Step 4/10: ${normal}Installing dependencies
