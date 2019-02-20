@@ -44,9 +44,9 @@ sudo pip3 install cryptography
 sudo pip3 install requests
 
 echo
-echo ${bold}Step 4/10: ${normal}Configuring and installing bluepy
+echo ${bold}Step 5/10: ${normal}Configuring and installing bluepy
 cd /home/pi
-if [[ ! -d /home/pi/omnipy ]]
+if [[ ! -d /home/pi/bluepy ]]
 then
 echo Skipping step, bluepy directory exists
 else
@@ -58,7 +58,7 @@ fi
 cd /home/pi/omnipy
 
 echo
-echo ${bold}Step 5/10: ${normal}Enabling bluetooth management for users
+echo ${bold}Step 6/10: ${normal}Enabling bluetooth management for users
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hciconfig`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which btmgmt`
@@ -68,11 +68,11 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
 sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
 echo
-echo ${bold}Step 6/10: ${normal}Omnipy HTTP API Password configuration
+echo ${bold}Step 7/10: ${normal}Omnipy HTTP API Password configuration
 /usr/bin/python3 /home/pi/omnipy/set_api_password.py
 
 echo
-echo ${bold}Step 7/10: ${normal}RileyLink test
+echo ${bold}Step 8/10: ${normal}RileyLink test
 echo
 echo This step will test if your RileyLink device is connectable and has the
 echo correct firmware version installed.
@@ -84,7 +84,7 @@ then
     /usr/bin/python3 /home/pi/omnipy/verify_rl.py
 fi
 
-echo ${bold}Step 8/10: ${normal}Setting up bluetooth personal area network
+echo ${bold}Step 9/10: ${normal}Setting up bluetooth personal area network
 echo
 read -p "Do you want to set up a bluetooth personal area network? (y/n) " -r
 if [[ $REPLY =~ ^[Yy]$ ]]
@@ -132,7 +132,9 @@ then
     echo
     echo "Please ${bold}enable bluetooth tethering${normal} on your phone if it's not already enabled"
     echo "Waiting for connection."
-    sudo /bin/bash /home/pi/omnipy/scripts/btnap.sh $mac & > /dev/null 2>&1
+    echo "addr=$mac" > /home/pi/omnipy/scripts/btnap-custom.sh
+    cat /home/pi/omnipy/scripts/btnap.sh >> /home/pi/omnipy/scripts/btnap-custom.sh
+    sudo /bin/bash /home/pi/omnipy/scripts/btnap-custom.sh & > /dev/null 2>&1
     ipaddr=
     while [[ -z "$ipaddr" ]]
     do
@@ -143,7 +145,7 @@ then
     echo
     echo
     echo "${bold}Connection test succeeeded${normal}. IP address: $ipaddr"
-    sudo killall -9 btnap.sh > /dev/null 2>&1
+    sudo killall -9 btnap-custom.sh > /dev/null 2>&1
     sudo killall -9 bt-network > /dev/null 2>&1
     sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
     sudo systemctl enable omnipy-pan.service
@@ -151,7 +153,7 @@ then
 fi
 
 echo
-echo ${bold}Step 9/10: ${normal}Creating and starting omnipy services
+echo ${bold}Step 10/10: ${normal}Creating and starting omnipy services
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
 sudo chown -R pi.pi /home/pi/bluepy
