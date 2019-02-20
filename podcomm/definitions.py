@@ -1,22 +1,27 @@
 from enum import IntEnum
+import logging
 
-RILEYLINK_MAC_FILE = ".rladdr"
-PDM_LOCK_FILE = ".pdmlock"
-TOKENS_FILE = ".tokens"
-KEY_FILE = ".key"
-RESPONSE_FILE = ".response"
-POD_FILE = "pod"
+RILEYLINK_MAC_FILE = "data/rladdr"
+PDM_LOCK_FILE = "data/.pdmlock"
+TOKENS_FILE = "data/tokens"
+KEY_FILE = "data/key"
+RESPONSE_FILE = "data/response"
+POD_FILE = "data/pod"
 POD_FILE_SUFFIX = ".json"
 POD_LOG_SUFFIX = ".log"
 OMNIPY_LOGGER = "OMNIPY"
-OMNIPY_LOGFILE = "omnipy.log"
+OMNIPY_LOGFILE = "data/omnipy.log"
 
 API_VERSION_MAJOR = 1
 API_VERSION_MINOR = 0
 
+REST_URL_TOKEN = "/omnipy/token"
+REST_URL_TAKEOVER_EXISTING_POD = "/omnipy/takeover"
+REST_URL_STATUS = "/pdm/status"
+
 
 def getLogger():
-    logging.getLogger(REST_LOGGER)
+    return logging.getLogger(OMNIPY_LOGGER)
 
 
 def configureLogging():

@@ -1,23 +1,24 @@
 #!/usr/bin/python3
 import base64
-import logging
 import os
 from decimal import *
 
-import Crypto.Cipher
+from Crypto.Cipher import AES
 import simplejson as json
 from flask import Flask, request
 from datetime import datetime
-from podcomm.definitions import *
 from podcomm.crc import crc8
 from podcomm.packet import Packet
 from podcomm.pdm import Pdm
 from podcomm.pod import Pod
 from podcomm.rileylink import RileyLink
+from podcomm.definitions import *
 
-app = Flask(__name__, static_url_path="/"))
+
+app = Flask(__name__, static_url_path="/")
 configureLogging()
 logger = getLogger()
+
 
 class RestApiException(Exception):
     def __init__(self, msg="Unknown"):
@@ -64,7 +65,7 @@ def verify_auth(request_obj):
         with open(KEY_FILE, "rb") as keyfile:
             key = keyfile.read(32)
 
-        cipher = Crypto.Cipher.AES.new(key, Crypto.Cipher.AES.MODE_CBC, iv)
+        cipher = AES.new(key, AES.MODE_CBC, iv)
         token = cipher.decrypt(auth)
 
         with open(TOKENS_FILE, "a+b") as tokens:
@@ -180,7 +181,7 @@ def take_over():
 
         archive_pod()
 
-        pod.Save(POD_FILE)
+        pod.Save(POD_FILE + POD_FILE_SUFFIX)
         return respond_ok(p.address)
     except RestApiException as rae:
         return respond_error(str(rae))

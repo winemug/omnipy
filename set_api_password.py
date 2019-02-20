@@ -1,7 +1,8 @@
 #!/usr/bin/python3
 import hashlib
 import getpass
-import podcomm.definitions
+from podcomm.definitions import *
+
 
 def main():
 
@@ -20,14 +21,16 @@ def main():
             salt = "bythepowerofgrayskull".encode("utf-8")
             hash_obj = hashlib.sha256(password + salt)
             key = hash_obj.digest()
-            with open(".key", "w+b") as keyfile:
+            with open(KEY_FILE, "w+b") as keyfile:
                 keyfile.write(bytes(key))
+            break
         except Exception as e:
             getLogger().error("Error while creating and saving password: %s" % e)
             raise
-            print("Password has been set.")
-            return
+    print("Password has been set.")
+    return
+
 
 if __name__ == '__main__':
-    configurelogging()
+    configureLogging()
     main()

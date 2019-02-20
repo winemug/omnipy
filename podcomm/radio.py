@@ -4,6 +4,7 @@ from podcomm import crc
 from podcomm.rileylink import RileyLink
 from .message import Message, MessageState
 from .packet import Packet
+from .definitions import *
 
 
 class Radio:
@@ -13,7 +14,7 @@ class Radio:
         self.packetSequence = pkt_sequence
         self.lastPacketReceived = None
         self.responseTimeout = 1000
-        self.logging = getLogger()
+        self.logger = getLogger()
         self.rileyLink = RileyLink()
 
     def send_request_get_response(self, message, try_resync=True, stay_connected=True):
