@@ -42,6 +42,25 @@ def new_pod(args, pa):
     call_api(args.url, REST_URL_TAKEOVER_EXISTING_POD, pa)
 
 
+def temp_basal(args, pa):
+    pa["amount"] = args.basalrate
+    pa["hours"] = args.hours
+    call_api(args.url, REST_URL_SET_TEMP_BASAL, pa)
+
+
+def cancel_temp_basal(args, pa):
+    call_api(args.url, REST_URL_CANCEL_TEMP_BASAL, pa)
+
+
+def bolus(args, pa):
+    pa["amount"] = args.units
+    call_api(args.url, REST_URL_BOLUS, pa)
+
+
+def cancel_bolus(args, pa):
+    call_api(args.url, REST_URL_CANCEL_BOLUS, pa)
+
+
 def status(args, pa):
     call_api(args.url, REST_URL_STATUS, pa)
 
@@ -58,6 +77,21 @@ def main():
 
     subparser = subparsers.add_parser("status", help="status -h")
     subparser.set_defaults(func=status)
+
+    subparser = subparsers.add_parser("tempbasal", help="tempbasal -h")
+    subparser.add_argument("basalrate", type=str, help="Temporary basal rate in U/h. e.g '1.5' for 1.5U/h")
+    subparser.add_argument("hours", type=str, help="Number of hours for setting the temporary basal rate. e.g '0.5' for 30 minutes")
+    subparser.set_defaults(func=temp_basal)
+
+    subparser = subparsers.add_parser("bolus", help="bolus -h")
+    subparser.add_argument("units", type=str, help="amount of insulin in units to bolus")
+    subparser.set_defaults(func=bolus)
+
+    subparser = subparsers.add_parser("canceltempbasal", help="canceltempbasal -h")
+    subparser.set_defaults(func=cancel_temp_basal)
+
+    subparser = subparsers.add_parser("cancelbolus", help="cancelbolus -h")
+    subparser.set_defaults(func=cancel_bolus)
 
     args = parser.parse_args()
     pa = get_auth_params()
