@@ -3,8 +3,8 @@ Description=Omnipy Rest API
 After=network.target
 
 [Service]
-ExecStart=/usr/bin/python3 -u $HOME/omnipy/omnipy/restapi.py
-WorkingDirectory=$HOME/omnipy/omnipy
+ExecStart=/usr/bin/python3 -u $HOME/omnipy/restapi.py
+WorkingDirectory=$HOME/omnipy
 StandardOutput=inherit
 StandardError=inherit
 Restart=always

@@ -32,6 +32,7 @@ git stash
 git checkout dev
 git pull
 fi
+mkdir -f /home/pi/omnipy/data
 
 echo
 echo ${bold}Step 4/10: ${normal}Installing dependencies
@@ -51,7 +52,7 @@ sudo python3 ./setup.py install
 
 sudo chown -R pi.pi /home/pi/bluepy
 sudo chown -R pi.pi /home/pi/omnipy
-cd /home/pi/omnipy/omnipy
+cd /home/pi/omnipy
 
 echo
 echo ${bold}Step 5/10: ${normal}Enabling bluetooth management for users
@@ -65,7 +66,7 @@ sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} 
 
 echo
 echo ${bold}Step 6/10: ${normal}Omnipy HTTP API Password configuration
-/usr/bin/python3 /home/pi/omnipy/omnipy/set_api_password.py
+/usr/bin/python3 /home/pi/omnipy/set_api_password.py
 
 echo
 echo ${bold}Step 7/10: ${normal}RileyLink test
@@ -76,7 +77,7 @@ echo
 read -n 1 -p "Do you want to test the Rileylink now (Y/n) " answer
 if [ -z "$answer" ] || [ answer == "Y" ] || [ answer == "y" ]; then
     echo
-    /usr/bin/python3 /home/pi/omnipy/omnipy/verify_rl.py
+    /usr/bin/python3 /home/pi/omnipy/verify_rl.py
 fi
 
 echo ${bold}Step 8/10: ${normal}Setting up bluetooth personal area network
@@ -126,7 +127,7 @@ if [ -z "$answer" ] || [ answer == "Y" ] || [ answer == "y" ]; then
     echo
     echo "Please ${bold}enable bluetooth tethering${normal} on your phone if it's not already enabled"
     echo "Waiting for connection."
-    sudo /bin/bash ./scripts/btnap.sh $mac & > /dev/null 2>&1
+    sudo /bin/bash /home/pi/omnipy/scripts/btnap.sh $mac & > /dev/null 2>&1
     ipaddr=
     while [ -z "$ipaddr" ]
     do
@@ -139,14 +140,14 @@ if [ -z "$answer" ] || [ answer == "Y" ] || [ answer == "y" ]; then
     echo "${bold}Connection test succeeeded${normal}. IP address: $ipaddr"
     sudo killall -9 btnap.sh > /dev/null 2>&1
     sudo killall -9 bt-network > /dev/null 2>&1
-    sudo cp /home/pi/omnipy/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
+    sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
     sudo systemctl enable omnipy-pan.service
     sudo systemctl start omnipy-pan.service
 fi
 echo
 echo ${bold}Step 9/10: ${normal}Creating and starting omnipy services
-sudo cp /home/pi/omnipy/omnipy/scripts/omnipy.service /etc/systemd/system/
-sudo cp /home/pi/omnipy/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
 sudo systemctl start omnipy.service
