@@ -15,7 +15,7 @@ from podcomm.pdm import Pdm
 from podcomm.pod import Pod
 from podcomm.rileylink import RileyLink
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path="/"))
 configureLogging()
 logger = getLogger()
 
