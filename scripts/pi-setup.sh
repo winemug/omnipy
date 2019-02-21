@@ -44,15 +44,10 @@ sudo pip3 install requests
 echo
 echo ${bold}Step 5/10: ${normal}Configuring and installing bluepy
 cd /home/pi
-if [[ ! -d /home/pi/bluepy ]]
-then
-echo Skipping step, bluepy directory exists
-else
 git clone https://github.com/IanHarvey/bluepy.git
 cd bluepy
 python3 ./setup.py build
 sudo python3 ./setup.py install
-fi
 cd /home/pi/omnipy
 
 echo
