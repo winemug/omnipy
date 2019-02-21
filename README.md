@@ -18,18 +18,26 @@ While both projects require a RileyLink, OmniCore will also provide options to c
 
 Please also see the [F.A.Q.](https://github.com/winemug/omnipy/wiki/Frequently-Asked-Questions)
 
-**What you can do now:**
+**Updated installation instructions per Feb 21st, 00:00 UTC**
+
 * Install on the raspberry pi:<br/>
-``` curl https://raw.githubusercontent.com/winemug/omnipy/master/omnipy/scripts/pi-setup.sh | sudo bash```
-* Grab yourself a pod:<br/>
 ```
-cd ~/omnipy/omnipy/tools
-python3 ./podgrab.py 11111 222222 mypod.json
+cd
+sudo apt install git -y
+git clone https://github.com/winemug/omnipy.git
+bash omnipy/scripts/pi-setup.sh
+```
+* Enter the lot number and serial number of a pod to test:<br/>
+```
+cd omnipy
+./omni.py newpod 11111 1234567
 ```
 * Bolus 3.5 Units: <br/>
-```python3 ./bolus.py mypod.json 2.35```
+```./omni.py bolus 3.5```
 * Set a temp basal of 2.60 U/h over the course of 1.5 hours: <br/>
-```python3 ./tempbasal.py mypod.json 2.60 1.5```
+```./omni.py tempbasal 2.60 1.5```
+* To see other commands available:
+```./omni.py -h```
 
 File an issue if you find something that doesn't work right, get in touch or both.
 
