@@ -39,6 +39,7 @@ def call_api(root, path, pa):
 def new_pod(args, pa):
     pa["lot"] = args.lot
     pa["tid"] = args.tid
+    print("turn on your pdm and request pod status")
     call_api(args.url, REST_URL_TAKEOVER_EXISTING_POD, pa)
 
 
