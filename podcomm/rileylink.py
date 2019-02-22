@@ -231,7 +231,7 @@ class RileyLink:
             logging.error("Error while initializing rileylink radio: %s", rle)
             raise
 
-    def get_packet(self, timeout=1.0):
+    def get_packet(self, timeout=5.0):
         try:
             self.connect()
             return self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)), timeout=float(timeout)+0.5)
@@ -305,7 +305,7 @@ class RileyLink:
                 logging.warning("BTLE exception trying to connect: %s" % btlee)
                 time.sleep(2)
 
-    def _command(self, command_type, command_data=None, timeout=2.0):
+    def _command(self, command_type, command_data=None, timeout=10.0):
         if command_data is None:
             data = bytes([1, command_type])
         else:

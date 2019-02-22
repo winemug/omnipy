@@ -18,7 +18,7 @@ def get_auth_params():
     with open(KEY_FILE, "rb") as keyfile:
         key = keyfile.read(32)
 
-    r = requests.get(ROOT_URL + REST_URL_TOKEN, timeout=10)
+    r = requests.get(ROOT_URL + REST_URL_TOKEN, timeout=20)
     j = json.loads(r.text)
     token = base64.b64decode(j["result"])
 

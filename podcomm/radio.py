@@ -13,7 +13,6 @@ class Radio:
         self.messageSequence = msg_sequence
         self.packetSequence = pkt_sequence
         self.lastPacketReceived = None
-        self.responseTimeout = 1000
         self.logger = getLogger()
         self.rileyLink = RileyLink()
 
