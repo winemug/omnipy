@@ -1,19 +1,14 @@
-from datetime import datetime
 from decimal import *
+from .exceptions import PdmError, PdmBusyError
+from .definitions import *
 import struct
 
-PDM_LOCK_FILE = ".pdmlock"
-
-class PdmError(Exception):
-    def __init__(self, msg="Undefined"):
-        self.error_message = msg
-
-def currentTimestamp():
-    return datetime.utcnow().timestamp()
 
 def pdmlock():
-    return open(PDM_LOCK_FILE, "w")
-
+    try:
+        return open(PDM_LOCK_FILE, "w")
+    except IOError as ioe:
+        raise PdmBusyError from ioe
 
 def getPulsesForHalfHours(halfHourUnits):
     halfHourlyDeliverySubtotals = []
@@ -36,7 +31,7 @@ def getPulsesForHalfHours(halfHourUnits):
 def getInsulinScheduleTableFromPulses(pulses):
     iseTable = []
     ptr = 0
-    while (ptr < len(pulses)):
+    while ptr < len(pulses):
         if ptr == len(pulses) - 1:
             iseTable.append(getIse(pulses[ptr], 0, False))
             break
