@@ -15,20 +15,26 @@ OMNIPY_LOGFILE = "data/omnipy.log"
 API_VERSION_MAJOR = 1
 API_VERSION_MINOR = 0
 
-REST_URL_TOKEN = "/omnipy/token"
-REST_URL_TAKEOVER_EXISTING_POD = "/omnipy/takeover"
-REST_URL_STATUS = "/pdm/status"
 REST_URL_GET_VERSION = "/omnipy/version"
+
+REST_URL_TOKEN = "/omnipy/token"
 REST_URL_CHECK_PASSWORD = "/omnipy/pwcheck"
+
+REST_URL_NEW_POD = "/omnipy/newpod"
 REST_URL_SET_POD_PARAMETERS = "/omnipy/parameters"
+REST_URL_GET_PDM_ADDRESS = "/omnipy/pdmspy"
 REST_URL_SET_LIMITS = "/omnipy/limits"
-REST_URL_RL_BATTERY = "/rl/battery"
+
+REST_URL_RL_INFO = "/rl/info"
+
+REST_URL_STATUS = "/pdm/status"
 REST_URL_ACK_ALERTS = "/pdm/ack"
 REST_URL_DEACTIVATE_POD = "/pdm/deactivate"
 REST_URL_BOLUS = "/pdm/bolus"
 REST_URL_CANCEL_BOLUS = "/pdm/cancelbolus"
 REST_URL_SET_TEMP_BASAL = "/pdm/settempbasal"
 REST_URL_CANCEL_TEMP_BASAL = "/pdm/canceltempbasal"
+
 
 def getLogger():
     return logging.getLogger(OMNIPY_LOGGER)
