@@ -134,9 +134,10 @@ class RileyLink:
                 logging.info("Already disconnected")
                 return
             logging.info("Disconnecting..")
-            response_notify_handle = self.response_handle + 1
-            notify_setup = b"\x00\x00"
-            self.peripheral.writeCharacteristic(response_notify_handle, notify_setup)
+            if self.response_handle is not None:
+                response_notify_handle = self.response_handle + 1
+                notify_setup = b"\x00\x00"
+                self.peripheral.writeCharacteristic(response_notify_handle, notify_setup)
         except BTLEException:
             if not ignore_errors:
                 raise
@@ -151,16 +152,15 @@ class RileyLink:
                 else:
                     raise
 
-    def get_battery_level(self):
+    def get_info(self):
         try:
             self.connect()
-
             bs = self.peripheral.getServiceByUUID(XGATT_BATTERYSERVICE_UUID)
             bc = bs.getCharacteristics(XGATT_BATTERY_CHAR_UUID)[0]
             bch = bc.getHandle()
             battery_value = int(self.peripheral.readCharacteristic(bch)[0])
             logging.debug("Battery level read: %d", battery_value)
-            return battery_value
+            return { "battery_level": battery_value, "mac_address": self.address }
         except BTLEException as btlee:
             raise RileyLinkError("Error communicating with RileyLink") from btlee
         finally:
