@@ -18,6 +18,13 @@ class Radio:
 
     def send_request_get_response(self, message, try_resync=True, stay_connected=True):
         try:
+            return self._send_request_get_response(message, try_resync, stay_connected)
+        except Exception:
+            self.rileyLink.disconnect(ignore_errors=True)
+            raise
+
+    def _send_request_get_response(self, message, try_resync=True, stay_connected=True):
+        try:
             return self._send_request(message)
         except TransmissionOutOfSyncError:
             if try_resync:
