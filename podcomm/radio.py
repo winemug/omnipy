@@ -13,11 +13,17 @@ class Radio:
         self.messageSequence = msg_sequence
         self.packetSequence = pkt_sequence
         self.lastPacketReceived = None
-        self.responseTimeout = 1000
         self.logger = getLogger()
         self.rileyLink = RileyLink()
 
     def send_request_get_response(self, message, try_resync=True, stay_connected=True):
+        try:
+            return self._send_request_get_response(message, try_resync, stay_connected)
+        except Exception:
+            self.rileyLink.disconnect(ignore_errors=True)
+            raise
+
+    def _send_request_get_response(self, message, try_resync=True, stay_connected=True):
         try:
             return self._send_request(message)
         except TransmissionOutOfSyncError:

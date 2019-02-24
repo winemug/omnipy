@@ -26,7 +26,7 @@ class Pdm:
                 return
             with pdmlock():
                 self.logger.debug("updating pod status")
-                self._update_status(update_type)
+                self._update_status(update_type, stay_connected=False)
 
         except PdmError:
             raise
@@ -137,7 +137,7 @@ class Pdm:
                 commandBody += b"\x00\x00\x00\x00\x00\x00"
                 msg.addCommand(0x17, commandBody)
 
-                self._sendMessage(msg, with_nonce=True)
+                self._sendMessage(msg, with_nonce=True, request_msg="BOLUS %02.2f" % float(bolus_amount))
 
                 if self.pod.bolusState != BolusState.Immediate:
                     raise PdmError("Pod did not confirm bolus")
@@ -267,16 +267,14 @@ class Pdm:
 
                 pulseEntries = getPulseIntervalEntries(halfHourUnits)
 
-                firstPulseCount, firstInterval = pulseEntries[0]
-                commandBody += struct.pack(">H", firstPulseCount)
-                commandBody += struct.pack(">I", firstInterval)
                 for pulseCount, interval in pulseEntries:
                     commandBody += struct.pack(">H", pulseCount)
                     commandBody += struct.pack(">I", interval)
 
                 msg.addCommand(0x16, commandBody)
 
-                self._sendMessage(msg, with_nonce=True)
+                self._sendMessage(msg, with_nonce=True, request_msg="TEMPBASAL %02.2fU/h %02.1fh" % (float(basalRate),
+                                                                                                 float(hours)))
 
                 if self.pod.basalState != BasalState.TempBasal:
                     raise PdmError()
@@ -299,7 +297,7 @@ class Pdm:
         try:
             with pdmlock():
                 msg = self._createMessage(0x1c, bytes([0, 0, 0, 0]))
-                self._sendMessage(msg, with_nonce=True)
+                self._sendMessage(msg, with_nonce=True, request_msg="DEACTIVATE POD")
         except PdmBusyError:
             return True
         except PdmError:
@@ -318,16 +316,20 @@ class Pdm:
         else:
             c = 0
 
+        act_str = ""
         if cancelBolus:
             c = c | 0x04
+            act_str += "BOLUS "
         if cancelTempBasal:
             c = c | 0x02
+            act_str += "TEMPBASAL "
         if cancelBasal:
             c = c | 0x01
+            act_str += "BASAL "
         commandBody += bytes([c])
 
         msg = self._createMessage(0x1f, commandBody)
-        self._sendMessage(msg, with_nonce=True)
+        self._sendMessage(msg, with_nonce=True, request_msg="CANCEL %s" % act_str)
 
     def _createMessage(self, commandType, commandBody):
         msg = Message(MessageType.PDM, self.pod.address, sequence=self.radio.messageSequence)
@@ -346,7 +348,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Pod status was not saved") from e
 
-    def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0, stay_connected=False):
+    def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0, stay_connected=False, request_msg=None):
         requested_stay_connected = stay_connected
         if with_nonce:
             nonce = self.nonce.getNext()
@@ -359,7 +361,7 @@ class Pdm:
             # if ctype == 0x01:  # pod info response
             #     self.pod.setupPod(content)
             if ctype == 0x1d:  # status response
-                self.pod.handle_status_response(content)
+                self.pod.handle_status_response(content, original_request=request_msg)
             elif ctype == 0x02:  # pod faulted or information
                 self.pod.handle_information_response(content)
             elif ctype == 0x06:
@@ -372,20 +374,20 @@ class Pdm:
                     self.nonce.sync(nonce_sync_word, message.sequence)
                     self.radio.messageSequence = message.sequence
                     return self._sendMessage(message, with_nonce=True, nonce_retry_count=nonce_retry_count + 1,
-                                             stay_connected=requested_stay_connected)
+                                             stay_connected=requested_stay_connected, request_msg=request_msg)
 
 
-    def _update_status(self, update_type=0):
+    def _update_status(self, update_type=0, stay_connected=True):
         commandType = 0x0e
         commandBody = bytes([update_type])
         msg = self._createMessage(commandType, commandBody)
-        self._sendMessage(msg, stay_connected=True)
+        self._sendMessage(msg, stay_connected=stay_connected, request_msg="STATUS REQ %d" % update_type)
 
     def _acknowledge_alerts(self, alert_mask):
         commandType = 0x11
         commandBody = bytes([0, 0, 0, 0, alert_mask])
         msg = self._createMessage(commandType, commandBody)
-        self._sendMessage(msg, with_nonce=True)
+        self._sendMessage(msg, with_nonce=True, request_msg="ACK 0x%2X " % alert_mask)
 
     # def _configure_alerts(self, alerts):
     #     commandType = 0x19

@@ -1,0 +1,44 @@
+body {
+  background: #20262E;
+  padding: 20px;
+  font-family: Helvetica;
+}
+
+#app {
+  background: #ffffff;
+  border-radius: 4px;
+  padding: 20px;
+  transition: all 0.2s;
+}
+li {
+  margin: 8px 0;
+}
+
+h2 {
+  font-weight: bold;
+  margin-bottom: 15px;
+}
+
+del {
+  color: rgba(0, 0, 0, 0.3);
+}
+
+#flexcol {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+#flexrow {
+  display: flex;
+  flex-direction: row;
+  align-content: space-around;
+  background: rgb(216, 238, 241);
+  padding: 10px;
+  border-radius: 4px;
+  margin: 3px;
+}
+
+* {
+  box-sizing: border-box;
+}

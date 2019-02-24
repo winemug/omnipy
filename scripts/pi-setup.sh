@@ -140,7 +140,7 @@ then
     echo "${bold}Connection test succeeeded${normal}. IP address: $ipaddr"
     sudo killall -9 btnap-custom.sh > /dev/null 2>&1
     sudo killall -9 bt-network > /dev/null 2>&1
-    sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
+    sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
     sudo systemctl enable omnipy-pan.service
     sudo systemctl start omnipy-pan.service
 fi

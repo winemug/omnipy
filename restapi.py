@@ -5,7 +5,7 @@ from decimal import *
 
 from Crypto.Cipher import AES
 import simplejson as json
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 from datetime import datetime
 from podcomm.crc import crc8
 from podcomm.packet import Packet
@@ -44,12 +44,12 @@ def archive_pod():
         os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
 
 
-def respond_ok(d="OK"):
-    return json.dumps({"success": True, "result": d})
+def respond_ok(dict):
+    return json.dumps({"success": True, "result": dict}, indent=4, sort_keys=True)
 
 
-def respond_error(msg="Unknown"):
-    return json.dumps({"success": False, "error": msg})
+def respond_error(msg):
+    return json.dumps({"success": False, "result": {"error": msg}}, indent=4, sort_keys=True)
 
 
 def verify_auth(request_obj):
@@ -93,15 +93,21 @@ def verify_auth(request_obj):
         if not found:
             raise RestApiException("Invalid authentication token")
     except RestApiException as rae:
-        logger.error("Authentication error: %s", rae)
+        logger.error("Authentication error: %s" % rae)
         raise
     except Exception as e:
-        logger.error("Error during verify_auth: %s", e)
+        logger.error("Error during verify_auth: %s" % e)
         raise
+
 
 @app.route("/")
 def main_page():
     return app.send_static_file("omnipy.html")
+
+
+@app.route('/content/<path:path>')
+def send_content(path):
+    return send_from_directory("static", path)
 
 
 @app.route(REST_URL_GET_VERSION)
@@ -111,7 +117,7 @@ def get_api_version():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during version req: %s", e)
+        logger.error("Error during version req: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -121,11 +127,11 @@ def create_token():
         with open(TOKENS_FILE, "a+b") as tokens:
             token = bytes(os.urandom(16))
             tokens.write(token)
-        return respond_ok(base64.b64encode(token))
+        return respond_ok({"token": base64.b64encode(token)})
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during create token: %s", e)
+        logger.error("Error during create token: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -134,27 +140,27 @@ def check_password():
     try:
         verify_auth(request)
 
-        return respond_ok()
+        return respond_ok({})
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during check pwd: %s", e)
+        logger.error("Error during check pwd: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route(REST_URL_TAKEOVER_EXISTING_POD)
-def take_over():
+@app.route(REST_URL_GET_PDM_ADDRESS)
+def get_pdm_address():
+    r = RileyLink()
     try:
         verify_auth(request)
-
-        pod = Pod()
-        pod.lot = int(request.args.get('lot'))
-        pod.tid = int(request.args.get('tid'))
-
-
-        r = RileyLink()
         while True:
-            data = r.get_packet(30000)
+            timeout = 30000
+            if request.args.get('timeout') is not None:
+                timeout = int(request.args.get('timeout')) * 1000
+                if timeout > 30000:
+                    raise RestApiException("Timeout cannot be more than 30 seconds")
+
+            data = r.get_packet(timeout)
             if data is None:
                 p = None
                 break
@@ -164,21 +170,40 @@ def take_over():
                 if data[-1] == calc:
                     p = Packet.from_data(data[2:-1])
                     break
-        r.disconnect()
-
         if p is None:
             respond_error("No pdm packet detected")
 
-        pod.address = p.address
-
-        archive_pod()
-
-        pod.Save(POD_FILE + POD_FILE_SUFFIX)
-        return respond_ok(p.address)
+        return respond_ok({"address": p.address})
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during takeover: %s", e)
+        logger.error("Error during takeover: %s" % e)
+        return respond_error("Other error. Please check log files.")
+    finally:
+        r.disconnect(ignore_errors=True)
+
+
+@app.route(REST_URL_NEW_POD)
+def new_pod():
+    try:
+        verify_auth(request)
+
+        pod = Pod()
+
+        if request.args.get('lot') is not None:
+            pod.lot = int(request.args.get('lot'))
+        if request.args.get('tid') is not None:
+            pod.tid = int(request.args.get('tid'))
+        if request.args.get('address') is not None:
+            pod.address = int(request.args.get('address'))
+
+        archive_pod()
+        pod.Save(POD_FILE + POD_FILE_SUFFIX)
+        return respond_ok({})
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logger.error("Error while creating new pod: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -188,19 +213,23 @@ def set_pod_parameters():
         verify_auth(request)
 
         pod = get_pod()
-        pod.lot = int(request.args.get('lot'))
-        pod.tid = int(request.args.get('tid'))
-        pod.address = int(request.args.get('address'))
+        if request.args.get('lot') is not None:
+            pod.lot = int(request.args.get('lot'))
+        if request.args.get('tid') is not None:
+            pod.tid = int(request.args.get('tid'))
+        if request.args.get('address') is not None:
+            pod.address = int(request.args.get('address'))
+
         pod.nonceSeed = 0
         pod.lastNonce = None
         pod.packetSequence = 0
         pod.msgSequence = 0
         pod.Save()
-        return respond_ok()
+        return respond_ok({})
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during set pod params: %s", e)
+        logger.error("Error during set pod params: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -213,26 +242,26 @@ def set_limits():
         pod.maximumBolus = Decimal(request.args.get('maxbolus'))
         pod.maximumTempBasal = Decimal(request.args.get('maxbasal'))
         pod.Save()
-        return respond_ok()
+        return respond_ok({})
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during set limits: %s", e)
+        logger.error("Error during set limits: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
-@app.route(REST_URL_RL_BATTERY)
-def get_rl_battery_level():
+@app.route(REST_URL_RL_INFO)
+def get_rl_info():
     try:
         verify_auth(request)
 
         r = RileyLink()
-        level = r.get_battery_level()
-        return respond_ok(str(level))
+        info = r.get_info()
+        return respond_ok(info)
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during get status: %s", e)
+        logger.error("Error during get status: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -253,7 +282,7 @@ def get_status():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during get status: %s", e)
+        logger.error("Error during get status: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -268,7 +297,7 @@ def acknowledge_alerts():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during acknowledging alerts: %s", e)
+        logger.error("Error during acknowledging alerts: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -283,7 +312,7 @@ def deactivate_pod():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during deactivation: %s", e)
+        logger.error("Error during deactivation: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -299,7 +328,7 @@ def bolus():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during bolus: %s", e)
+        logger.error("Error during bolus: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -314,7 +343,7 @@ def cancel_bolus():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during cancel bolus: %s", e)
+        logger.error("Error during cancel bolus: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -331,7 +360,7 @@ def set_temp_basal():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during set temp basal: %s", e)
+        logger.error("Error during set temp basal: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 
@@ -346,7 +375,20 @@ def cancel_temp_basal():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during cancel temp basal: %s", e)
+        logger.error("Error during cancel temp basal: %s" % e)
+        return respond_error("Other error. Please check log files.")
+
+
+@app.route(REST_URL_PDM_BUSY)
+def is_pdm_busy():
+    try:
+        pdm = get_pdm()
+        result = pdm.is_busy();
+        return respond_ok({"busy": result})
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logger.error("Error during cancel temp basal: %s" % e)
         return respond_error("Other error. Please check log files.")
 
 

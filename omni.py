@@ -18,9 +18,9 @@ def get_auth_params():
     with open(KEY_FILE, "rb") as keyfile:
         key = keyfile.read(32)
 
-    r = requests.get(ROOT_URL + REST_URL_TOKEN, timeout=10)
+    r = requests.get(ROOT_URL + REST_URL_TOKEN, timeout=20)
     j = json.loads(r.text)
-    token = base64.b64decode(j["result"])
+    token = base64.b64decode(j["result"]["token"])
 
     i = os.urandom(16)
     cipher = AES.new(key, AES.MODE_CBC, i)
@@ -36,11 +36,15 @@ def call_api(root, path, pa):
     print(r.text)
 
 
+def read_pdm_address(args, pa):
+    call_api(args.url, REST_URL_GET_PDM_ADDRESS, pa)
+
+
 def new_pod(args, pa):
     pa["lot"] = args.lot
     pa["tid"] = args.tid
-    print("turn on your pdm and request pod status")
-    call_api(args.url, REST_URL_TAKEOVER_EXISTING_POD, pa)
+    pa["address"] = args.address
+    call_api(args.url, REST_URL_NEW_POD, pa)
 
 
 def temp_basal(args, pa):
@@ -71,9 +75,14 @@ def main():
     parser.add_argument("-u", "--url", type=str, default="http://127.0.0.1:4444", required=False)
 
     subparsers = parser.add_subparsers(dest="sub_cmd")
+
+    subparser = subparsers.add_parser("readpdm", help="readpdm -h")
+    subparser.set_defaults(func=read_pdm_address)
+
     subparser = subparsers.add_parser("newpod", help="newpod -h")
     subparser.add_argument("lot", type=int, help="Lot number of the pod")
     subparser.add_argument("tid", type=int, help="Serial number of the pod")
+    subparser.add_argument("address", type=int, help="Radio address of the pod")
     subparser.set_defaults(func=new_pod)
 
     subparser = subparsers.add_parser("status", help="status -h")
