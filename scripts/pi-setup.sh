@@ -27,6 +27,8 @@ else
 echo
 echo ${bold}Step 3/10: ${normal}Updating omnipy
 cd /home/pi/omnipy
+git config --global user.email "omnipy@balya.net"
+git config --global user.name "Omnipy Setup"
 git stash
 git pull
 fi
