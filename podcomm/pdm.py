@@ -267,9 +267,6 @@ class Pdm:
 
                 pulseEntries = getPulseIntervalEntries(halfHourUnits)
 
-                firstPulseCount, firstInterval = pulseEntries[0]
-                commandBody += struct.pack(">H", firstPulseCount)
-                commandBody += struct.pack(">I", firstInterval)
                 for pulseCount, interval in pulseEntries:
                     commandBody += struct.pack(">H", pulseCount)
                     commandBody += struct.pack(">I", interval)
