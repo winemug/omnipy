@@ -28,6 +28,7 @@ REST_URL_SET_LIMITS = "/omnipy/limits"
 REST_URL_RL_INFO = "/rl/info"
 
 REST_URL_STATUS = "/pdm/status"
+REST_URL_PDM_BUSY = "/pdm/isbusy"
 REST_URL_ACK_ALERTS = "/pdm/ack"
 REST_URL_DEACTIVATE_POD = "/pdm/deactivate"
 REST_URL_BOLUS = "/pdm/bolus"

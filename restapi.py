@@ -379,6 +379,19 @@ def cancel_temp_basal():
         return respond_error("Other error. Please check log files.")
 
 
+@app.route(REST_URL_PDM_BUSY)
+def is_pdm_busy():
+    try:
+        pdm = get_pdm()
+        result = pdm.is_busy();
+        return respond_ok({"busy": result})
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logger.error("Error during cancel temp basal: %s" % e)
+        return respond_error("Other error. Please check log files.")
+
+
 if __name__ == '__main__':
     try:
         logger.info("Rest api is starting")
