@@ -20,7 +20,7 @@ def get_auth_params():
 
     r = requests.get(ROOT_URL + REST_URL_TOKEN, timeout=20)
     j = json.loads(r.text)
-    token = base64.b64decode(j["result"])
+    token = base64.b64decode(j["result"]["token"])
 
     i = os.urandom(16)
     cipher = AES.new(key, AES.MODE_CBC, i)
