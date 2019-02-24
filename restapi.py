@@ -5,7 +5,7 @@ from decimal import *
 
 from Crypto.Cipher import AES
 import simplejson as json
-from flask import Flask, request
+from flask import Flask, request, send_from_directory
 from datetime import datetime
 from podcomm.crc import crc8
 from podcomm.packet import Packet
@@ -53,7 +53,6 @@ def respond_error(msg):
 
 
 def verify_auth(request_obj):
-    return
     try:
         i = request_obj.args.get("i")
         a = request_obj.args.get("auth")
@@ -100,9 +99,15 @@ def verify_auth(request_obj):
         logger.error("Error during verify_auth: %s" % e)
         raise
 
+
 @app.route("/")
 def main_page():
     return app.send_static_file("omnipy.html")
+
+
+@app.route('/content/<path:path>')
+def send_content(path):
+    return send_from_directory("static", path)
 
 
 @app.route(REST_URL_GET_VERSION)
@@ -246,7 +251,7 @@ def set_limits():
 
 
 @app.route(REST_URL_RL_INFO)
-def get_rl_battery_level():
+def get_rl_info():
     try:
         verify_auth(request)
 

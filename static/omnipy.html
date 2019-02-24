@@ -3,67 +3,52 @@
   <head>
     <meta charset="UTF-8">
     <title>title</title>
-  <style type="text/css">
-body {
-  background: #20262E;
-  padding: 20px;
-  font-family: Helvetica;
-}
-
-#app {
-  background: #fff;
-  border-radius: 4px;
-  padding: 20px;
-  transition: all 0.2s;
-}
-
-li {
-  margin: 8px 0;
-}
-
-h2 {
-  font-weight: bold;
-  margin-bottom: 15px;
-}
-
-del {
-  color: rgba(0, 0, 0, 0.3);
-}
-  </style>
+    <link rel="stylesheet" type="text/css" href="/content/omnipy.css"/>
   </head>
   <body>
-        <div id="app">
-                <div id="result">  {{ result }}  </div>
-                <button v-on:click="doit">Do it</button>
-        </div>
+<div id="app">
+  <div id="flex-row">
+    Password: <input v-model="request.password" type="password"/> <button v-on:click="set_password">Set</button>
+  </div>
+  <div id="flex-row">
+    Status: {{ result.progress }}<br/>
+    Faulted: {{ result.faulted }}<br/>
+    Active: {{ formatted.time_active }}<br/>
+    Bolus State: {{ formatted.bolus_state }}<br/>
+    Basal State: {{ formatted.basal_state }}<br/>
+    Reservoir: {{ result.reservoir }}<br/>
+    Delivered IU: {{ result.totalInsulin }}<br/>
+    Canceled IU: {{ result.canceledInsulin }}<br/>
+    Updated: {{ formatted.last_updated }}<br/>
+    <button v-on:click="status">Status</button>
+  </div>
+  <div id="flexrow">
+    <div id="flexcol">
+      <div>Rate:</div>
+      <div>Duration:</div>
+    </div>
+    <div id="flexcol">
+      <div><input v-model="request.temp_basal_rate" type="number" step="0.05"/></div>
+      <div><input v-model="request.temp_basal_duration" type="number" step="0.5"/></div>
+      <div><button v-on:click="set_temp_basal" style="align-self:initial">Start Temp Basal</button></div>
+    </div>
+  </div>
+  <div id="flexrow">
+    <div id="flexcol">
+      <div>Bolus:</div>
+    </div>
+    <div id="flexcol">
+      <div>
+        <input v-model="request.bolus_amount" type="number" step="0.05"/>
+      </div>
+      <div>
+        <button v-on:click="start_bolus">Start</button>
+        <button v-on:click="stop_bolus">Stop</button>
+      </div>
+    </div>
+  </div>
+</div>
   <script src="https://cdn.jsdelivr.net/npm/vue" type="text/javascript"></script>
-  <script type="text/javascript">
-   function autorun()
-   {
-    new Vue({
-        el: "#app",
-        data: {
-            result: "nothing yet"
-        },
-        methods: {
-            doit: function() {
-            var req = new XMLHttpRequest();
-            var url = "pdm/status";
-
-            req.onreadystatechange = function(v) {
-            if (this.readyState == XMLHttpRequest.DONE && this.status == 200) {
-                v.result = this.responseText;
-            };
-            }.bind(req, this);
-            req.open("GET", url, true);
-            req.send();
-            }
-        }
-        })
-   }
-   if (document.addEventListener) document.addEventListener("DOMContentLoaded", autorun, false);
-   else if (document.attachEvent) document.attachEvent("onreadystatechange", autorun);
-   else window.onload = autorun;
-  </script>
+  <script src="/content/omnipy.js" type="text/javascript"></script>
   </body>
 </html>
