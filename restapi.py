@@ -93,10 +93,10 @@ def verify_auth(request_obj):
         if not found:
             raise RestApiException("Invalid authentication token")
     except RestApiException as rae:
-        logger.error("Authentication error: %s" % rae)
+        logger.error("Authentication error: %s" % str(rae))
         raise
     except Exception as e:
-        logger.error("Error during verify_auth: %s" % e)
+        logger.error("Error during verify_auth: %s" % str(e))
         raise
 
 
@@ -117,7 +117,7 @@ def get_api_version():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during version req: %s" % e)
+        logger.error("Error during version req: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -131,7 +131,7 @@ def create_token():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during create token: %s" % e)
+        logger.error("Error during create token: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -144,7 +144,7 @@ def check_password():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during check pwd: %s" % e)
+        logger.error("Error during check pwd: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -177,7 +177,7 @@ def get_pdm_address():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during takeover: %s" % e)
+        logger.error("Error during takeover: %s" % str(e))
         return respond_error("Other error. Please check log files.")
     finally:
         r.disconnect(ignore_errors=True)
@@ -203,7 +203,7 @@ def new_pod():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error while creating new pod: %s" % e)
+        logger.error("Error while creating new pod: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -229,7 +229,7 @@ def set_pod_parameters():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during set pod params: %s" % e)
+        logger.error("Error during set pod params: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -246,7 +246,7 @@ def set_limits():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during set limits: %s" % e)
+        logger.error("Error during set limits: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -261,7 +261,7 @@ def get_rl_info():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during get status: %s" % e)
+        logger.error("Error during get status: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -282,7 +282,7 @@ def get_status():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during get status: %s" % e)
+        logger.error("Error during get status: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -297,7 +297,7 @@ def acknowledge_alerts():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during acknowledging alerts: %s" % e)
+        logger.error("Error during acknowledging alerts: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -312,7 +312,7 @@ def deactivate_pod():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during deactivation: %s" % e)
+        logger.error("Error during deactivation: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -328,7 +328,7 @@ def bolus():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during bolus: %s" % e)
+        logger.error("Error during bolus: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -343,7 +343,7 @@ def cancel_bolus():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during cancel bolus: %s" % e)
+        logger.error("Error during cancel bolus: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -360,7 +360,7 @@ def set_temp_basal():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during set temp basal: %s" % e)
+        logger.error("Error during set temp basal: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -375,7 +375,7 @@ def cancel_temp_basal():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during cancel temp basal: %s" % e)
+        logger.error("Error during cancel temp basal: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -388,7 +388,7 @@ def is_pdm_busy():
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
-        logger.error("Error during cancel temp basal: %s" % e)
+        logger.error("Error during cancel temp basal: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 
@@ -402,10 +402,10 @@ if __name__ == '__main__':
             logger.debug("removing response queue from previous session")
             os.remove(RESPONSE_FILE)
     except IOError as ioe:
-        logger.warning("Error while removing stale files: %s" % ioe)
+        logger.warning("Error while removing stale files: %s" % str(ioe))
 
     try:
         app.run(host='0.0.0.0', port=4444)
     except Exception as e:
-        logger.error("Error while running rest api, exiting. %s" % e)
+        logger.error("Error while running rest api, exiting. %s" % str(e))
         raise
