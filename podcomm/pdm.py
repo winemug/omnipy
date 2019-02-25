@@ -207,8 +207,7 @@ class Pdm:
                         self.pod.last_enacted_temp_basal_start = time.time()
                         self.pod.last_enacted_temp_basal_amount = float(-1)
                 else:
-                    raise PdmError("Temp basal is not active")
-
+                    self.logger.warning("Cancel temp basal received, while temp basal was not active. Ignoring.")
         except PdmError:
             raise
         except OmnipyError as oe:
@@ -273,6 +272,10 @@ class Pdm:
                 commandBody += b"\x00"
 
                 pulseEntries = getPulseIntervalEntries(halfHourUnits)
+
+                firstPulseCount, firstInterval = pulseEntries[0]
+                commandBody += struct.pack(">H", firstPulseCount)
+                commandBody += struct.pack(">I", firstInterval)
 
                 for pulseCount, interval in pulseEntries:
                     commandBody += struct.pack(">H", pulseCount)
