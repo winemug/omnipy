@@ -35,6 +35,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
+            self.radio.disconnect()
             self._savePod()
 
     def acknowledge_alerts(self, alert_mask):
@@ -52,6 +53,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
+            self.radio.disconnect()
             self._savePod()
 
     def is_busy(self):
@@ -66,6 +68,8 @@ class Pdm:
             raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
+        finally:
+            self.radio.disconnect()
 
     # def clear_alert(self, alert_bit):
     #     try:
@@ -151,6 +155,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
+            self.radio.disconnect()
             self._savePod()
 
 
@@ -180,6 +185,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
+            self.radio.disconnect()
             self._savePod()
 
     def cancelTempBasal(self, beep=False):
@@ -211,6 +217,7 @@ class Pdm:
             raise PdmError("Unexpected error") from e
 
         finally:
+            self.radio.disconnect()
             self._savePod()
 
     def setTempBasal(self, basalRate, hours, confidenceReminder=False):
@@ -291,6 +298,7 @@ class Pdm:
             raise PdmError("Unexpected error") from e
 
         finally:
+            self.radio.disconnect()
             self._savePod()
 
     def deactivate_pod(self):
@@ -306,6 +314,8 @@ class Pdm:
             raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
+        finally:
+            self.radio.disconnect()
 
     def _cancelActivity(self, cancelBasal=False, cancelBolus=False, cancelTempBasal=False, beep=False):
         self.logger.debug("Running cancel activity for basal: %s - bolus: %s - tempBasal: %s" % (

@@ -23,6 +23,12 @@ class Radio:
             self.rileyLink.disconnect(ignore_errors=True)
             raise
 
+    def disconnect(self):
+        try:
+            self.rileyLink.disconnect(ignore_errors=True)
+        except Exception as e:
+            self.logger.warning("Error while disconnecting %s" % str(e))
+
     def _send_request_get_response(self, message, try_resync=True, stay_connected=True):
         try:
             return self._send_request(message)
@@ -150,6 +156,7 @@ class Radio:
             if data[-1] == calc:
                 try:
                     p = Packet.from_data(data[2:-1])
+                    getLogger().debug("RECEIVED PACKET: %s" % p)
                 except ProtocolError as pe:
                     getLogger().warning("Crc match on an invalid packet, error: %s" % pe)
         return p
