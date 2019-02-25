@@ -190,17 +190,20 @@ class RileyLink:
 
     def init_radio(self, force_init=False):
         try:
-            if not force_init:
-                response = self._command(Command.READ_REGISTER, bytes([Register.SYNC1]))
-                if response is not None and len(response) > 0 and response[0] == 0xA5:
-                    return
-
             version, v_major, v_minor = self._read_version()
 
             if v_major < 2:
                 logging.error("Firmware version is below 2.0")
-                raise RileyLinkError("Unsupported RileyLinkv firmware %d.%d (%s)" %
+                raise RileyLinkError("Unsupported RileyLink firmware %d.%d (%s)" %
                                         (v_major, v_minor, version))
+
+            if not force_init:
+                if v_major == 2 and v_minor < 3:
+                    response = self._command(Command.READ_REGISTER, bytes([Register.SYNC1, 0x00]))
+                else:
+                    response = self._command(Command.READ_REGISTER, bytes([Register.SYNC1]))
+                if response is not None and len(response) > 0 and response[0] == 0xA5:
+                    return
 
             self._command(Command.RADIO_RESET_CONFIG)
             self._command(Command.SET_SW_ENCODING, bytes([Encoding.MANCHESTER]))
