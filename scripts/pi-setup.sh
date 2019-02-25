@@ -144,6 +144,7 @@ then
     sudo killall -9 bt-network > /dev/null 2>&1
     sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
     sudo systemctl enable omnipy-pan.service
+    sudo systemctl stop omnipy-pan.service
     sudo systemctl start omnipy-pan.service
 fi
 
@@ -155,6 +156,8 @@ sudo chown -R pi.pi /home/pi/bluepy
 sudo chown -R pi.pi /home/pi/omnipy
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
+sudo systemctl stop omnipy.service
+sudo systemctl stop omnipy-beacon.service
 sudo systemctl start omnipy.service
 sudo systemctl start omnipy-beacon.service
 
