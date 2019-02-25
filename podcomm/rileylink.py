@@ -160,11 +160,33 @@ class RileyLink:
             bch = bc.getHandle()
             battery_value = int(self.peripheral.readCharacteristic(bch)[0])
             logging.debug("Battery level read: %d", battery_value)
-            return { "battery_level": battery_value, "mac_address": self.address }
+            version, v_major, v_minor = self._read_version()
+            return { "battery_level": battery_value, "mac_address": self.address,
+                    "version_string": version, "version_major": v_major, "version_minor": v_minor }
         except BTLEException as btlee:
             raise RileyLinkError("Error communicating with RileyLink") from btlee
         finally:
             self.disconnect()
+
+    def _read_version(self):
+        response = self._command(Command.GET_VERSION)
+        if response is not None and len(response) > 0:
+            version = response.decode("ascii")
+            logging.debug("RL reports version string: %s" % version)
+            try:
+                m = re.search(".+([0-9]+)\\.([0-9]+)", version)
+                if m is None:
+                    raise RileyLinkError("Failed to parse firmware version string: %s" % version)
+
+                v_major = int(m.group(1))
+                v_minor = int(m.group(2))
+                logging.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
+
+                return (version, v_major, v_minor)
+            except RileyLinkError:
+                raise
+            except Exception as ex:
+                raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
 
     def init_radio(self, force_init=False):
         try:
@@ -173,27 +195,12 @@ class RileyLink:
                 if response is not None and len(response) > 0 and response[0] == 0xA5:
                     return
 
-            response = self._command(Command.GET_VERSION)
-            if response is not None and len(response) > 0:
-                version = response.decode("ascii")
-                logging.debug("RL reports version string: %s" % version)
-                try:
-                    m = re.search(".+([0-9]+)\\.([0-9]+)", version)
-                    if m is None:
-                        raise RileyLinkError("Failed to parse firmware version string: %s" % version)
+            version, v_major, v_minor = self._read_version()
 
-                    v_major = int(m.group(1))
-                    v_minor = int(m.group(2))
-                    logging.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
-
-                    if v_major < 2:
-                        logging.error("Firmware version is below 2.0")
-                        raise RileyLinkError("Unsupported RileyLinkv firmware %d.%d (%s)" %
-                                             (v_major, v_minor, version))
-                except RileyLinkError:
-                    raise
-                except Exception as ex:
-                    raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
+            if v_major < 2:
+                logging.error("Firmware version is below 2.0")
+                raise RileyLinkError("Unsupported RileyLinkv firmware %d.%d (%s)" %
+                                        (v_major, v_minor, version))
 
             self._command(Command.RADIO_RESET_CONFIG)
             self._command(Command.SET_SW_ENCODING, bytes([Encoding.MANCHESTER]))
