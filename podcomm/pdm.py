@@ -2,7 +2,7 @@ from .pdmutils import *
 from .nonce import *
 from .radio import Radio
 from .message import Message, MessageType
-from .exceptions import PdmError, OmnipyError
+from .exceptions import PdmError, OmnipyError, TransmissionOutOfSyncError
 from .definitions import *
 
 from decimal import *
@@ -35,6 +35,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
+            self.radio.disconnect()
             self._savePod()
 
     def acknowledge_alerts(self, alert_mask):
@@ -52,6 +53,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
+            self.radio.disconnect()
             self._savePod()
 
     def is_busy(self):
@@ -66,6 +68,8 @@ class Pdm:
             raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
+        finally:
+            self.radio.disconnect()
 
     # def clear_alert(self, alert_bit):
     #     try:
@@ -151,6 +155,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
+            self.radio.disconnect()
             self._savePod()
 
 
@@ -180,6 +185,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
+            self.radio.disconnect()
             self._savePod()
 
     def cancelTempBasal(self, beep=False):
@@ -211,6 +217,7 @@ class Pdm:
             raise PdmError("Unexpected error") from e
 
         finally:
+            self.radio.disconnect()
             self._savePod()
 
     def setTempBasal(self, basalRate, hours, confidenceReminder=False):
@@ -291,6 +298,7 @@ class Pdm:
             raise PdmError("Unexpected error") from e
 
         finally:
+            self.radio.disconnect()
             self._savePod()
 
     def deactivate_pod(self):
@@ -306,6 +314,8 @@ class Pdm:
             raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
+        finally:
+            self.radio.disconnect()
 
     def _cancelActivity(self, cancelBasal=False, cancelBolus=False, cancelTempBasal=False, beep=False):
         self.logger.debug("Running cancel activity for basal: %s - bolus: %s - tempBasal: %s" % (
@@ -348,14 +358,24 @@ class Pdm:
         except Exception as e:
             raise PdmError("Pod status was not saved") from e
 
-    def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0, stay_connected=False, request_msg=None):
+    def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0, stay_connected=False, request_msg=None,
+                     resync_allowed=True):
         requested_stay_connected = stay_connected
         if with_nonce:
             nonce = self.nonce.getNext()
             if nonce == FAKE_NONCE:
                 stay_connected = True
             message.setNonce(nonce)
-        response_message = self.radio.send_request_get_response(message, stay_connected=stay_connected)
+        try:
+            response_message = self.radio.send_request_get_response(message, stay_connected=stay_connected)
+        except TransmissionOutOfSyncError:
+            if resync_allowed:
+                self._interim_resync()
+                return self._sendMessage(message, with_nonce=with_nonce, nonce_retry_count=nonce_retry_count,
+                                         stay_connected=requested_stay_connected, request_msg=request_msg,
+                                         resync_allowed=False)
+            else:
+                raise
         contents = response_message.getContents()
         for (ctype, content) in contents:
             # if ctype == 0x01:  # pod info response
@@ -376,6 +396,14 @@ class Pdm:
                     return self._sendMessage(message, with_nonce=True, nonce_retry_count=nonce_retry_count + 1,
                                              stay_connected=requested_stay_connected, request_msg=request_msg)
 
+    def _interim_resync(self):
+        time.sleep(15)
+        commandType = 0x0e
+        commandBody = bytes([update_type])
+        msg = self._createMessage(commandType, commandBody)
+        self._sendMessage(msg, stay_connected=stay_connected, request_msg="STATUS REQ %d" % update_type,
+                          resync_allowed=True)
+        time.sleep(5)
 
     def _update_status(self, update_type=0, stay_connected=True):
         commandType = 0x0e

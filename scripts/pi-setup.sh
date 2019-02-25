@@ -27,6 +27,8 @@ else
 echo
 echo ${bold}Step 3/10: ${normal}Updating omnipy
 cd /home/pi/omnipy
+git config --global user.email "omnipy@balya.net"
+git config --global user.name "Omnipy Setup"
 git stash
 git pull
 fi
@@ -142,17 +144,20 @@ then
     sudo killall -9 bt-network > /dev/null 2>&1
     sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
     sudo systemctl enable omnipy-pan.service
+    sudo systemctl stop omnipy-pan.service
     sudo systemctl start omnipy-pan.service
 fi
 
 echo
 echo ${bold}Step 10/10: ${normal}Creating and starting omnipy services
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
-sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
 sudo chown -R pi.pi /home/pi/bluepy
 sudo chown -R pi.pi /home/pi/omnipy
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
+sudo systemctl stop omnipy.service
+sudo systemctl stop omnipy-beacon.service
 sudo systemctl start omnipy.service
 sudo systemctl start omnipy-beacon.service
 
