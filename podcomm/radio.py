@@ -16,9 +16,9 @@ class Radio:
         self.logger = getLogger()
         self.rileyLink = RileyLink()
 
-    def send_request_get_response(self, message, try_resync=True, stay_connected=True):
+    def send_request_get_response(self, message, stay_connected=True):
         try:
-            return self._send_request_get_response(message, try_resync, stay_connected)
+            return self._send_request_get_response(message, stay_connected)
         except Exception:
             self.rileyLink.disconnect(ignore_errors=True)
             raise
@@ -33,11 +33,8 @@ class Radio:
         try:
             return self._send_request(message)
         except TransmissionOutOfSyncError:
-            if try_resync:
-                self.logger.warning("Transmission out of sync, resyncing radios")
-                return self._send_request(message)
-            else:
-                raise
+            self.logger.warning("Transmission out of sync, radio needs resyncing")
+            raise
         finally:
             if not stay_connected:
                 self.rileyLink.disconnect()
@@ -146,7 +143,7 @@ class Radio:
             self.packetSequence = (self.packetSequence + 1) % 32
             self.logger.debug("SEND FINAL complete")
         except RileyLinkError as rle:
-            self.logger.error("Error while sending %s" % rle)
+            raise ProtocolError("Radio error during sending") from rle
 
     @staticmethod
     def _get_packet(data):
