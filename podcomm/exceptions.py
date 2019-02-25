@@ -4,7 +4,6 @@ class OmnipyError(Exception):
         self.error_message = message
 
     def __str__(self):
-        self.__traceback__.print_tb()
         return "%s: %s\n\nContext: %s\nTraceback: %s\n" % (self.__class__.__name__, self.error_message,
                                                            self.__context__, self.__traceback__.format_exc())
 
@@ -15,7 +14,8 @@ class RileyLinkError(OmnipyError):
         self.err_code = err_code
 
     def __str__(self):
-        return super.__str__
+        return "%s: %s\n\nContext: %s\nTraceback: %s\n" % (self.__class__.__name__, self.error_message,
+                                                           self.__context__, self.__traceback__.format_exc())
 
 
 class ProtocolError(OmnipyError):
@@ -23,15 +23,17 @@ class ProtocolError(OmnipyError):
         OmnipyError.__init__(self, message)
 
     def __str__(self):
-        return super.__str__
+        return "%s: %s\n\nContext: %s\nTraceback: %s\n" % (self.__class__.__name__, self.error_message,
+                                                           self.__context__, self.__traceback__.format_exc())
 
 
 class TransmissionOutOfSyncError(ProtocolError):
     def __init__(self, message="Transmission out of sync error"):
-        OmnipyError.__init__(self, message)
+        ProtocolError.__init__(self, message)
 
     def __str__(self):
-        return super.__str__
+        return "%s: %s\n\nContext: %s\nTraceback: %s\n" % (self.__class__.__name__, self.error_message,
+                                                           self.__context__, self.__traceback__.format_exc())
 
 
 class PdmError(OmnipyError):
@@ -39,9 +41,15 @@ class PdmError(OmnipyError):
         OmnipyError.__init__(self, message)
 
     def __str__(self):
-        return super.__str__
+        return "%s: %s\n\nContext: %s\nTraceback: %s\n" % (self.__class__.__name__, self.error_message,
+                                                           self.__context__, self.__traceback__.format_exc())
 
 
 class PdmBusyError(PdmError):
     def __init__(self, message="Pdm is busy."):
-        OmnipyError.__init__(self, message)
+        PdmError.__init__(self, message)
+
+    def __str__(self):
+        return "%s: %s\n\nContext: %s\nTraceback: %s\n" % (self.__class__.__name__, self.error_message,
+                                                           self.__context__, self.__traceback__.format_exc())
+
