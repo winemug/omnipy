@@ -29,7 +29,7 @@ class Radio:
         except Exception as e:
             self.logger.warning("Error while disconnecting %s" % str(e))
 
-    def _send_request_get_response(self, message, try_resync=True, stay_connected=True):
+    def _send_request_get_response(self, message, stay_connected=True):
         try:
             return self._send_request(message)
         except TransmissionOutOfSyncError:

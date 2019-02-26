@@ -8,7 +8,7 @@ from .definitions import *
 from decimal import *
 import time
 import struct
-
+from datetime import datetime, timedelta
 
 class Pdm:
     def __init__(self, pod):
@@ -287,11 +287,108 @@ class Pdm:
                                                                                                  float(hours)))
 
                 if self.pod.basalState != BasalState.TempBasal:
-                    raise PdmError()
+                    raise PdmError("Failed to set temp basal")
                 else:
                     self.pod.last_enacted_temp_basal_duration = float(hours)
                     self.pod.last_enacted_temp_basal_start = time.time()
                     self.pod.last_enacted_temp_basal_amount = float(basalRate)
+
+        except PdmError:
+            raise
+        except OmnipyError as oe:
+            raise PdmError("Command failed") from oe
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
+
+        finally:
+            self.radio.disconnect()
+            self._savePod()
+
+    def set_basal_schedule(self, schedule):
+        try:
+            with pdmlock():
+                self._assert_pod_address_assigned()
+                self._assert_can_generate_nonce()
+                self._assert_immediate_bolus_not_active()
+                self._assert_not_faulted()
+                self._assert_status_running()
+
+                if self._is_temp_basal_active():
+                    raise PdmError("Cannot change basal schedule while a temp. basal is active")
+
+                if len(schedule) != 48:
+                    raise PdmError("A full schedule of 48 half hours is needed to change basal program")
+
+                min_rate = Decimal("0.05")
+                max_rate = Decimal("30")
+
+                for entry in schedule:
+                    if entry < min_rate:
+                        raise PdmError("A basal rate schedule entry cannot be less than 0.05U")
+                    if entry > max_rate:
+                        raise PdmError("A basal rate schedule entry cannot be more than 30U")
+
+                commandBody = struct.pack(">I", 0)
+                commandBody += b"\x00"
+
+                bodyForChecksum = ""
+                utcOffset = timedelta(minutes=self.pod.utcOffset)
+                podDate = datetime.utcnow() + utcOffset
+
+                hour = podDate.hour
+                minute = podDate.minute
+                second = podDate.second
+
+                currentHalfHour = hour * 2
+                secondsUntilHalfHour = 0
+                if minute < 30:
+                    secondsUntilHalfHour += (30 - minute - 1) * 60
+                else:
+                    secondsUntilHalfHour += (60 - minute - 1) * 60
+                    currentHalfHour += 1
+
+                secondsUntilHalfHour += (60 - second)
+
+                pulseTable = getPulsesForHalfHours(schedule)
+                pulsesRemainingCurrentHour = int(secondsUntilHalfHour / 1800) * pulseTable[currentHalfHour]
+                iseBody = getStringBodyFromTable(getInsulinScheduleTableFromPulses(pulseTable))
+
+                bodyForChecksum += bytes([currentHalfHour])
+                bodyForChecksum += struct.pack(">H", secondsUntilHalfHour * 8)
+                bodyForChecksum += struct.pack(">H", pulsesRemainingCurrentHour)
+                getChecksum(bodyForChecksum + getStringBodyFromTable(pulseTable))
+
+                commandBody += bodyForChecksum + iseBody
+
+                msg = self._createMessage(0x1a, commandBody)
+
+                reminders = 0
+                # if confidenceReminder:
+                #     reminders |= 0x40
+
+                commandBody = bytes([reminders])
+
+                commandBody += b"\x00"
+                pulseEntries = getPulseIntervalEntries(schedule)
+
+                _, currentHalfHourInterval = pulseEntries[currentHalfHour]
+
+                commandBody += struct.pack(">H", pulsesRemainingCurrentHour*10)
+                commandBody += struct.pack(">I", currentHalfHourInterval)
+
+                for pulseCount, interval in pulseEntries:
+                    commandBody += struct.pack(">H", pulseCount)
+                    commandBody += struct.pack(">I", interval)
+
+                msg.addCommand(0x13, commandBody)
+
+                self._sendMessage(msg, with_nonce=True, request_msg="SETBASALSCHEDULE %s" % schedule)
+
+                if self.pod.basalState != BasalState.Program:
+                    raise PdmError("Failed to set basal schedule")
+                else:
+                    self.pod.basalSchedule = schedule
+
 
         except PdmError:
             raise
@@ -379,6 +476,7 @@ class Pdm:
                                          resync_allowed=False)
             else:
                 raise
+
         contents = response_message.getContents()
         for (ctype, content) in contents:
             # if ctype == 0x01:  # pod info response
@@ -402,9 +500,9 @@ class Pdm:
     def _interim_resync(self):
         time.sleep(15)
         commandType = 0x0e
-        commandBody = bytes([update_type])
+        commandBody = bytes([0])
         msg = self._createMessage(commandType, commandBody)
-        self._sendMessage(msg, stay_connected=stay_connected, request_msg="STATUS REQ %d" % update_type,
+        self._sendMessage(msg, stay_connected=True, request_msg="STATUS REQ %d" % 0,
                           resync_allowed=True)
         time.sleep(5)
 
@@ -580,116 +678,3 @@ class Pdm:
             raise PdmError("Pod is busy delivering a bolus")
 
 
-    #    def initializePod(self, path, addressToAssign=None):
-    #     if addressToAssign is None:
-    #         addressToAssign = random.randint(0x20000000, 0x2FFFFFFF)
-    #     success = False
-
-    #     self.pod = Pod()
-
-    #     commandType = 0x07
-    #     commandBody = struct.unpack(">I", addressToAssign)
-    #     msg = self.createMessage(commandType, commandBody)
-    #     self.radio.sendRequestToPod(msg, self.handlePodResponse)
-    #     self.savePod()
-
-    #     success = True
-
-    #     self.savePod()
-    #     return success
-
-    # def setBasalSchedule(self, basalSchedule):
-    #     with pdmlock():
-    #
-    #         self.updatePodStatus()
-    #
-    #         if self.pod.basalState == BasalState.TempBasal:
-    #             raise PdmError()
-    #
-    #         if self.pod.basalState == BasalState.Program:
-    #             self.cancelBasal()
-    #
-    #         if self.pod.basalState != BasalState.NotRunning:
-    #             raise PdmError()
-    #
-    #         commandBody = struct.pack(">I", self.nonce.getNext())
-    #         commandBody += b"\x00"
-    #
-    #         bodyForChecksum = ""
-    #         utcOffset = timedelta(minutes=self.pod.utcOffset)
-    #         podDate = datetime.utcnow() + utcOffset
-    #
-    #         hour = podDate.hour
-    #         minute = podDate.minute
-    #         second = podDate.second
-    #
-    #         currentHalfHour = hour * 2
-    #         secondsUntilHalfHour = 0
-    #         if minute < 30:
-    #             secondsUntilHalfHour += (30 - minute - 1) * 60
-    #         else:
-    #             secondsUntilHalfHour += (60 - minute - 1) * 60
-    #             currentHalfHour += 1
-    #
-    #         secondsUntilHalfHour += (60 - second)
-    #
-    #         pulseTable = getPulsesForHalfHours(basalSchedule)
-    #         pulsesRemainingCurrentHour = int(secondsUntilHalfHour / 1800) * pulseTable[currentHalfHour]
-    #         iseBody = getStringBodyFromTable(getInsulinScheduleTableFromPulses(pulseTable))
-    #
-    #         bodyForChecksum += bytes([currentHalfHour])
-    #         bodyForChecksum += struct.pack(">H", secondsUntilHalfHour * 8)
-    #         bodyForChecksum += struct.pack(">H", pulsesRemainingCurrentHour)
-    #         getChecksum(bodyForChecksum + getStringBodyFromTable(pulseTable))
-    #
-    #         commandBody += bodyForChecksum + iseBody
-    #
-    #         msg = self._createMessage(0x1a, commandBody)
-    #
-    #         reminders = 0
-    #         if confidenceReminder:
-    #             reminders |= 0x40
-    #
-    #         commandBody = bytes([reminders])
-    #
-    #         # commandBody += b"\x00"
-    #         # pulseEntries = []
-    #         # subTotal = 0
-    #         # for pulses in pulseList:
-    #         #     if subTotal + pulses > 6553:
-    #         #         pulseEntries.append(subTotal)
-    #         #         subTotal = 0
-    #         #     subTotal += pulses
-    #         # pulseEntries.append(subTotal)
-    #
-    #         # if pulseList[0] == 0:
-    #         #     pulseInterval = 3600* 100000
-    #         # else:
-    #         #     pulseInterval = 3600 * 100000 / pulseList[0]
-    #
-    #         # commandBody += struct.pack(">H", pulseEntries[0] * 10)
-    #         # commandBody += struct.pack(">I", pulseInterval)
-    #         # for pe in pulseEntries:
-    #         #     commandBody += struct.pack(">H", pe * 10)
-    #         #     commandBody += struct.pack(">I", pulseInterval)
-    #
-    #         # msg.addCommand(0x16, commandBody)
-    #
-    #         self.__sendMessageWithNonce(msg)
-    #         self._savePod()
-    #         if self.pod.basalState != BasalState.TempBasal:
-    #             raise PdmError()
-    #
-    #         self._savePod()
-
-    # def cancelBasal(self, beep=False):
-    #     self.logger.debug("Canceling current basal schedule")
-    #     self.updatePodStatus()
-    #     if self.pod.basalState == BasalState.Program:
-    #         self.__cancelActivity(cancelBasal=True, alarm=beep)
-    #     if self.pod.basalState == BasalState.Program:
-    #         raise PdmError()
-
-    # def deactivatePod(self):
-    #     # self.logger.debug("deactivating pod")
-    #     # self.__savePod()
