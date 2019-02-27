@@ -134,7 +134,7 @@ class Pod:
     def setupPod(self, messageBody):
         pass
 
-    def handle_information_response(self, response):
+    def handle_information_response(self, response, original_request=None):
         if response[0] == 0x01:
             pass
         elif response[0] == 0x02:
@@ -174,6 +174,8 @@ class Pod:
             raise ProtocolError("Failed to parse the information response of type 0x%2X with content: %s"
                                 % (response[0], binascii.hexlify(response)))
 
+        self._save_with_log(original_request)
+
     def handle_status_response(self, response, original_request=None):
         s = struct.unpack(">BII", response)
         state = s[0]
@@ -197,16 +199,21 @@ class Pod:
         self.canceledInsulin = canceled_pulses * 0.05
         self.minutes_since_activation = pod_active_time
         self.lastUpdated = time.time()
+        self._save_with_log(original_request)
 
+    def _save_with_log(self, original_request):
         ds = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
         orq = "----"
         if original_request is not None:
             orq = original_request
+
         self.Save()
 
         self.log("%d\t%s\t%s\t%f\t%f\t%d\t%s\t%s\t%s\t%d\t%s\t%s\t%d\t%d\t0x%8X\n" % \
-                 (self.lastUpdated, ds, orq, self.totalInsulin, self.canceledInsulin, self.minutes_since_activation, PodProgress(self.progress).name,
-                  BolusState(self.bolusState).name, BasalState(self.basalState).name, self.reservoir, self.alert_states, self.faulted, self.lot, self.tid, self.address))
+                 (self.lastUpdated, ds, orq, self.totalInsulin, self.canceledInsulin, self.minutes_since_activation,
+                  PodProgress(self.progress).name,
+                  BolusState(self.bolusState).name, BasalState(self.basalState).name, self.reservoir, self.alert_states,
+                  self.faulted, self.lot, self.tid, self.address))
 
     def __parse_delivery_state(self, delivery_state):
         if delivery_state & 8 > 0:

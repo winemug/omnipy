@@ -331,7 +331,6 @@ class Pdm:
                 commandBody = struct.pack(">I", 0)
                 commandBody += b"\x00"
 
-                bodyForChecksum = ""
                 utcOffset = timedelta(minutes=self.pod.utcOffset)
                 podDate = datetime.utcnow() + utcOffset
 
@@ -353,7 +352,7 @@ class Pdm:
                 pulsesRemainingCurrentHour = int(secondsUntilHalfHour / 1800) * pulseTable[currentHalfHour]
                 iseBody = getStringBodyFromTable(getInsulinScheduleTableFromPulses(pulseTable))
 
-                bodyForChecksum += bytes([currentHalfHour])
+                bodyForChecksum = bytes([currentHalfHour])
                 bodyForChecksum += struct.pack(">H", secondsUntilHalfHour * 8)
                 bodyForChecksum += struct.pack(">H", pulsesRemainingCurrentHour)
                 getChecksum(bodyForChecksum + getStringBodyFromTable(pulseTable))
@@ -381,6 +380,12 @@ class Pdm:
                     commandBody += struct.pack(">I", interval)
 
                 msg.addCommand(0x13, commandBody)
+
+                if self._is_basal_schedule_active():
+                    self._cancelActivity(cancelBasal=True);
+
+                if self.pod.basalState != BasalState.NotRunning:
+                    raise PdmError("Failed to stop current basal program in order to change it")
 
                 self._sendMessage(msg, with_nonce=True, request_msg="SETBASALSCHEDULE %s" % schedule)
 
@@ -439,7 +444,7 @@ class Pdm:
         commandBody += bytes([c])
 
         msg = self._createMessage(0x1f, commandBody)
-        self._sendMessage(msg, with_nonce=True, request_msg="CANCEL %s" % act_str)
+        self._sendMessage(msg, with_nonce=True, stay_connected=True, request_msg="CANCEL %s" % act_str)
 
     def _createMessage(self, commandType, commandBody):
         msg = Message(MessageType.PDM, self.pod.address, sequence=self.radio.messageSequence)
@@ -484,7 +489,7 @@ class Pdm:
             if ctype == 0x1d:  # status response
                 self.pod.handle_status_response(content, original_request=request_msg)
             elif ctype == 0x02:  # pod faulted or information
-                self.pod.handle_information_response(content)
+                self.pod.handle_information_response(content, original_request=request_msg)
             elif ctype == 0x06:
                 if content[0] == 0x14:  # bad nonce error
                     if nonce_retry_count == 0:
@@ -516,7 +521,7 @@ class Pdm:
         commandType = 0x11
         commandBody = bytes([0, 0, 0, 0, alert_mask])
         msg = self._createMessage(commandType, commandBody)
-        self._sendMessage(msg, with_nonce=True, request_msg="ACK 0x%2X " % alert_mask)
+        self._sendMessage(msg, with_nonce=True, stay_connected=True, request_msg="ACK 0x%2X " % alert_mask)
 
     # def _configure_alerts(self, alerts):
     #     commandType = 0x19
@@ -600,6 +605,13 @@ class Pdm:
         self._update_status()
         return self.pod.bolusState == BolusState.Immediate
 
+    def _is_basal_schedule_active(self):
+        if self.pod.lastUpdated is not None and self.pod.basalState == BasalState.NotRunning:
+            return False
+
+        self._update_status()
+        return self.pod.basalState == BasalState.Program
+
     def _is_temp_basal_active(self):
         if self.pod.lastUpdated is not None and self.pod.basalState != BasalState.TempBasal:
             return False
@@ -649,7 +661,6 @@ class Pdm:
 
         if self.pod.progress > PodProgress.AlertExpiredShuttingDown:
             raise PdmError("Pod is not active")
-
 
     def _assert_can_generate_nonce(self):
         if self.pod.lot is None:
