@@ -44,8 +44,8 @@ def archive_pod():
         os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
 
 
-def respond_ok(dict):
-    return json.dumps({"success": True, "result": dict}, indent=4, sort_keys=True)
+def respond_ok(result):
+    return json.dumps({"success": True, "result": result}, indent=4, sort_keys=True)
 
 
 def respond_error(msg):
@@ -113,7 +113,7 @@ def send_content(path):
 @app.route(REST_URL_GET_VERSION)
 def get_api_version():
     try:
-        return respond_ok("%d.%d" % (API_VERSION_MAJOR, API_VERSION_MINOR))
+        return respond_ok({"version_major": API_VERSION_MAJOR, "version_minor": API_VERSION_MINOR})
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception as e:
@@ -389,6 +389,32 @@ def is_pdm_busy():
         return respond_error(str(rae))
     except Exception as e:
         logger.error("Error during cancel temp basal: %s" % str(e))
+        return respond_error("Other error. Please check log files.")
+
+
+@app.route(REST_URL_OMNIPY_SHUTDOWN)
+def shutdown():
+    try:
+        pdm = get_pdm()
+        if pdm.is_busy():
+            return respond_error("cannot shutdown while pdm is busy")
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logger.error("Error during shutdown: %s" % str(e))
+        return respond_error("Other error. Please check log files.")
+
+
+@app.route(REST_URL_OMNIPY_RESTART)
+def restart():
+    try:
+        pdm = get_pdm()
+        if pdm.is_busy():
+            return respond_error("cannot restart while pdm is busy")
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception as e:
+        logger.error("Error during restart: %s" % str(e))
         return respond_error("Other error. Please check log files.")
 
 

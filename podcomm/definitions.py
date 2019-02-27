@@ -16,6 +16,8 @@ API_VERSION_MAJOR = 1
 API_VERSION_MINOR = 0
 
 REST_URL_GET_VERSION = "/omnipy/version"
+REST_URL_OMNIPY_SHUTDOWN = "/omnipy/shutdown"
+REST_URL_OMNIPY_RESTART = "/omnipy/restart"
 
 REST_URL_TOKEN = "/omnipy/token"
 REST_URL_CHECK_PASSWORD = "/omnipy/pwcheck"
