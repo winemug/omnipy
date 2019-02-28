@@ -70,6 +70,10 @@ def status(args, pa):
     call_api(args.url, REST_URL_STATUS, pa)
 
 
+def deactivate(args, pa):
+    call_api(args.url, REST_URL_DEACTIVATE_POD, pa)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Send a command to omnipy API")
     parser.add_argument("-u", "--url", type=str, default="http://127.0.0.1:4444", required=False)
@@ -102,6 +106,9 @@ def main():
 
     subparser = subparsers.add_parser("cancelbolus", help="cancelbolus -h")
     subparser.set_defaults(func=cancel_bolus)
+
+    subparser = subparsers.add_parser("deactivate", help="deactivate -h")
+    subparser.set_defaults(func=deactivate)
 
     args = parser.parse_args()
     pa = get_auth_params()
