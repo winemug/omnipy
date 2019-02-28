@@ -28,10 +28,8 @@ class Pdm:
                 self.logger.debug("updating pod status")
                 self._update_status(update_type, stay_connected=False)
 
-        except PdmError:
+        except OmnipyError:
             raise
-        except OmnipyError as oe:
-            raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -46,10 +44,8 @@ class Pdm:
                 self.logger.debug("acknowledging alerts with bitmask %d" % alert_mask)
                 self._acknowledge_alerts(alert_mask)
 
-        except PdmError:
+        except OmnipyError:
             raise
-        except OmnipyError as oe:
-            raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -62,10 +58,8 @@ class Pdm:
                 return self._is_bolus_running()
         except PdmBusyError:
             return True
-        except PdmError:
+        except OmnipyError:
             raise
-        except OmnipyError as oe:
-            raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -148,10 +142,9 @@ class Pdm:
 
                 self.pod.last_enacted_bolus_start = time.time()
                 self.pod.last_enacted_bolus_amount = float(bolus_amount)
-        except PdmError:
+
+        except OmnipyError:
             raise
-        except OmnipyError as oe:
-            raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -178,10 +171,8 @@ class Pdm:
                 else:
                     raise PdmError("Bolus is not running")
 
-        except PdmError:
+        except OmnipyError:
             raise
-        except OmnipyError as oe:
-            raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -208,13 +199,11 @@ class Pdm:
                         self.pod.last_enacted_temp_basal_amount = float(-1)
                 else:
                     self.logger.warning("Cancel temp basal received, while temp basal was not active. Ignoring.")
-        except PdmError:
+
+        except OmnipyError:
             raise
-        except OmnipyError as oe:
-            raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
-
         finally:
             self.radio.disconnect()
             self._savePod()
@@ -293,13 +282,10 @@ class Pdm:
                     self.pod.last_enacted_temp_basal_start = time.time()
                     self.pod.last_enacted_temp_basal_amount = float(basalRate)
 
-        except PdmError:
+        except OmnipyError:
             raise
-        except OmnipyError as oe:
-            raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
-
         finally:
             self.radio.disconnect()
             self._savePod()
@@ -394,33 +380,28 @@ class Pdm:
                 else:
                     self.pod.basalSchedule = schedule
 
-
-        except PdmError:
+        except OmnipyError:
             raise
-        except OmnipyError as oe:
-            raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
-
         finally:
             self.radio.disconnect()
             self._savePod()
+
 
     def deactivate_pod(self):
         try:
             with pdmlock():
                 msg = self._createMessage(0x1c, bytes([0, 0, 0, 0]))
                 self._sendMessage(msg, with_nonce=True, request_msg="DEACTIVATE POD")
-        except PdmBusyError:
-            return True
-        except PdmError:
+
+        except OmnipyError:
             raise
-        except OmnipyError as oe:
-            raise PdmError("Command failed") from oe
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
             self.radio.disconnect()
+            self._savePod()
 
     def _cancelActivity(self, cancelBasal=False, cancelBolus=False, cancelTempBasal=False, beep=False):
         self.logger.debug("Running cancel activity for basal: %s - bolus: %s - tempBasal: %s" % (

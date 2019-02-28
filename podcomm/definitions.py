@@ -1,5 +1,6 @@
 from enum import IntEnum
 import logging
+import sys
 
 RILEYLINK_MAC_FILE = "data/rladdr"
 PDM_LOCK_FILE = "data/.pdmlock"
@@ -50,7 +51,7 @@ def configureLogging():
     fh = logging.FileHandler(OMNIPY_LOGFILE)
     ch = logging.StreamHandler()
     fh.setLevel(logging.DEBUG)
-    ch.setLevel(logging.WARNING)
+    ch.setLevel(logging.INFO)
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
     logger.addHandler(fh)

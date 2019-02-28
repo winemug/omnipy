@@ -88,8 +88,8 @@ class Radio:
         packet_to_send.setSequence(self.packetSequence)
         expected_sequence = (self.packetSequence + 1) % 32
         expected_address = packet_to_send.address
-        send_retries = 10
-        while send_retries > 0:
+        send_retries = 3
+        while send_retries >= 0:
             try:
                 send_retries -= 1
                 self.logger.debug("SENDING PACKET EXP RESPONSE: %s (retries left: %d)" % (packet_to_send, send_retries))
@@ -114,18 +114,19 @@ class Radio:
                 return p
             except RileyLinkError as rle:
                 raise ProtocolError("Radio error during send and receive") from rle
-        raise ProtocolError("Send and receive handshake failed")
+        else:
+            raise ProtocolError("Exceeded retry count while send and receive")
 
     def _send_packet(self, packetToSend):
         packetToSend.setSequence(self.packetSequence)
         try:
             data = packetToSend.data
             data += bytes([crc.crc8(data)])
-            receive_retries = 10
-            while receive_retries > 0:
+            receive_retries = 3
+            while receive_retries >= 0:
+                receive_retries -= 1
                 self.logger.debug("SENDING FINAL PACKET: %s (retries left: %d)" % (packetToSend, receive_retries))
                 self.rileyLink.send_packet(data, 3, 20, 42)
-                receive_retries -= 1
                 received = self.rileyLink.get_packet(0.3)
                 if received is None:
                     break
@@ -139,7 +140,8 @@ class Radio:
                     self.packetSequence = (self.packetSequence + 1) % 32
                     self.messageSequence = 0
                     raise TransmissionOutOfSyncError()
-
+            else:
+                raise ProtocolError("Exceeded retry count while sending")
             self.packetSequence = (self.packetSequence + 1) % 32
             self.logger.debug("SEND FINAL complete")
         except RileyLinkError as rle:
