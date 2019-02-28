@@ -96,7 +96,7 @@ def getHalfHourPulseInterval(pulseCount):
 
 
 def getPulseIntervalEntries(halfHourUnits):
-    list = []
+    list1 = []
     for hhu in halfHourUnits:
         pulses10 = hhu * Decimal("200")
         interval = 1800000000
@@ -108,5 +108,28 @@ def getPulseIntervalEntries(halfHourUnits):
         elif interval > 1800000000:
             raise PdmError()
 
-        list.append((int(pulses10), int(interval)))
-    return list
+        list1.append((int(pulses10), int(interval)))
+
+    list2 = []
+    lastPulseInterval = -1
+    subTotalPulses = 0
+
+    for pulses, interval in list1:
+        if lastPulseInterval == -1:
+            subTotalPulses = pulses
+            lastPulseInterval = interval
+        elif lastPulseInterval == interval:
+            if subTotalPulses + pulses < 65536 and subTotalPulses > 0:
+                subTotalPulses += pulses
+            else:
+                list2.append((subTotalPulses, lastPulseInterval))
+                subTotalPulses = pulses
+        else:
+            list2.append((subTotalPulses, lastPulseInterval))
+            subTotalPulses = pulses
+            lastPulseInterval = interval
+    else:
+        if lastPulseInterval >= 0:
+            list2.append((subTotalPulses, lastPulseInterval))
+
+    return list2

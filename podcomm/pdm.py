@@ -335,7 +335,7 @@ class Pdm:
                 secondsUntilHalfHour += (60 - second)
 
                 pulseTable = getPulsesForHalfHours(schedule)
-                pulsesRemainingCurrentHour = int(secondsUntilHalfHour / 1800) * pulseTable[currentHalfHour]
+                pulsesRemainingCurrentHour = int(secondsUntilHalfHour * pulseTable[currentHalfHour] / 1800)
                 iseBody = getStringBodyFromTable(getInsulinScheduleTableFromPulses(pulseTable))
 
                 bodyForChecksum = bytes([currentHalfHour])
@@ -356,22 +356,14 @@ class Pdm:
                 commandBody += b"\x00"
                 pulseEntries = getPulseIntervalEntries(schedule)
 
-                _, currentHalfHourInterval = pulseEntries[currentHalfHour]
-
                 commandBody += struct.pack(">H", pulsesRemainingCurrentHour*10)
-                commandBody += struct.pack(">I", currentHalfHourInterval)
+                commandBody += struct.pack(">I", int(secondsUntilHalfHour * 1000 * 1000 / pulsesRemainingCurrentHour))
 
                 for pulseCount, interval in pulseEntries:
                     commandBody += struct.pack(">H", pulseCount)
                     commandBody += struct.pack(">I", interval)
 
                 msg.addCommand(0x13, commandBody)
-
-                if self._is_basal_schedule_active():
-                    self._cancelActivity(cancelBasal=True);
-
-                if self.pod.basalState != BasalState.NotRunning:
-                    raise PdmError("Failed to stop current basal program in order to change it")
 
                 self._sendMessage(msg, with_nonce=True, request_msg="SETBASALSCHEDULE %s" % schedule)
 

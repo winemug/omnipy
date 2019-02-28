@@ -91,7 +91,7 @@ class Radio:
         expected_sequence = (self.packetSequence + 1) % 32
         expected_address = packet_to_send.address
         send_retries = 3
-        while send_retries >= 0:
+        while send_retries > 0:
             try:
                 send_retries -= 1
                 self.logger.debug("SENDING PACKET EXP RESPONSE: %s (retries left: %d)" % (packet_to_send, send_retries))
@@ -126,12 +126,11 @@ class Radio:
         try:
             data = packetToSend.data
             data += bytes([crc.crc8(data)])
-            receive_retries = 3
-            while receive_retries >= 0:
+            receive_retries = 20
+            while receive_retries > 0:
                 receive_retries -= 1
                 self.logger.debug("SENDING FINAL PACKET: %s (retries left: %d)" % (packetToSend, receive_retries))
-                self.rileyLink.send_packet(data, 3, 20, 42)
-                received = self.rileyLink.get_packet(0.3)
+                received = self.rileyLink.send_and_receive_packet(data, 0, 20, 1000, 2, 40)
                 if received is None:
                     break
                 p = self._get_packet(received)
