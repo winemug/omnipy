@@ -19,6 +19,8 @@ class Radio:
     def send_request_get_response(self, message, stay_connected=True):
         try:
             return self._send_request_get_response(message, stay_connected)
+        except TransmissionOutOfSyncError:
+            raise
         except Exception:
             self.rileyLink.disconnect(ignore_errors=True)
             raise
@@ -111,6 +113,8 @@ class Radio:
                     self.packetSequence = (p.sequence + 1) % 32
                     self.messageSequence = 0
                     raise TransmissionOutOfSyncError()
+                self.packetSequence = (self.packetSequence + 2) % 32
+                self.logger.debug("SEND AND RECEIVE complete")
                 return p
             except RileyLinkError as rle:
                 raise ProtocolError("Radio error during send and receive") from rle
