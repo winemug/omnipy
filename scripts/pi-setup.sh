@@ -16,6 +16,10 @@ echo
 echo ${bold}Step 2/10: ${normal}Upgrading existing packages
 sudo apt upgrade -y
 
+sudo systemctl stop omnipy-pan.service > /dev/null 2>&1
+sudo systemctl stop omnipy.service > /dev/null 2>&1
+sudo systemctl stop omnipy-beacon.service > /dev/null 2>&1
+
 if [[ ! -d /home/pi/omnipy ]]
 then
 echo
@@ -129,7 +133,9 @@ then
     echo "Waiting for connection."
     echo "addr=$mac" > /home/pi/omnipy/scripts/btnap-custom.sh
     cat /home/pi/omnipy/scripts/btnap.sh >> /home/pi/omnipy/scripts/btnap-custom.sh
-    sudo /bin/bash /home/pi/omnipy/scripts/btnap-custom.sh & > /dev/null 2>&1
+    sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
+    sudo systemctl enable omnipy-pan.service
+    sudo systemctl start omnipy-pan.service
     ipaddr=
     while [[ -z "$ipaddr" ]]
     do
@@ -140,12 +146,6 @@ then
     echo
     echo
     echo "${bold}Connection test succeeeded${normal}. IP address: $ipaddr"
-    sudo killall -9 btnap-custom.sh > /dev/null 2>&1
-    sudo killall -9 bt-network > /dev/null 2>&1
-    sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
-    sudo systemctl enable omnipy-pan.service
-    sudo systemctl stop omnipy-pan.service
-    sudo systemctl start omnipy-pan.service
 fi
 
 echo
@@ -156,8 +156,6 @@ sudo chown -R pi.pi /home/pi/bluepy
 sudo chown -R pi.pi /home/pi/omnipy
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
-sudo systemctl stop omnipy.service
-sudo systemctl stop omnipy-beacon.service
 sudo systemctl start omnipy.service
 sudo systemctl start omnipy-beacon.service
 
