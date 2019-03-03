@@ -3,6 +3,7 @@ import logging
 import sys
 
 RILEYLINK_MAC_FILE = "data/rladdr"
+RILEYLINK_VERSION_FILE = "data/rlversion"
 PDM_LOCK_FILE = "data/.pdmlock"
 TOKENS_FILE = "data/tokens"
 KEY_FILE = "data/key"

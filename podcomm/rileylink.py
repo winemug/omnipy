@@ -169,6 +169,45 @@ class RileyLink:
             self.disconnect()
 
     def _read_version(self):
+        version = None
+        try:
+            if os.path.exists(RILEYLINK_VERSION_FILE):
+                with open(RILEYLINK_VERSION_FILE, "r") as stream:
+                    version = stream.read()
+            else:
+                response = self._command(Command.GET_VERSION)
+                if response is not None and len(response) > 0:
+                    version = response.decode("ascii")
+                    logging.debug("RL reports version string: %s" % version)
+
+                    try:
+                        with open(RILEYLINK_VERSION_FILE, "w") as stream:
+                            stream.write(version)
+                    except IOError:
+                        logging.exception("Failed to store version in file")
+
+            if version is None:
+                return "0.0", 0, 0
+
+            try:
+                m = re.search(".+([0-9]+)\\.([0-9]+)", version)
+                if m is None:
+                    raise RileyLinkError("Failed to parse firmware version string: %s" % version)
+
+                v_major = int(m.group(1))
+                v_minor = int(m.group(2))
+                logging.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
+
+                return version, v_major, v_minor
+
+            except Exception as ex:
+                raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
+
+        except IOError:
+            logging.exception("Error reading version file")
+        except RileyLinkError:
+            raise
+
         response = self._command(Command.GET_VERSION)
         if response is not None and len(response) > 0:
             version = response.decode("ascii")
