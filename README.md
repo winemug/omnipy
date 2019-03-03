@@ -1,9 +1,12 @@
-# Project status February 25th
+# Project status March 3rd
 
-* omnipy implementation is ready for beta testing. [Project link](https://github.com/winemug/omnipy/projects/1)
-* Android APS integration is functional and is in internal testing, UI features not related to looping are still in development. [Project link](https://github.com/winemug/AndroidAPS/projects/1)
-* [Setup](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) documentation for omnipy is completed, AndroidAPS and Raspberry Pi OS still pending.
+* Fixed couple of bugs and new features in development for activating a pod and setting basal rates automatically.
 
+* Android APS integration is still in internal testing, UI features not related to looping in development. [Project link](https://github.com/winemug/AndroidAPS/projects/1)
+
+* Join us in the slack space for questions, updates and support. [Invite link](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY)
+
+* [Setup](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) documentation for omnipy
 # Wiki Links
 
 [Requirements](https://github.com/winemug/omnipy/wiki/Requirements)
@@ -11,6 +14,8 @@
 [Setup](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration)
 
 [F.A.Q.](https://github.com/winemug/omnipy/wiki/Frequently-Asked-Questions)
+
+[Support](https://github.com/winemug/omnipy/wiki/Support)
 
 
 # About
