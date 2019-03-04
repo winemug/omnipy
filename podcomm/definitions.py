@@ -1,6 +1,5 @@
 from enum import IntEnum
 import logging
-import sys
 
 RILEYLINK_MAC_FILE = "data/rladdr"
 RILEYLINK_VERSION_FILE = "data/rlversion"
@@ -27,7 +26,6 @@ REST_URL_CHECK_PASSWORD = "/omnipy/pwcheck"
 REST_URL_NEW_POD = "/omnipy/newpod"
 REST_URL_SET_POD_PARAMETERS = "/omnipy/parameters"
 REST_URL_GET_PDM_ADDRESS = "/omnipy/pdmspy"
-REST_URL_SET_LIMITS = "/omnipy/limits"
 
 REST_URL_RL_INFO = "/rl/info"
 

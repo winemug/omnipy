@@ -28,11 +28,11 @@ class RestApiException(Exception):
         return self.error_message
 
 
-def get_pod():
+def get_pod() -> Pod:
     return Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
 
 
-def get_pdm():
+def get_pdm() -> Pdm:
     return Pdm(get_pod())
 
 
@@ -173,11 +173,11 @@ def get_pdm_address():
         if p is None:
             respond_error("No pdm packet detected")
 
-        return respond_ok({"address": p.address})
+        return respond_ok({"radio_address": p.address})
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception:
-        logger.exception("Error while trying to read address")
+        logger.exception("Error while trying to read radio_address")
         return respond_error("Other error. Please check log files.")
     finally:
         r.disconnect(ignore_errors=True)
@@ -190,12 +190,12 @@ def new_pod():
 
         pod = Pod()
 
-        if request.args.get('lot') is not None:
-            pod.lot = int(request.args.get('lot'))
-        if request.args.get('tid') is not None:
-            pod.tid = int(request.args.get('tid'))
-        if request.args.get('address') is not None:
-            pod.address = int(request.args.get('address'))
+        if request.args.get('id_lot') is not None:
+            pod.id_lot = int(request.args.get('id_lot'))
+        if request.args.get('id_t') is not None:
+            pod.id_t = int(request.args.get('id_t'))
+        if request.args.get('radio_address') is not None:
+            pod.radio_address = int(request.args.get('radio_address'))
 
         archive_pod()
         pod.Save(POD_FILE + POD_FILE_SUFFIX)
@@ -207,46 +207,68 @@ def new_pod():
         return respond_error("Other error. Please check log files.")
 
 
+def _int_parameter(obj, parameter):
+    if request.args.get(parameter) is not None:
+        obj.__dict__[parameter] = int(request.args.get(parameter))
+        return True
+    return False
+
+
+def _float_parameter(obj, parameter):
+    if request.args.get(parameter) is not None:
+        obj.__dict__[parameter] = float(request.args.get(parameter))
+        return True
+    return False
+
+
+def _bool_parameter(obj, parameter):
+    if request.args.get(parameter) is not None:
+        val = str(request.args.get(parameter))
+        bval = False
+        if val == "1" or val.capitalize() == "TRUE":
+            bval = True
+        obj.__dict__[parameter] = bval
+        return True
+    return False
+
+
 @app.route(REST_URL_SET_POD_PARAMETERS)
 def set_pod_parameters():
     try:
         verify_auth(request)
 
         pod = get_pod()
-        if request.args.get('lot') is not None:
-            pod.lot = int(request.args.get('lot'))
-        if request.args.get('tid') is not None:
-            pod.tid = int(request.args.get('tid'))
-        if request.args.get('address') is not None:
-            pod.address = int(request.args.get('address'))
+        reset_nonce = False
+        if _int_parameter(pod, "id_lot"):
+            reset_nonce = True
+        if _int_parameter(pod, "id_t"):
+            reset_nonce = True
 
-        pod.nonceSeed = 0
-        pod.lastNonce = None
-        pod.packetSequence = 0
-        pod.msgSequence = 0
+        if reset_nonce:
+            pod.nonce_last = None
+            pod.nonce_seed = 0
+
+        if _int_parameter(pod, "radio_address"):
+            pod.radio_packet_sequence = 0
+            pod.radio_message_sequence = 0
+
+        _float_parameter(pod, "var_utc_offset")
+        _float_parameter(pod, "var_maximum_bolus")
+        _float_parameter(pod, "var_maximum_temp_basal_rate")
+        _float_parameter(pod, "var_alert_low_reservoir")
+        _int_parameter(pod, "var_alert_replace_pod")
+        _bool_parameter(pod, "var_notify_bolus_start")
+        _bool_parameter(pod, "var_notify_bolus_cancel")
+        _bool_parameter(pod, "var_notify_temp_basal_set")
+        _bool_parameter(pod, "var_notify_temp_basal_cancel")
+        _bool_parameter(pod, "var_notify_basal_schedule_change")
+
         pod.Save()
         return respond_ok({})
     except RestApiException as rae:
         return respond_error(str(rae))
     except Exception:
         logger.exception("Error during set pod parameters")
-        return respond_error("Other error. Please check log files.")
-
-
-@app.route(REST_URL_SET_LIMITS)
-def set_limits():
-    try:
-        verify_auth(request)
-
-        pod = get_pod()
-        pod.maximumBolus = Decimal(request.args.get('maxbolus'))
-        pod.maximumTempBasal = Decimal(request.args.get('maxbasal'))
-        pod.Save()
-        return respond_ok({})
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during set limits")
         return respond_error("Other error. Please check log files.")
 
 
@@ -290,6 +312,7 @@ def get_status():
 def acknowledge_alerts():
     try:
         verify_auth(request)
+
         mask = Decimal(request.args.get('alertmask'))
         pdm = get_pdm()
         pdm.acknowledge_alerts(mask)
@@ -323,7 +346,7 @@ def bolus():
 
         pdm = get_pdm()
         amount = Decimal(request.args.get('amount'))
-        pdm.bolus(amount, False)
+        pdm.bolus(amount)
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
@@ -431,7 +454,13 @@ if __name__ == '__main__':
         logger.warning("Error while removing stale files: %s", exc_info=ioe)
 
     try:
+        os.system("sudo systemctl restart systemd-timesyncd")
+        os.system("sudo systemctl daemon-reload")
+    except:
+        logger.exception("Error while reloading timesync daemon")
+
+    try:
         app.run(host='0.0.0.0', port=4444)
-    except Exception:
+    except:
         logger.exception("Error while running rest api, exiting")
         raise
