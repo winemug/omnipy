@@ -400,7 +400,7 @@ def shutdown():
             return respond_error("cannot shutdown while pdm is busy")
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
+    except Exception:
         logger.exception("Error during shutdown")
         return respond_error("Other error. Please check log files.")
 
