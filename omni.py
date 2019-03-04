@@ -41,9 +41,9 @@ def read_pdm_address(args, pa):
 
 
 def new_pod(args, pa):
-    pa["lot"] = args.lot
-    pa["tid"] = args.tid
-    pa["address"] = args.address
+    pa["id_lot"] = args.id_lot
+    pa["id_t"] = args.id_t
+    pa["radio_address"] = args.radio_address
     call_api(args.url, REST_URL_NEW_POD, pa)
 
 
@@ -84,9 +84,9 @@ def main():
     subparser.set_defaults(func=read_pdm_address)
 
     subparser = subparsers.add_parser("newpod", help="newpod -h")
-    subparser.add_argument("lot", type=int, help="Lot number of the pod")
-    subparser.add_argument("tid", type=int, help="Serial number of the pod")
-    subparser.add_argument("address", type=int, help="Radio address of the pod")
+    subparser.add_argument("id_lot", type=int, help="Lot number of the pod")
+    subparser.add_argument("id_t", type=int, help="Serial number of the pod")
+    subparser.add_argument("radio_address", type=int, help="Radio radio_address of the pod")
     subparser.set_defaults(func=new_pod)
 
     subparser = subparsers.add_parser("status", help="status -h")
