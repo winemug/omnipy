@@ -107,3 +107,27 @@ class PodAlertBit(IntEnum):
     SuspendInProgress = 0x05
     SuspendEnded = 0x06
     TimerLimit = 0x07
+
+
+class BeepPattern(IntEnum):
+    Once = 0
+    OnceEveryMinuteForThreeMinutesAndRepeatHourly = 1
+    OnceEveryMinuteForFifteenMinutes = 2
+    OnceEveryMinuteForThreeMinutesAndRepeatEveryFifteenMinutes = 3
+    OnceEveryThreeMinutes = 4
+    OnceEveryHour = 5
+    OnceEveryFifteenMinutes = 6
+    OnceEveryQuarterHour = 7
+    OnceEveryFiveMinutes = 8
+
+
+class BeepType(IntEnum):
+    NoSound = 0
+    BeepFourTimes = 1
+    BipBeepFourTimes = 2
+    BipBip = 3
+    Beep = 4
+    BeepThreeTimes = 5
+    Beeeep = 6
+    BipBipBipTwice = 7
+    BeeeepTwice = 8
