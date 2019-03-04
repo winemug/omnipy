@@ -58,6 +58,15 @@ class Pod:
         self.last_enacted_bolus_start = None
         self.last_enacted_bolus_amount = None
 
+        self.version_pm = None
+        self.version_pi = None
+        self.version_unknown_byte = None
+        self.version_unknown_7_bytes = None
+        self.address_candidate = None
+
+        self.setting_low_reservoir_alert = None
+        self.setting_replace_pod_alert = None
+
     def Save(self, save_as = None):
         if save_as is not None:
             self.path = save_as
@@ -124,6 +133,15 @@ class Pod:
             p.last_enacted_bolus_start = d["last_enacted_bolus_start"]
             p.last_enacted_bolus_amount = d["last_enacted_bolus_amount"]
 
+            p.version_pm = d["version_pm"]
+            p.version_pi = d["version_pi"]
+            p.version_unknown_byte = d["version_unknown_byte"]
+            p.version_unknown_7_bytes = d["version_unknown_7_bytes"]
+            p.address_candidate = d["address_candidate"]
+
+            p.setting_low_reservoir_alert = d["setting_low_reservoir_alert"]
+            p.setting_replace_pod_alert = d["setting_replace_pod_alert"]
+
         return p
 
     def is_active(self):
@@ -131,8 +149,32 @@ class Pod:
             and (self.progress == PodProgress.Running or self.progress == PodProgress.RunningLow) \
             and not self.faulted
 
-    def setupPod(self, messageBody):
-        pass
+    def handle_version_response(self, message_body):
+        candidate_only = True
+        if len(message_body) == 27:
+            self.version_unknown_7_bytes = "%s" % str(message_body[0:7])
+            candidate_only = False
+            message_body = message_body[7:]
+
+        mx = message_body[0]
+        my = message_body[1]
+        mz = message_body[2]
+        self.version_pm = "%d.%d.%d" % (mx, my, mz)
+
+        ix = message_body[3]
+        iy = message_body[4]
+        iz = message_body[5]
+        self.version_pi = "%d.%d.%d" % (ix, iy, iz)
+
+        self.version_unknown_byte = "%d" % message_body[6]
+        self.progress = message_body[7] & 0x0F
+        self.lot = struct.unpack(">I", message_body[8:12])[0]
+        self.tid = struct.unpack(">I", message_body[12:16])[0]
+        address = struct.unpack(">I", message_body[16:20])[0]
+        if candidate_only:
+            self.address_candidate = address
+        else:
+            self.address = address
 
     def handle_information_response(self, response, original_request=None):
         if response[0] == 0x01:
