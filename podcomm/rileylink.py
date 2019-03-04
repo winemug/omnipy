@@ -1,5 +1,4 @@
 import re
-import logging
 import os
 import struct
 import time
@@ -268,7 +267,15 @@ class RileyLink:
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 0x31]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.TEST0, 0x09]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x84]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x0E]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE1, 0x1D]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE2, 0x34]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE3, 0x2C]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE4, 0x60]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE5, 0x84]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE6, 0xC8]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE7, 0xC0]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x05]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
 
@@ -279,6 +286,18 @@ class RileyLink:
         except RileyLinkError as rle:
             logging.error("Error while initializing rileylink radio: %s", rle)
             raise
+
+    def set_low_tx(self):
+        self.connect()
+        self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
+
+    def set_normal_tx(self):
+        self.connect()
+        self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x05]))
+
+    def set_high_tx(self):
+        self.connect()
+        self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x07]))
 
     def get_packet(self, timeout=5.0):
         try:
@@ -334,7 +353,7 @@ class RileyLink:
                         with open(RILEYLINK_MAC_FILE, "w") as stream:
                             stream.write(result.addr)
                     except IOError:
-                        logging.warning("Cannot store rileylink mac address for later")
+                        logging.warning("Cannot store rileylink mac radio_address for later")
                     break
 
         if found is None:

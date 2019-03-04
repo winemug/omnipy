@@ -17,9 +17,9 @@ class Radio:
         self.rileyLink = RileyLink()
         self.last_packet_received = None
 
-    def send_request_get_response(self, message, stay_connected=True):
+    def send_request_get_response(self, message, stay_connected=True, low_tx=False, high_tx=False, address2=None):
         try:
-            return self._send_request_get_response(message, stay_connected)
+            return self._send_request_get_response(message, stay_connected, low_tx, high_tx, address2)
         except TransmissionOutOfSyncError:
             raise
         except Exception:
@@ -32,9 +32,9 @@ class Radio:
         except Exception as e:
             self.logger.warning("Error while disconnecting %s" % str(e))
 
-    def _send_request_get_response(self, message, stay_connected=True):
+    def _send_request_get_response(self, message, stay_connected=True, low_tx=False, high_tx=False, address2=None):
         try:
-            return self._send_request(message)
+            return self._send_request(message, low_tx=low_tx, high_tx=high_tx, address2=address2)
         except TransmissionOutOfSyncError:
             self.logger.warning("Transmission out of sync, radio needs resyncing")
             raise
@@ -42,50 +42,58 @@ class Radio:
             if not stay_connected:
                 self.rileyLink.disconnect()
 
-    def _send_request(self, message):
-        message.setSequence(self.messageSequence)
-        self.logger.debug("SENDING MSG: %s" % message)
-        packets = message.getPackets()
-        received = None
-        packet_index = 1
-        packet_count = len(packets)
-        for packet in packets:
-            if packet_index == packet_count:
-                expected_type = "POD"
-            else:
-                expected_type = "ACK"
-            received = self._exchange_packets(packet, expected_type)
-            if received is None:
-                raise ProtocolError("Timeout reached waiting for a response.")
+    def _send_request(self, message, low_tx=False, high_tx=False, address2=None):
+        try:
+            if low_tx:
+                self.rileyLink.set_low_tx()
+            elif high_tx:
+                self.rileyLink.set_high_tx()
+            message.setSequence(self.messageSequence)
+            self.logger.debug("SENDING MSG: %s" % message)
+            packets = message.getPackets()
+            received = None
+            packet_index = 1
+            packet_count = len(packets)
+            for packet in packets:
+                if packet_index == packet_count:
+                    expected_type = "POD"
+                else:
+                    expected_type = "ACK"
+                received = self._exchange_packets(packet, expected_type)
+                if received is None:
+                    raise ProtocolError("Timeout reached waiting for a response.")
 
-            if received.type != expected_type:
-                raise ProtocolError("Invalid response received. Expected type %s, received %s"
-                                    % (expected_type, received.type))
-            packet_index += 1
+                if received.type != expected_type:
+                    raise ProtocolError("Invalid response received. Expected type %s, received %s"
+                                        % (expected_type, received.type))
+                packet_index += 1
 
-        pod_response = Message.fromPacket(received)
+            pod_response = Message.fromPacket(received)
 
-        while pod_response.state == MessageState.Incomplete:
-            ack_packet = Packet.Ack(message.address, False)
-            received = self._exchange_packets(ack_packet, "CON")
-            if received is None:
-                raise ProtocolError("Timeout reached waiting for a response.")
-            if received.type != "CON":
-                raise ProtocolError("Invalid response received. Expected type CON, received %s" % received.type)
-            pod_response.addConPacket(received)
+            while pod_response.state == MessageState.Incomplete:
+                ack_packet = Packet.Ack(message.address, False, address2)
+                received = self._exchange_packets(ack_packet, "CON")
+                if received is None:
+                    raise ProtocolError("Timeout reached waiting for a response.")
+                if received.type != "CON":
+                    raise ProtocolError("Invalid response received. Expected type CON, received %s" % received.type)
+                pod_response.addConPacket(received)
 
-        if pod_response.state == MessageState.Invalid:
-            raise ProtocolError("Received message is not valid")
+            if pod_response.state == MessageState.Invalid:
+                raise ProtocolError("Received message is not valid")
 
-        self.logger.debug("RECEIVED MSG: %s" % pod_response)
+            self.logger.debug("RECEIVED MSG: %s" % pod_response)
 
-        self.logger.debug("Sending end of conversation")
-        ack_packet = Packet.Ack(message.address, True)
-        self._send_packet(ack_packet)
-        self.logger.debug("Conversation ended")
+            self.logger.debug("Sending end of conversation")
+            ack_packet = Packet.Ack(message.address, True, address2)
+            self._send_packet(ack_packet)
+            self.logger.debug("Conversation ended")
 
-        self.messageSequence = (pod_response.sequence + 1) % 16
-        return pod_response
+            self.messageSequence = (pod_response.sequence + 1) % 16
+            return pod_response
+        finally:
+            if low_tx or high_tx:
+                self.rileyLink.set_normal_tx()
 
     def _exchange_packets(self, packet_to_send, expected_type):
         packet_to_send.setSequence(self.packetSequence)
@@ -112,7 +120,7 @@ class Radio:
                     self.logger.debug("Received illegal packet")
                     continue
                 if p.address != expected_address:
-                    self.logger.debug("Received packet for a different address")
+                    self.logger.debug("Received packet for a different radio_address")
                     continue
 
                 if p.type != expected_type or p.sequence != expected_sequence:
@@ -154,7 +162,7 @@ class Radio:
                     self.logger.debug("Received illegal packet")
                     continue
                 if p.address != packetToSend.address:
-                    self.logger.debug("Received packet for a different address")
+                    self.logger.debug("Received packet for a different radio_address")
                     continue
                 if self.last_packet_received is not None:
                     if p.type == self.last_packet_received.type and \
