@@ -29,19 +29,30 @@ class RestApiException(Exception):
 
 
 def get_pod() -> Pod:
-    return Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
+    try:
+        return Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
+    except:
+        logger.exception("Error while loading pod")
+        return None
 
 
 def get_pdm() -> Pdm:
-    return Pdm(get_pod())
+    try:
+        return Pdm(get_pod())
+    except:
+        logger.exception("Error while creating pdm instance")
+        return None
 
 
 def archive_pod():
-    archive_suffix = datetime.utcnow().strftime("_%Y%m%d_%H%M%S")
-    if os.path.isfile(POD_FILE + POD_FILE_SUFFIX):
-        os.rename(POD_FILE + POD_FILE_SUFFIX, POD_FILE + archive_suffix + POD_FILE_SUFFIX)
-    if os.path.isfile(POD_FILE + POD_LOG_SUFFIX):
-        os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
+    try:
+        archive_suffix = datetime.utcnow().strftime("_%Y%m%d_%H%M%S")
+        if os.path.isfile(POD_FILE + POD_FILE_SUFFIX):
+            os.rename(POD_FILE + POD_FILE_SUFFIX, POD_FILE + archive_suffix + POD_FILE_SUFFIX)
+        if os.path.isfile(POD_FILE + POD_LOG_SUFFIX):
+            os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
+    except:
+        logger.exception("Error while archiving existing pod")
 
 
 def respond_ok(result):
@@ -102,12 +113,18 @@ def verify_auth(request_obj):
 
 @app.route("/")
 def main_page():
-    return app.send_static_file("omnipy.html")
+    try:
+        return app.send_static_file("omnipy.html")
+    except:
+        logger.exception("Error while serving root file")
 
 
 @app.route('/content/<path:path>')
 def send_content(path):
-    return send_from_directory("static", path)
+    try:
+        return send_from_directory("static", path)
+    except:
+        logger.exception("Error while serving static file from %s" % path)
 
 
 @app.route(REST_URL_GET_VERSION)
