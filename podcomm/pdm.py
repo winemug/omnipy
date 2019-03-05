@@ -367,10 +367,29 @@ class Pdm:
                                           beep_repeat_type=BeepPattern.OnceEveryMinuteForThreeMinutesAndRepeatEveryFifteenMinutes,
                                           beep_type=BeepType.BipBeepFourTimes,
                                           stay_connected=True)
+                else:
+                    self._update_status(stay_connected=True)
 
-                self._set_basal_schedule(self.pod.basalSchedule)
+                while self.pod.state_progress == PodProgress.Purging:
+                    time.sleep(5)
+                    self._update_status(stay_connected=True)
 
+                if self.pod.state_progress != PodProgress.ReadyForInjection:
+                    raise PdmError("Pod did not reach ready for injection stage")
 
+        except OmnipyError:
+            raise
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
+        finally:
+            self.radio.disconnect()
+            self._savePod()
+
+    def inject_and_start(self):
+        try:
+            with pdmlock():
+                if self.pod.state_progress != PodProgress.ReadyForInjection:
+                    raise PdmError("Pod is not at the injection stage")
 
         except OmnipyError:
             raise
