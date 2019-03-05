@@ -1,7 +1,9 @@
 from enum import IntEnum
 import logging
+import sys
 
 RILEYLINK_MAC_FILE = "data/rladdr"
+RILEYLINK_VERSION_FILE = "data/rlversion"
 PDM_LOCK_FILE = "data/.pdmlock"
 TOKENS_FILE = "data/tokens"
 KEY_FILE = "data/key"
@@ -16,6 +18,8 @@ API_VERSION_MAJOR = 1
 API_VERSION_MINOR = 0
 
 REST_URL_GET_VERSION = "/omnipy/version"
+REST_URL_OMNIPY_SHUTDOWN = "/omnipy/shutdown"
+REST_URL_OMNIPY_RESTART = "/omnipy/restart"
 
 REST_URL_TOKEN = "/omnipy/token"
 REST_URL_CHECK_PASSWORD = "/omnipy/pwcheck"
@@ -48,7 +52,7 @@ def configureLogging():
     fh = logging.FileHandler(OMNIPY_LOGFILE)
     ch = logging.StreamHandler()
     fh.setLevel(logging.DEBUG)
-    ch.setLevel(logging.WARNING)
+    ch.setLevel(logging.INFO)
     fh.setFormatter(formatter)
     ch.setFormatter(formatter)
     logger.addHandler(fh)
@@ -103,3 +107,27 @@ class PodAlertBit(IntEnum):
     SuspendInProgress = 0x05
     SuspendEnded = 0x06
     TimerLimit = 0x07
+
+
+class BeepPattern(IntEnum):
+    Once = 0
+    OnceEveryMinuteForThreeMinutesAndRepeatHourly = 1
+    OnceEveryMinuteForFifteenMinutes = 2
+    OnceEveryMinuteForThreeMinutesAndRepeatEveryFifteenMinutes = 3
+    OnceEveryThreeMinutes = 4
+    OnceEveryHour = 5
+    OnceEveryFifteenMinutes = 6
+    OnceEveryQuarterHour = 7
+    OnceEveryFiveMinutes = 8
+
+
+class BeepType(IntEnum):
+    NoSound = 0
+    BeepFourTimes = 1
+    BipBeepFourTimes = 2
+    BipBip = 3
+    Beep = 4
+    BeepThreeTimes = 5
+    Beeeep = 6
+    BipBipBipTwice = 7
+    BeeeepTwice = 8

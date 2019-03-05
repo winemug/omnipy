@@ -44,8 +44,8 @@ def archive_pod():
         os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
 
 
-def respond_ok(dict):
-    return json.dumps({"success": True, "result": dict}, indent=4, sort_keys=True)
+def respond_ok(result):
+    return json.dumps({"success": True, "result": result}, indent=4, sort_keys=True)
 
 
 def respond_error(msg):
@@ -92,11 +92,11 @@ def verify_auth(request_obj):
 
         if not found:
             raise RestApiException("Invalid authentication token")
-    except RestApiException as rae:
-        logger.error("Authentication error: %s" % str(rae))
+    except RestApiException:
+        logger.exception("Authentication error")
         raise
-    except Exception as e:
-        logger.error("Error during verify_auth: %s" % str(e))
+    except Exception:
+        logger.exception("Error during verify_auth")
         raise
 
 
@@ -113,11 +113,11 @@ def send_content(path):
 @app.route(REST_URL_GET_VERSION)
 def get_api_version():
     try:
-        return respond_ok("%d.%d" % (API_VERSION_MAJOR, API_VERSION_MINOR))
+        return respond_ok({"version_major": API_VERSION_MAJOR, "version_minor": API_VERSION_MINOR})
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during version req: %s" % str(e))
+    except Exception:
+        logger.exception("Error during version request")
         return respond_error("Other error. Please check log files.")
 
 
@@ -130,8 +130,8 @@ def create_token():
         return respond_ok({"token": base64.b64encode(token)})
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during create token: %s" % str(e))
+    except Exception:
+        logger.exception("Error during create token")
         return respond_error("Other error. Please check log files.")
 
 
@@ -143,8 +143,8 @@ def check_password():
         return respond_ok({})
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during check pwd: %s" % str(e))
+    except Exception:
+        logger.exception("Error during check pwd")
         return respond_error("Other error. Please check log files.")
 
 
@@ -176,8 +176,8 @@ def get_pdm_address():
         return respond_ok({"address": p.address})
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during takeover: %s" % str(e))
+    except Exception:
+        logger.exception("Error while trying to read address")
         return respond_error("Other error. Please check log files.")
     finally:
         r.disconnect(ignore_errors=True)
@@ -202,8 +202,8 @@ def new_pod():
         return respond_ok({})
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error while creating new pod: %s" % str(e))
+    except Exception:
+        logger.exception("Error while creating new pod")
         return respond_error("Other error. Please check log files.")
 
 
@@ -228,8 +228,8 @@ def set_pod_parameters():
         return respond_ok({})
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during set pod params: %s" % str(e))
+    except Exception:
+        logger.exception("Error during set pod parameters")
         return respond_error("Other error. Please check log files.")
 
 
@@ -245,8 +245,8 @@ def set_limits():
         return respond_ok({})
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during set limits: %s" % str(e))
+    except Exception:
+        logger.exception("Error during set limits")
         return respond_error("Other error. Please check log files.")
 
 
@@ -260,8 +260,8 @@ def get_rl_info():
         return respond_ok(info)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during get status: %s" % str(e))
+    except Exception:
+        logger.error("Error during get RL info")
         return respond_error("Other error. Please check log files.")
 
 
@@ -281,8 +281,8 @@ def get_status():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during get status: %s" % str(e))
+    except Exception:
+        logger.exception("Error during get status")
         return respond_error("Other error. Please check log files.")
 
 
@@ -296,8 +296,8 @@ def acknowledge_alerts():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during acknowledging alerts: %s" % str(e))
+    except Exception:
+        logger.exception("Error during acknowledging alerts")
         return respond_error("Other error. Please check log files.")
 
 
@@ -311,8 +311,8 @@ def deactivate_pod():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during deactivation: %s" % str(e))
+    except Exception:
+        logger.exception("Error during deactivation")
         return respond_error("Other error. Please check log files.")
 
 
@@ -327,8 +327,8 @@ def bolus():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during bolus: %s" % str(e))
+    except Exception:
+        logger.exception("Error during bolus")
         return respond_error("Other error. Please check log files.")
 
 
@@ -342,8 +342,8 @@ def cancel_bolus():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during cancel bolus: %s" % str(e))
+    except Exception:
+        logger.exception("Error during cancel bolus")
         return respond_error("Other error. Please check log files.")
 
 
@@ -359,8 +359,8 @@ def set_temp_basal():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during set temp basal: %s" % str(e))
+    except Exception:
+        logger.exception("Error during set temp basal")
         return respond_error("Other error. Please check log files.")
 
 
@@ -374,8 +374,8 @@ def cancel_temp_basal():
         return respond_ok(pdm.pod.__dict__)
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during cancel temp basal: %s" % str(e))
+    except Exception:
+        logger.exception("Error during cancel temp basal")
         return respond_error("Other error. Please check log files.")
 
 
@@ -383,12 +383,38 @@ def cancel_temp_basal():
 def is_pdm_busy():
     try:
         pdm = get_pdm()
-        result = pdm.is_busy();
+        result = pdm.is_busy()
         return respond_ok({"busy": result})
     except RestApiException as rae:
         return respond_error(str(rae))
-    except Exception as e:
-        logger.error("Error during cancel temp basal: %s" % str(e))
+    except Exception:
+        logger.exception("Error during cancel temp basal")
+        return respond_error("Other error. Please check log files.")
+
+
+@app.route(REST_URL_OMNIPY_SHUTDOWN)
+def shutdown():
+    try:
+        pdm = get_pdm()
+        if pdm.is_busy():
+            return respond_error("cannot shutdown while pdm is busy")
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception:
+        logger.exception("Error during shutdown")
+        return respond_error("Other error. Please check log files.")
+
+
+@app.route(REST_URL_OMNIPY_RESTART)
+def restart():
+    try:
+        pdm = get_pdm()
+        if pdm.is_busy():
+            return respond_error("cannot restart while pdm is busy")
+    except RestApiException as rae:
+        return respond_error(str(rae))
+    except Exception:
+        logger.exception("Error during restart")
         return respond_error("Other error. Please check log files.")
 
 
@@ -402,10 +428,10 @@ if __name__ == '__main__':
             logger.debug("removing response queue from previous session")
             os.remove(RESPONSE_FILE)
     except IOError as ioe:
-        logger.warning("Error while removing stale files: %s" % str(ioe))
+        logger.warning("Error while removing stale files: %s", exc_info=ioe)
 
     try:
         app.run(host='0.0.0.0', port=4444)
-    except Exception as e:
-        logger.error("Error while running rest api, exiting. %s" % str(e))
+    except Exception:
+        logger.exception("Error while running rest api, exiting")
         raise
