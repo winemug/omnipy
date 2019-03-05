@@ -636,7 +636,11 @@ class Pdm:
 
         msg.addCommand(0x13, commandBody)
 
-        self._sendMessage(msg, with_nonce=True, request_msg="SETBASALSCHEDULE %s" % schedule)
+        schedule_str = ""
+        for entry in schedule:
+            schedule_str += "%2.2f " % entry
+
+        self._sendMessage(msg, with_nonce=True, request_msg="SETBASALSCHEDULE (%s)" % schedule_str)
 
     def _is_bolus_running(self):
         if self.pod.state_last_updated is not None and self.pod.state_bolus != BolusState.Immediate:
