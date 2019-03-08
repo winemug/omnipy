@@ -59,7 +59,6 @@ class Pod:
         self.insulin_delivered = 0
         self.insulin_canceled = 0
 
-
         self.var_utc_offset=None
         self.path = None
         self.log_file_path = None

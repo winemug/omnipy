@@ -553,13 +553,12 @@ class Pdm:
                                              stay_connected=requested_stay_connected, request_msg=request_msg)
 
     def _interim_resync(self):
-        time.sleep(15)
         commandType = 0x0e
         commandBody = bytes([0])
         msg = self._createMessage(commandType, commandBody)
         self._sendMessage(msg, stay_connected=True, request_msg="STATUS REQ %d" % 0,
                           resync_allowed=True, high_tx=True)
-        time.sleep(5)
+        time.sleep(10)
 
     def _update_status(self, update_type=0, stay_connected=True):
         commandType = 0x0e

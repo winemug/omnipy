@@ -1,5 +1,6 @@
 import re
 import os
+import subprocess
 import struct
 import time
 from .definitions import *
@@ -265,17 +266,10 @@ class RileyLink:
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL2, 0x2A]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL1, 0x00]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 0x31]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 35]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.TEST0, 0x09]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x0E]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE1, 0x1D]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE2, 0x34]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE3, 0x2C]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE4, 0x60]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE5, 0x84]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE6, 0xC8]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE7, 0xC0]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x05]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x84]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
 
@@ -289,15 +283,15 @@ class RileyLink:
 
     def set_low_tx(self):
         self.connect()
-        self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
+        self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x0E]))
 
     def set_normal_tx(self):
         self.connect()
-        self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x05]))
+        self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x84]))
 
     def set_high_tx(self):
         self.connect()
-        self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x07]))
+        self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0xC0]))
 
     def get_packet(self, timeout=5.0):
         try:
@@ -365,38 +359,51 @@ class RileyLink:
         while retries > 0:
             retries -= 1
             logging.info("Connecting to RileyLink, retries left: %d" % retries)
+
             try:
                 self.peripheral.connect(self.address)
                 logging.info("Connected")
                 break
             except BTLEException as btlee:
                 logging.warning("BTLE exception trying to connect: %s" % btlee)
-                time.sleep(2)
+                try:
+                    p = subprocess.Popen(["ps", "-A"], stdout=subprocess.PIPE)
+                    out, err = p.communicate()
+                    for line in out.splitlines():
+                        if "bluepy-helper" in line:
+                            pid = int(line.split(None, 1)[0])
+                            os.kill(pid, 9)
+                            break
+                except:
+                    logging.warning("Failed to kill bluepy-helper")
+                time.sleep(1)
 
     def _command(self, command_type, command_data=None, timeout=10.0):
-        if command_data is None:
-            data = bytes([1, command_type])
-        else:
-            data = bytes([len(command_data) + 1, command_type]) + command_data
-
-        self.peripheral.writeCharacteristic(self.data_handle, data, withResponse=True)
-
-        if not self.peripheral.waitForNotifications(timeout):
-            raise RileyLinkError("Timed out while waiting for a response from RileyLink")
-
-        response = self.peripheral.readCharacteristic(self.data_handle)
-
-        if response is None or len(response) == 0:
-            raise RileyLinkError("RileyLink returned no response")
-        else:
-            if response[0] == Response.COMMAND_SUCCESS:
-                return response[1:]
-            elif response[0] == Response.COMMAND_INTERRUPTED:
-                logging.warning("A previous command was interrupted")
-                return response[1:]
-            elif response[0] == Response.RX_TIMEOUT:
-                return None
+        try:
+            if command_data is None:
+                data = bytes([1, command_type])
             else:
-                raise RileyLinkError("RileyLink returned error code: %02X. Additional response data: %s"
-                                     % (response[0], response[1:]), response[0])
+                data = bytes([len(command_data) + 1, command_type]) + command_data
 
+            self.peripheral.writeCharacteristic(self.data_handle, data, withResponse=True)
+
+            if not self.peripheral.waitForNotifications(timeout):
+                raise RileyLinkError("Timed out while waiting for a response from RileyLink")
+
+            response = self.peripheral.readCharacteristic(self.data_handle)
+
+            if response is None or len(response) == 0:
+                raise RileyLinkError("RileyLink returned no response")
+            else:
+                if response[0] == Response.COMMAND_SUCCESS:
+                    return response[1:]
+                elif response[0] == Response.COMMAND_INTERRUPTED:
+                    logging.warning("A previous command was interrupted")
+                    return response[1:]
+                elif response[0] == Response.RX_TIMEOUT:
+                    return None
+                else:
+                    raise RileyLinkError("RileyLink returned error code: %02X. Additional response data: %s"
+                                         % (response[0], response[1:]), response[0])
+        except Exception as e:
+            raise RileyLinkError("Error executing command") from e
