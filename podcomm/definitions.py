@@ -38,24 +38,29 @@ REST_URL_CANCEL_BOLUS = "/pdm/cancelbolus"
 REST_URL_SET_TEMP_BASAL = "/pdm/settempbasal"
 REST_URL_CANCEL_TEMP_BASAL = "/pdm/canceltempbasal"
 
+logger = None
+
 
 def getLogger():
-    return logging.getLogger(OMNIPY_LOGGER)
+    global logger
+
+    if logger is None:
+        logger = logging.getLogger(OMNIPY_LOGGER)
+        logger.setLevel(logging.DEBUG)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        fh = logging.FileHandler(OMNIPY_LOGFILE)
+        ch = logging.StreamHandler()
+        fh.setLevel(logging.DEBUG)
+        ch.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        ch.setFormatter(formatter)
+        logger.addHandler(fh)
+        logger.addHandler(ch)
+    return logger
 
 
 def configureLogging():
-    logger = getLogger()
-    logger.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    fh = logging.FileHandler(OMNIPY_LOGFILE)
-    ch = logging.StreamHandler()
-    fh.setLevel(logging.DEBUG)
-    ch.setLevel(logging.INFO)
-    fh.setFormatter(formatter)
-    ch.setFormatter(formatter)
-    logger.addHandler(fh)
-    logger.addHandler(ch)
-
+    pass
 
 class BolusState(IntEnum):
     NotRunning = 0
@@ -76,8 +81,8 @@ class PodProgress(IntEnum):
     PairingSuccess = 3
     Purging = 4
     ReadyForInjection = 5
-    InjectionDone = 6
-    Priming = 7
+    BasalScheduleSet = 6
+    Inserting = 7
     Running = 8
     RunningLow = 9
     ErrorShuttingDown = 13

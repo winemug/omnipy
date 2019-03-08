@@ -82,6 +82,7 @@ class RileyLink:
     def __init__(self, address = None):
         self.peripheral = None
         self.data_handle = None
+        self.logger = getLogger()
         if address is None:
             if os.path.exists(RILEYLINK_MAC_FILE):
                 with open(RILEYLINK_MAC_FILE, "r") as stream:
@@ -131,9 +132,9 @@ class RileyLink:
     def disconnect(self, ignore_errors=True):
         try:
             if self.peripheral is None:
-                logging.info("Already disconnected")
+                self.logger.info("Already disconnected")
                 return
-            logging.info("Disconnecting..")
+            self.logger.info("Disconnecting..")
             if self.response_handle is not None:
                 response_notify_handle = self.response_handle + 1
                 notify_setup = b"\x00\x00"
@@ -148,7 +149,7 @@ class RileyLink:
                     self.peripheral = None
             except BTLEException as btlee:
                 if ignore_errors:
-                    logging.warning("Ignoring btle exception during disconnect: %s" % btlee)
+                    self.logger.warning("Ignoring btle exception during disconnect: %s" % btlee)
                 else:
                     raise
 
@@ -159,7 +160,7 @@ class RileyLink:
             bc = bs.getCharacteristics(XGATT_BATTERY_CHAR_UUID)[0]
             bch = bc.getHandle()
             battery_value = int(self.peripheral.readCharacteristic(bch)[0])
-            logging.debug("Battery level read: %d", battery_value)
+            self.logger.debug("Battery level read: %d", battery_value)
             version, v_major, v_minor = self._read_version()
             return { "battery_level": battery_value, "mac_address": self.address,
                     "version_string": version, "version_major": v_major, "version_minor": v_minor }
@@ -178,13 +179,13 @@ class RileyLink:
                 response = self._command(Command.GET_VERSION)
                 if response is not None and len(response) > 0:
                     version = response.decode("ascii")
-                    logging.debug("RL reports version string: %s" % version)
+                    self.logger.debug("RL reports version string: %s" % version)
 
                     try:
                         with open(RILEYLINK_VERSION_FILE, "w") as stream:
                             stream.write(version)
                     except IOError:
-                        logging.exception("Failed to store version in file")
+                        self.logger.exception("Failed to store version in file")
 
             if version is None:
                 return "0.0", 0, 0
@@ -196,7 +197,7 @@ class RileyLink:
 
                 v_major = int(m.group(1))
                 v_minor = int(m.group(2))
-                logging.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
+                self.logger.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
 
                 return version, v_major, v_minor
 
@@ -204,14 +205,14 @@ class RileyLink:
                 raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
 
         except IOError:
-            logging.exception("Error reading version file")
+            self.logger.exception("Error reading version file")
         except RileyLinkError:
             raise
 
         response = self._command(Command.GET_VERSION)
         if response is not None and len(response) > 0:
             version = response.decode("ascii")
-            logging.debug("RL reports version string: %s" % version)
+            self.logger.debug("RL reports version string: %s" % version)
             try:
                 m = re.search(".+([0-9]+)\\.([0-9]+)", version)
                 if m is None:
@@ -219,7 +220,7 @@ class RileyLink:
 
                 v_major = int(m.group(1))
                 v_minor = int(m.group(2))
-                logging.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
+                self.logger.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
 
                 return (version, v_major, v_minor)
             except RileyLinkError:
@@ -232,7 +233,7 @@ class RileyLink:
             version, v_major, v_minor = self._read_version()
 
             if v_major < 2:
-                logging.error("Firmware version is below 2.0")
+                self.logger.error("Firmware version is below 2.0")
                 raise RileyLinkError("Unsupported RileyLink firmware %d.%d (%s)" %
                                         (v_major, v_minor, version))
 
@@ -278,16 +279,18 @@ class RileyLink:
                 raise RileyLinkError("Rileylink state is not OK. Response returned: %s" % response)
 
         except RileyLinkError as rle:
-            logging.error("Error while initializing rileylink radio: %s", rle)
+            self.logger.error("Error while initializing rileylink radio: %s", rle)
             raise
 
+    #setting 12, 0E, 1D, 34, 2C, 60, 84, C8, C0 (hex)
+    #current 15, 16, 16, 18, 20, 20, 23, 28, 33 (dec)
     def set_low_tx(self):
         self.connect()
-        self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x0E]))
+        self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x12]))
 
     def set_normal_tx(self):
         self.connect()
-        self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x84]))
+        self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x60]))
 
     def set_high_tx(self):
         self.connect()
@@ -298,12 +301,11 @@ class RileyLink:
             self.connect()
             return self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)), timeout=float(timeout)+0.5)
         except RileyLinkError as rle:
-            logging.error("Error while receiving data: %s", rle)
+            self.logger.error("Error while receiving data: %s", rle)
             raise
 
     def send_and_receive_packet(self, packet, repeat_count, delay_ms, timeout_ms, retry_count, preamble_ext_ms):
 
-        logging.debug("sending packet: %s" % packet.hex())
         try:
             self.connect()
             return self._command(Command.SEND_AND_LISTEN,
@@ -318,7 +320,7 @@ class RileyLink:
                                               + packet,
                                   timeout=30)
         except RileyLinkError as rle:
-            logging.error("Error while sending and receiving data: %s", rle)
+            self.logger.error("Error while sending and receiving data: %s", rle)
             raise
 
     def send_packet(self, packet, repeat_count, delay_ms, preamble_extension_ms):
@@ -329,25 +331,25 @@ class RileyLink:
                                   timeout=30)
             return result
         except RileyLinkError as rle:
-            logging.error("Error while sending data: %s", rle)
+            self.logger.error("Error while sending data: %s", rle)
             raise
 
     def _findRileyLink(self):
         scanner = Scanner()
         found = None
-        logging.debug("Scanning for RileyLink")
+        self.logger.debug("Scanning for RileyLink")
         retries = 10
         while found is None and retries > 0:
             retries -= 1
             for result in scanner.scan(1.0):
                 if result.getValueText(7) == RILEYLINK_SERVICE_UUID:
-                    logging.debug("Found RileyLink")
+                    self.logger.debug("Found RileyLink")
                     found = result.addr
                     try:
                         with open(RILEYLINK_MAC_FILE, "w") as stream:
                             stream.write(result.addr)
                     except IOError:
-                        logging.warning("Cannot store rileylink mac radio_address for later")
+                        self.logger.warning("Cannot store rileylink mac radio_address for later")
                     break
 
         if found is None:
@@ -358,14 +360,14 @@ class RileyLink:
     def _connect_retry(self, retries):
         while retries > 0:
             retries -= 1
-            logging.info("Connecting to RileyLink, retries left: %d" % retries)
+            self.logger.info("Connecting to RileyLink, retries left: %d" % retries)
 
             try:
                 self.peripheral.connect(self.address)
-                logging.info("Connected")
+                self.logger.info("Connected")
                 break
             except BTLEException as btlee:
-                logging.warning("BTLE exception trying to connect: %s" % btlee)
+                self.logger.warning("BTLE exception trying to connect: %s" % btlee)
                 try:
                     p = subprocess.Popen(["ps", "-A"], stdout=subprocess.PIPE)
                     out, err = p.communicate()
@@ -375,7 +377,7 @@ class RileyLink:
                             os.kill(pid, 9)
                             break
                 except:
-                    logging.warning("Failed to kill bluepy-helper")
+                    self.logger.warning("Failed to kill bluepy-helper")
                 time.sleep(1)
 
     def _command(self, command_type, command_data=None, timeout=10.0):
@@ -398,7 +400,7 @@ class RileyLink:
                 if response[0] == Response.COMMAND_SUCCESS:
                     return response[1:]
                 elif response[0] == Response.COMMAND_INTERRUPTED:
-                    logging.warning("A previous command was interrupted")
+                    self.logger.warning("A previous command was interrupted")
                     return response[1:]
                 elif response[0] == Response.RX_TIMEOUT:
                     return None

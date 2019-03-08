@@ -160,7 +160,7 @@ class Message:
             elif contentType == 0x16:
                 s += separate(content, [1, 1, 2, 4, 2, 4]) + "\n"
             else:
-                s += "Type: %02x Body: %s\n" % (contentType, content.hex())
+                s += "Body: %s\n" % (content.hex())
         return s
 
 
