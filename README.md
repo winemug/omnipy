@@ -23,17 +23,17 @@ omnipy is a PDM (personal diabetes manager) emulator for the OmniPod insulin pum
 ![rileylink android raspberrypi](https://github.com/winemug/omnipy/raw/master/img/droidrlpi.jpg)
 
 # Important Background Information
-This used to be a pet project, where I investigated the radio communication between the OmniPod and the PDM. Whilst still studying the OmniPod, I have decided that there was enough information available to let it execute basic commands which would make it usable in an artifical pancreas system. I've put together a prototype and integrated it into AndroidAPS for my own use, which became what it is today.
+This used to be a pet project, where I investigated the radio communication between the OmniPod and the PDM. Whilst still studying the OmniPod, I have decided that there was enough information available to let it execute basic commands which would make it usable in an artifical pancreas system. I've put together a prototype and integrated it into AndroidAPS for our own use, which became what it is today.
 
 As a father of a child with Type I diabetes, I desperately needed something until there was a "proper" solution, so this piece of software became indispensible, albeit its design issues and lack of user-friendliness.
 
-You are welcome to test it and report issues, but be aware you are doing this on your **own risk** ~~and so far it has been tested by **only two people**.~~
+You are welcome to test it and report issues, but be aware you are doing this on your **own risk** ~~and so far it has been tested by **only two people**.~~ Initially tested off-body and on non-t1d volunteers, my son has been using this as a closed loop since November 2018. Since then it has evolved from a raspberry pi with a usb stick (rfcat) to raspberry pi with the RileyLink and Android APS and made gradually available for testing to the general public earlier in March 2019. It's now being tested by more and more people and core functionality has so far shown itself to be stable for a looping setup.
 
 # What's next?
 
-This was intended to be a throw-away prototype and I want to keep it that way. The raspberry pi and android are redundant, as both have enough processing power to perform the operations. My focus on Omnipod related development is on the [OmniCore](https://github.com/winemug/OmniCore) project, which will be ready for public testing by mid March 2019.
+This was intended to be a throw-away prototype and I ~~want~~try to keep it that way. The raspberry pi and android are redundant, as both have enough processing power to perform the operations. My focus on Omnipod related development will shift on to the [OmniCore](https://github.com/winemug/OmniCore) project, which will be ready for public testing by ~~mid~~late March 2019.
 
-In the mean time, please do report any issues you find and I will do my best to get it fixed.
+In the mean time, please do report any issues you find so they can be addressed.
 
 # Information on RileyLink "433"
-It seems that the release announcement of [RileyLink433](https://getrileylink.org/product/rileylink433/) got people excited about OmniPod loopability. For clarification: RL 433 is **not** an absolute requirement. If you have the old RileyLink, it will still work (however in a _very_ limited range), but it's strongly suggested to change the antenna. Please see the [requirements](https://github.com/winemug/omnipy/wiki/Requirements) section in the wiki and [Increasing Radio Range](https://github.com/winemug/omnipy/wiki/Increasing-Radio-Range) for what you can further do with your RileyLink.
+It seems that the release announcement of [RileyLink433](https://getrileylink.org/product/rileylink433/) got people excited about OmniPod loopability. For clarification: RL 433 is **not** an absolute requirement. If you have the old RileyLink, it will still work - however in a _very_ limited range. It's strongly suggested to change the antenna, for which purpose RileyLink also provides an antenna upgrade kit. Please see the [requirements](https://github.com/winemug/omnipy/wiki/Requirements) section in the wiki and [Increasing Radio Range](https://github.com/winemug/omnipy/wiki/Increasing-Radio-Range) for what you can further do with your RileyLink.
