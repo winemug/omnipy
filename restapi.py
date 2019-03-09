@@ -55,12 +55,13 @@ def archive_pod():
         logger.exception("Error while archiving existing pod")
 
 
-def respond_ok(result):
-    return json.dumps({"success": True, "result": result}, indent=4, sort_keys=True)
+def create_response(success, result, pod_status=None):
+    if pod_status is not None and pod_status.__class__ != dict:
+        pod_status = pod_status.__dict__
 
-
-def respond_error(msg):
-    return json.dumps({"success": False, "result": {"error": msg}}, indent=4, sort_keys=True)
+    if result is not None and result.__class__ != dict:
+        result = result.__dict__
+    return json.dumps({"success": success, "result": result, "status": pod_status}, indent=4, sort_keys=True)
 
 
 def verify_auth(request_obj):
@@ -127,45 +128,33 @@ def send_content(path):
         logger.exception("Error while serving static file from %s" % path)
 
 
-@app.route(REST_URL_GET_VERSION)
+def _api_result(result_lambda, generic_err_message):
+    try:
+        return create_response(True,
+                               result=result_lambda())
+    except RestApiException as rae:
+        return create_response(False, rae)
+    except Exception as e:
+        logger.exception(generic_err_message)
+        return create_response(False, e)
+
+
 def get_api_version():
-    try:
-        return respond_ok({"version_major": API_VERSION_MAJOR, "version_minor": API_VERSION_MINOR})
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during version request")
-        return respond_error("Other error. Please check log files.")
+    return {"version_major": API_VERSION_MAJOR, "version_minor": API_VERSION_MINOR}
 
 
-@app.route(REST_URL_TOKEN)
 def create_token():
-    try:
-        with open(TOKENS_FILE, "a+b") as tokens:
-            token = bytes(os.urandom(16))
-            tokens.write(token)
-        return respond_ok({"token": base64.b64encode(token)})
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during create token")
-        return respond_error("Other error. Please check log files.")
+    with open(TOKENS_FILE, "a+b") as tokens:
+        token = bytes(os.urandom(16))
+        tokens.write(token)
+    return {"token": base64.b64encode(token)}
 
 
-@app.route(REST_URL_CHECK_PASSWORD)
 def check_password():
-    try:
-        verify_auth(request)
-
-        return respond_ok({})
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during check pwd")
-        return respond_error("Other error. Please check log files.")
+    verify_auth(request)
+    return None
 
 
-@app.route(REST_URL_GET_PDM_ADDRESS)
 def get_pdm_address():
     r = RileyLink()
     try:
@@ -188,48 +177,34 @@ def get_pdm_address():
                     p = Packet.from_data(data[2:-1])
                     break
         if p is None:
-            respond_error("No pdm packet detected")
+            raise RestApiException("No pdm packet detected")
 
-        return respond_ok({"radio_address": p.address})
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error while trying to read radio_address")
-        return respond_error("Other error. Please check log files.")
+        return {"radio_address": p.address}
     finally:
         r.disconnect(ignore_errors=True)
 
 
-@app.route(REST_URL_NEW_POD)
 def new_pod():
-    try:
-        verify_auth(request)
+    verify_auth(request)
 
-        pod = Pod()
+    pod = Pod()
 
-        if request.args.get('id_lot') is not None:
-            pod.id_lot = int(request.args.get('id_lot'))
-        if request.args.get('id_t') is not None:
-            pod.id_t = int(request.args.get('id_t'))
-        if request.args.get('radio_address') is not None:
-            pod.radio_address = int(request.args.get('radio_address'))
+    if request.args.get('id_lot') is not None:
+        pod.id_lot = int(request.args.get('id_lot'))
+    if request.args.get('id_t') is not None:
+        pod.id_t = int(request.args.get('id_t'))
+    if request.args.get('radio_address') is not None:
+        pod.radio_address = int(request.args.get('radio_address'))
 
-        archive_pod()
-        pod.Save(POD_FILE + POD_FILE_SUFFIX)
-        return respond_ok({})
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error while creating new pod")
-        return respond_error("Other error. Please check log files.")
-
+    archive_pod()
+    pod.Save(POD_FILE + POD_FILE_SUFFIX)
+    return None
 
 def _int_parameter(obj, parameter):
     if request.args.get(parameter) is not None:
         obj.__dict__[parameter] = int(request.args.get(parameter))
         return True
     return False
-
 
 def _float_parameter(obj, parameter):
     if request.args.get(parameter) is not None:
@@ -249,214 +224,187 @@ def _bool_parameter(obj, parameter):
     return False
 
 
-@app.route(REST_URL_SET_POD_PARAMETERS)
 def set_pod_parameters():
-    try:
-        verify_auth(request)
+    verify_auth(request)
 
-        pod = get_pod()
-        reset_nonce = False
-        if _int_parameter(pod, "id_lot"):
-            reset_nonce = True
-        if _int_parameter(pod, "id_t"):
-            reset_nonce = True
+    pod = get_pod()
+    reset_nonce = False
+    if _int_parameter(pod, "id_lot"):
+        reset_nonce = True
+    if _int_parameter(pod, "id_t"):
+        reset_nonce = True
 
-        if reset_nonce:
-            pod.nonce_last = None
-            pod.nonce_seed = 0
+    if reset_nonce:
+        pod.nonce_last = None
+        pod.nonce_seed = 0
 
-        if _int_parameter(pod, "radio_address"):
-            pod.radio_packet_sequence = 0
-            pod.radio_message_sequence = 0
+    if _int_parameter(pod, "radio_address"):
+        pod.radio_packet_sequence = 0
+        pod.radio_message_sequence = 0
 
-        _float_parameter(pod, "var_utc_offset")
-        _float_parameter(pod, "var_maximum_bolus")
-        _float_parameter(pod, "var_maximum_temp_basal_rate")
-        _float_parameter(pod, "var_alert_low_reservoir")
-        _int_parameter(pod, "var_alert_replace_pod")
-        _bool_parameter(pod, "var_notify_bolus_start")
-        _bool_parameter(pod, "var_notify_bolus_cancel")
-        _bool_parameter(pod, "var_notify_temp_basal_set")
-        _bool_parameter(pod, "var_notify_temp_basal_cancel")
-        _bool_parameter(pod, "var_notify_basal_schedule_change")
+    _float_parameter(pod, "var_utc_offset")
+    _float_parameter(pod, "var_maximum_bolus")
+    _float_parameter(pod, "var_maximum_temp_basal_rate")
+    _float_parameter(pod, "var_alert_low_reservoir")
+    _int_parameter(pod, "var_alert_replace_pod")
+    _bool_parameter(pod, "var_notify_bolus_start")
+    _bool_parameter(pod, "var_notify_bolus_cancel")
+    _bool_parameter(pod, "var_notify_temp_basal_set")
+    _bool_parameter(pod, "var_notify_temp_basal_cancel")
+    _bool_parameter(pod, "var_notify_basal_schedule_change")
 
-        pod.Save()
-        return respond_ok({})
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during set pod parameters")
-        return respond_error("Other error. Please check log files.")
+    pod.Save()
+    return None
 
+
+def get_rl_info():
+    verify_auth(request)
+    r = RileyLink()
+    return r.get_info()
+
+def get_status():
+    verify_auth(request)
+    t = request.args.get('type')
+    if t is not None:
+        req_type = int(t)
+    else:
+        req_type = 0
+
+    pdm = get_pdm()
+    pdm.updatePodStatus(req_type)
+    return pdm.pod
+
+def deactivate_pod():
+    verify_auth(request)
+    pdm = get_pdm()
+    pdm.deactivate_pod()
+    archive_pod()
+    return pdm.pod
+
+def bolus():
+    verify_auth(request)
+
+    pdm = get_pdm()
+    amount = Decimal(request.args.get('amount'))
+    pdm.bolus(amount)
+    return pdm.pod
+
+def cancel_bolus():
+    verify_auth(request)
+
+    pdm = get_pdm()
+    pdm.cancelBolus()
+    return pdm.pod
+
+def set_temp_basal():
+    verify_auth(request)
+
+    pdm = get_pdm()
+    amount = Decimal(request.args.get('amount'))
+    hours = Decimal(request.args.get('hours'))
+    pdm.setTempBasal(amount, hours, False)
+    return pdm.pod
+
+def cancel_temp_basal():
+    verify_auth(request)
+
+    pdm = get_pdm()
+    pdm.cancelTempBasal()
+    return pdm.pod
+
+def is_pdm_busy():
+    pdm = get_pdm()
+    return {"busy": pdm.is_busy()}
+
+def acknowledge_alerts():
+    verify_auth(request)
+
+    mask = Decimal(request.args.get('alertmask'))
+    pdm = get_pdm()
+    pdm.acknowledge_alerts(mask)
+    return pdm.pod
+
+def shutdown():
+    pdm = get_pdm()
+    if pdm.is_busy():
+        raise RestApiException("cannot shutdown while pdm is busy")
+    else:
+        return None
+
+def restart():
+    pdm = get_pdm()
+    if pdm.is_busy():
+        raise RestApiException("cannot restart while pdm is busy")
+    else:
+        return None
+
+@app.route(REST_URL_GET_VERSION)
+def a00():
+    return _api_result(lambda: get_api_version(), "Failure while getting version")
+
+@app.route(REST_URL_TOKEN)
+def a01():
+    return _api_result(lambda: create_token(), "Failure while creating token")
+
+@app.route(REST_URL_CHECK_PASSWORD)
+def a02():
+    return _api_result(lambda: check_password(), "Failure while verifying password")
+
+@app.route(REST_URL_GET_PDM_ADDRESS)
+def a03():
+    return _api_result(lambda: get_pdm_address(), "Failure while reading address from PDM")
+
+@app.route(REST_URL_NEW_POD)
+def a04():
+    return _api_result(lambda: new_pod(), "Failure while creating a new pod")
+
+@app.route(REST_URL_SET_POD_PARAMETERS)
+def a05():
+    return _api_result(lambda: set_pod_parameters(), "Failure while setting parameters")
 
 @app.route(REST_URL_RL_INFO)
-def get_rl_info():
-    try:
-        verify_auth(request)
-
-        r = RileyLink()
-        info = r.get_info()
-        return respond_ok(info)
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.error("Error during get RL info")
-        return respond_error("Other error. Please check log files.")
-
+def a06():
+    return _api_result(lambda: get_rl_info(), "Failure while getting RL info")
 
 @app.route(REST_URL_STATUS)
-def get_status():
-    try:
-        verify_auth(request)
-
-        t = request.args.get('type')
-        if t is not None:
-            req_type = int(t)
-        else:
-            req_type = 0
-
-        pdm = get_pdm()
-        pdm.updatePodStatus(req_type)
-        return respond_ok(pdm.pod.__dict__)
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during get status")
-        return respond_error("Other error. Please check log files.")
-
+def a07():
+    return _api_result(lambda: get_status(), "Failure while executing getting pod status")
 
 @app.route(REST_URL_ACK_ALERTS)
-def acknowledge_alerts():
-    try:
-        verify_auth(request)
-
-        mask = Decimal(request.args.get('alertmask'))
-        pdm = get_pdm()
-        pdm.acknowledge_alerts(mask)
-        return respond_ok(pdm.pod.__dict__)
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during acknowledging alerts")
-        return respond_error("Other error. Please check log files.")
-
+def a08():
+    return _api_result(lambda: acknowledge_alerts(), "Failure while executing acknowledge alerts")
 
 @app.route(REST_URL_DEACTIVATE_POD)
-def deactivate_pod():
-    try:
-        verify_auth(request)
-        pdm = get_pdm()
-        pdm.deactivate_pod()
-        archive_pod()
-        return respond_ok(pdm.pod.__dict__)
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during deactivation")
-        return respond_error("Other error. Please check log files.")
-
+def a09():
+    return _api_result(lambda: deactivate_pod(), "Failure while executing deactivate pod")
 
 @app.route(REST_URL_BOLUS)
-def bolus():
-    try:
-        verify_auth(request)
-
-        pdm = get_pdm()
-        amount = Decimal(request.args.get('amount'))
-        pdm.bolus(amount)
-        return respond_ok(pdm.pod.__dict__)
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during bolus")
-        return respond_error("Other error. Please check log files.")
-
+def a10():
+    return _api_result(lambda: bolus(), "Failure while executing bolus")
 
 @app.route(REST_URL_CANCEL_BOLUS)
-def cancel_bolus():
-    try:
-        verify_auth(request)
-
-        pdm = get_pdm()
-        pdm.cancelBolus()
-        return respond_ok(pdm.pod.__dict__)
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during cancel bolus")
-        return respond_error("Other error. Please check log files.")
-
+def a11():
+    return _api_result(lambda: cancel_bolus(), "Failure while executing cancel bolus")
 
 @app.route(REST_URL_SET_TEMP_BASAL)
-def set_temp_basal():
-    try:
-        verify_auth(request)
-
-        pdm = get_pdm()
-        amount = Decimal(request.args.get('amount'))
-        hours = Decimal(request.args.get('hours'))
-        pdm.setTempBasal(amount, hours, False)
-        return respond_ok(pdm.pod.__dict__)
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during set temp basal")
-        return respond_error("Other error. Please check log files.")
-
+def a12():
+    return _api_result(lambda: set_temp_basal(), "Failure while executing set temp basal")
 
 @app.route(REST_URL_CANCEL_TEMP_BASAL)
-def cancel_temp_basal():
-    try:
-        verify_auth(request)
-
-        pdm = get_pdm()
-        pdm.cancelTempBasal()
-        return respond_ok(pdm.pod.__dict__)
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during cancel temp basal")
-        return respond_error("Other error. Please check log files.")
-
+def a13():
+    return _api_result(lambda: cancel_temp_basal(), "Failure while executing cancel temp basal")
 
 @app.route(REST_URL_PDM_BUSY)
-def is_pdm_busy():
-    try:
-        pdm = get_pdm()
-        result = pdm.is_busy()
-        return respond_ok({"busy": result})
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during cancel temp basal")
-        return respond_error("Other error. Please check log files.")
-
+def a14():
+    return _api_result(lambda: is_pdm_busy(), "Failure while verifying if pdm is busy")
 
 @app.route(REST_URL_OMNIPY_SHUTDOWN)
-def shutdown():
-    try:
-        pdm = get_pdm()
-        if pdm.is_busy():
-            return respond_error("cannot shutdown while pdm is busy")
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during shutdown")
-        return respond_error("Other error. Please check log files.")
-
+def a15():
+    return _api_result(lambda: shutdown(), "Failure while executing shutdown")
 
 @app.route(REST_URL_OMNIPY_RESTART)
-def restart():
-    try:
-        pdm = get_pdm()
-        if pdm.is_busy():
-            return respond_error("cannot restart while pdm is busy")
-    except RestApiException as rae:
-        return respond_error(str(rae))
-    except Exception:
-        logger.exception("Error during restart")
-        return respond_error("Other error. Please check log files.")
-
+def a16():
+    return _api_result(lambda: restart(), "Failure while executing reboot")
 
 if __name__ == '__main__':
     try:
