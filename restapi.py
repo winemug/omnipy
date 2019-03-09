@@ -55,13 +55,13 @@ def archive_pod():
         logger.exception("Error while archiving existing pod")
 
 
-def create_response(success, result, pod_status=None):
+def create_response(success, response, pod_status=None):
     if pod_status is not None and pod_status.__class__ != dict:
         pod_status = pod_status.__dict__
 
-    if result is not None and result.__class__ != dict:
-        result = result.__dict__
-    return json.dumps({"success": success, "result": result, "status": pod_status}, indent=4, sort_keys=True)
+    if response is not None and response.__class__ != dict:
+        response = response.__dict__
+    return json.dumps({"success": success, "response": response, "status": pod_status}, indent=4, sort_keys=True)
 
 
 def verify_auth(request_obj):
