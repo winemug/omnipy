@@ -52,7 +52,7 @@ class Packet:
                 raise ProtocolError("Packet length too small for type %s" % p.type)
             p.body = data[9:]
             p.address2 = struct.unpack(">I", data[5:9])[0]
-            if p.address2 != 0 and p.address != p.address2:
+            if p.address2 != 0 and p.address != p.address2 and p.address != 0xffffffff:
                 raise ProtocolError("Address mismatch in packet. Addr1: 0x%08X Addr2: 0x%08X"
                                     % (p.address, p.address2))
         elif p.type == "ACK":
@@ -64,9 +64,7 @@ class Packet:
                 p.final_ack = False
             elif p.address2 == 0:
                 p.final_ack = True
-            else:
-                raise ProtocolError("Address mismatch in packet. Addr1: 0x%08X Addr2: 0x%08X"
-                                    % (p.address, p.address2))
+
         elif p.type == "CON":
             if len(data) < 6:
                 raise ProtocolError("Packet length too small for type CON")
