@@ -78,9 +78,21 @@ class Encoding(IntEnum):
     FOURBSIXB = 2
 
 
+PA_LEVELS = [0x12, 0x12,
+             0x0E, 0x0E, 0x0E, 0x0E,
+             0x1D, 0x1D, 0x1D, 0x1D, 0x1D,
+             0x34, 0x34, 0x34, 0x34, 0x34, 0x34,
+             0x2C, 0x2C, 0x2C, 0x2C, 0x2C, 0x2C, 0x2C, 0x2C,
+             0x60, 0x60, 0x60, 0x60, 0x60, 0x60,
+             0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84,
+             0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8,
+             0xC0, 0xC0]
+
+
 class RileyLink:
     def __init__(self, address = None):
         self.peripheral = None
+        self.pa_level_index = 3;
         self.data_handle = None
         self.logger = getLogger()
         if address is None:
@@ -91,6 +103,7 @@ class RileyLink:
         self.service = None
         self.response_handle = None
         self.notify_event = Event()
+        self.initialized = False
 
     def connect(self, force_initialize=False):
         try:
@@ -123,7 +136,10 @@ class RileyLink:
             while self.peripheral.waitForNotifications(0.05):
                 self.peripheral.readCharacteristic(self.data_handle)
 
-            self.init_radio(force_initialize)
+            if self.initialized:
+                self.init_radio(force_initialize)
+            else:
+                self.init_radio(True)
         except BTLEException:
             if self.peripheral is not None:
                 self.disconnect()
@@ -149,7 +165,7 @@ class RileyLink:
                     self.peripheral = None
             except BTLEException as btlee:
                 if ignore_errors:
-                    self.logger.warning("Ignoring btle exception during disconnect: %s" % btlee)
+                    self.logger.exception("Ignoring btle exception during disconnect")
                 else:
                     raise
 
@@ -269,7 +285,7 @@ class RileyLink:
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 35]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.TEST0, 0x09]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x84]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
@@ -278,28 +294,36 @@ class RileyLink:
             if response != b"OK":
                 raise RileyLinkError("Rileylink state is not OK. Response returned: %s" % response)
 
+            self.initialized = True
+
         except RileyLinkError as rle:
             self.logger.error("Error while initializing rileylink radio: %s", rle)
             raise
 
-    #setting 12, 0E, 1D, 34, 2C, 60, 84, C8, C0 (hex)
-    #current 15, 16, 16, 18, 20, 20, 23, 28, 33 (dec)
+    def tx_up(self):
+        if self.pa_level_index < 8:
+            self.pa_level_index += 1
+            self._set_amp()
+
+    def tx_down(self):
+        if self.pa_level_index > 0:
+            self.pa_level_index -= 1
+            self._set_amp()
+
     def set_low_tx(self):
-        self.connect()
-        self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x12]))
+        self._set_amp(0)
 
     def set_normal_tx(self):
-        self.connect()
-        self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x60]))
+        self._set_amp(len(PA_LEVELS)/2)
 
     def set_high_tx(self):
-        self.connect()
-        self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0xC0]))
+        self._set_amp(len(PA_LEVELS))
 
     def get_packet(self, timeout=5.0):
         try:
             self.connect()
-            return self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)), timeout=float(timeout)+0.5)
+            return self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)),
+                                 timeout=float(timeout)+0.5)
         except RileyLinkError as rle:
             self.logger.error("Error while receiving data: %s", rle)
             raise
@@ -333,6 +357,17 @@ class RileyLink:
         except RileyLinkError as rle:
             self.logger.error("Error while sending data: %s", rle)
             raise
+
+    def _set_amp(self, index=None):
+        try:
+            self.connect()
+            if index is not None:
+                self.pa_level_index = index
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
+        except RileyLinkError:
+            self.logger.exception("Error while setting tx amplification")
+            raise
+
 
     def _findRileyLink(self):
         scanner = Scanner()
