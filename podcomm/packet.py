@@ -13,10 +13,12 @@ class Packet:
         self.ack_final = False
 
     @staticmethod
-    def Ack(address, ack_final):
+    def Ack(address, ack_final, address2=None):
         data = struct.pack(">I", address)
         data +=  b"\x40"
-        if ack_final:
+        if address2 is not None:
+            data += struct.pack(">I", address2)
+        elif ack_final:
             data += b"\x00\x00\x00\x00"
         else:
             data += struct.pack(">I", address)

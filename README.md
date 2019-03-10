@@ -1,10 +1,10 @@
-# Project status March 8th
 
-* New features: No more hurting your fingers with clunky PDM buttons! Pod activation and basal schedule settings.
-* [Wiki](https://github.com/winemug/omnipy/wiki) is constantly being updated, many thanks to [@dexdan](https://github.com/dexdan), [@scudrunner](https://github.com/scudrunner), [@Kywalh](https://github.com/Kywalh) and [@badgerpapa](https://github.com/badgerpapa)!
-* Fixed an issue when a BLE connection to RileyLink were to be dropped in the middle of executing a command, it could cause the pod to fail. (It still can, but omnipy will prevent failure if it can reestablish BT connection within the next few minutes)
-* Watch out on this page for release announcement and links. Join us in the [slack space](https://join.slack.com/t/omnicore-pdm/) for questions, updates and support via this [invite link](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY).
 
+* Android APS integration is still in internal testing, UI features not related to looping in development. [Project link](https://github.com/winemug/AndroidAPS/projects/1)
+
+* Join us in the slack space for questions, updates and support. [Invite link](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY)
+
+* [Setup](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) documentation for omnipy
 # Wiki Links
 
 [Setup](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) documentation for omnipy
@@ -16,6 +16,7 @@
 [F.A.Q.](https://github.com/winemug/omnipy/wiki/Frequently-Asked-Questions)
 
 [Support](https://github.com/winemug/omnipy/wiki/Support)
+
 
 # About
 omnipy is a PDM (personal diabetes manager) emulator for the OmniPod insulin pump and it can be used to command the pump to perform various functions over a Raspberry Pi on a local network. It exposes a basic HTTP API to be utilized by APS systems, and currently integrates with Android APS via a [custom fork](https://github.com/winemug/omnipy/wiki/AndroidAPS-Setup) of Android APS v2.x
