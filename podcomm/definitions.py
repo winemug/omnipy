@@ -1,10 +1,13 @@
 from enum import IntEnum
+import os
 import logging
+from logging.handlers import MemoryHandler
 
-RILEYLINK_MAC_FILE = "data/rladdr"
-RILEYLINK_VERSION_FILE = "data/rlversion"
-PDM_LOCK_FILE = "data/.pdmlock"
-TOKENS_FILE = "data/tokens"
+TMPFS_ROOT = "/run/user/" + str(os.getuid())
+RILEYLINK_MAC_FILE = TMPFS_ROOT + "/omnipy/rladdr"
+RILEYLINK_VERSION_FILE = TMPFS_ROOT + "/omnipy/rlversion"
+PDM_LOCK_FILE = TMPFS_ROOT + "/omnipy/pdmlock"
+TOKENS_FILE = TMPFS_ROOT + "/omnipy/tokens"
 KEY_FILE = "data/key"
 RESPONSE_FILE = "data/response"
 POD_FILE = "data/pod"
@@ -16,7 +19,7 @@ OMNIPY_LOGFILE = "data/omnipy.log"
 API_VERSION_MAJOR = 1
 API_VERSION_MINOR = 1
 
-REST_URL_GET_VERSION = "/omnipy/version"
+REST_URL_PING = "/omnipy/ping"
 REST_URL_OMNIPY_SHUTDOWN = "/omnipy/shutdown"
 REST_URL_OMNIPY_RESTART = "/omnipy/restart"
 
@@ -48,18 +51,26 @@ def getLogger():
         logger = logging.getLogger(OMNIPY_LOGGER)
         logger.setLevel(logging.DEBUG)
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
         fh = logging.FileHandler(OMNIPY_LOGFILE)
-        ch = logging.StreamHandler()
         fh.setLevel(logging.DEBUG)
-        ch.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
+
+        mh = MemoryHandler(capacity=256*1024, target=fh)
+        logger.addHandler(mh)
+
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.DEBUG)
         ch.setFormatter(formatter)
-        logger.addHandler(fh)
         logger.addHandler(ch)
+
     return logger
 
 
 def configureLogging():
+    pass
+
+class RequestType(IntEnum):
     pass
 
 class BolusState(IntEnum):
