@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import base64
+from uuid import getnode as get_mac
 import os
 from decimal import *
 
@@ -7,6 +8,7 @@ from Crypto.Cipher import AES
 import simplejson as json
 from flask import Flask, request, send_from_directory
 from datetime import datetime
+import time
 from podcomm.crc import crc8
 from podcomm.packet import Packet
 from podcomm.pdm import Pdm
@@ -14,6 +16,11 @@ from podcomm.pod import Pod
 from podcomm.rileylink import RileyLink
 from podcomm.definitions import *
 
+
+g_key = None
+g_pod = None
+g_pdm = None
+g_deny = False
 
 app = Flask(__name__, static_url_path="/")
 configureLogging()
@@ -29,23 +36,33 @@ class RestApiException(Exception):
 
 
 def get_pod() -> Pod:
+    global g_pod
     try:
-        return Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
+        if g_pod is None:
+            g_pod = Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
+        return g_pod
     except:
         logger.exception("Error while loading pod")
         return None
 
 
 def get_pdm() -> Pdm:
+    global g_pdm
     try:
-        return Pdm(get_pod())
+        if g_pdm is None:
+            g_pdm = Pdm(get_pod())
+        return g_pdm
     except:
         logger.exception("Error while creating pdm instance")
         return None
 
 
 def archive_pod():
+    global g_pod
+    global g_pdm
     try:
+        g_pod = None
+        g_pdm = None
         archive_suffix = datetime.utcnow().strftime("_%Y%m%d_%H%M%S")
         if os.path.isfile(POD_FILE + POD_FILE_SUFFIX):
             os.rename(POD_FILE + POD_FILE_SUFFIX, POD_FILE + archive_suffix + POD_FILE_SUFFIX)
@@ -55,17 +72,58 @@ def archive_pod():
         logger.exception("Error while archiving existing pod")
 
 
+def get_next_pod_address():
+    try:
+        if os.path.isfile(LAST_ACTIVATED_FILE):
+            with open(LAST_ACTIVATED_FILE, "rb") as lastfile:
+                ab = lastfile.read(4)
+                addr = (ab[0] << 24) | (ab[1] << 16) | (ab[2] << 8) | ab[3]
+                blast = (addr & 0x0000000f) + 1
+                addr = (addr & 0xfffffff0) | (blast & 0x0000000f)
+        else:
+            mac = get_mac()
+            b0 = (mac >> 20) & 0xff
+            b1 = (mac >> 12) & 0xff
+            b2 = (mac >> 4) & 0xff
+            b3 = (mac << 4) & 0xf0
+            addr = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
+
+        return addr
+    except:
+        logger.exception("Error while getting next radio address")
+
+
+def save_activated_pod_address(addr):
+    try:
+        with open(LAST_ACTIVATED_FILE, "w+b") as lastfile:
+            b0 = (addr >> 24) & 0xff
+            b1 = (addr >> 16) & 0xff
+            b2 = (addr >> 8) & 0xff
+            b3 = addr & 0xf0
+            lastfile.write(bytes([b0, b1, b2, b3]))
+    except:
+        logger.exception("Error while storing activated radio address")
+
 def create_response(success, response, pod_status=None):
     if pod_status is not None and pod_status.__class__ != dict:
         pod_status = pod_status.__dict__
 
     if response is not None and response.__class__ != dict:
         response = response.__dict__
-    return json.dumps({"success": success, "response": response, "status": pod_status}, indent=4, sort_keys=True)
+    return json.dumps({"success": success,
+                       "response": response,
+                       "status": pod_status,
+                       "datetime": time.time(),
+                       "api": {"version_major": API_VERSION_MAJOR, "version_minor": API_VERSION_MINOR}
+                       }, indent=4, sort_keys=True)
 
 
 def verify_auth(request_obj):
+    global g_deny
     try:
+        if g_deny:
+            raise RestApiException("Pdm is shutting down")
+
         i = request_obj.args.get("i")
         a = request_obj.args.get("auth")
         if i is None or a is None:
@@ -74,10 +132,7 @@ def verify_auth(request_obj):
         iv = base64.b64decode(i)
         auth = base64.b64decode(a)
 
-        with open(KEY_FILE, "rb") as keyfile:
-            key = keyfile.read(32)
-
-        cipher = AES.new(key, AES.MODE_CBC, iv)
+        cipher = AES.new(g_key, AES.MODE_CBC, iv)
         token = cipher.decrypt(auth)
 
         with open(TOKENS_FILE, "a+b") as tokens:
@@ -131,7 +186,7 @@ def send_content(path):
 def _api_result(result_lambda, generic_err_message):
     try:
         return create_response(True,
-                               result=result_lambda())
+                               response=result_lambda())
     except RestApiException as rae:
         return create_response(False, rae)
     except Exception as e:
@@ -139,8 +194,8 @@ def _api_result(result_lambda, generic_err_message):
         return create_response(False, e)
 
 
-def get_api_version():
-    return {"version_major": API_VERSION_MAJOR, "version_minor": API_VERSION_MINOR}
+def ping():
+    return {"pong": None}
 
 
 def create_token():
@@ -198,7 +253,27 @@ def new_pod():
 
     archive_pod()
     pod.Save(POD_FILE + POD_FILE_SUFFIX)
-    return None
+    return pod
+
+def activate_pod():
+    verify_auth(request)
+
+    pod = Pod()
+    archive_pod()
+    pod.radio_address_candidate = get_next_pod_address()
+    pod.Save(POD_FILE + POD_FILE_SUFFIX)
+
+    pdm = get_pdm()
+    pdm.activate_pod()
+    save_activated_pod_address(pod.radio_address)
+    return pod
+
+def start_pod():
+    verify_auth(request)
+
+    pdm = get_pdm()
+    pdm.inject_and_start()
+    return pdm.pod
 
 def _int_parameter(obj, parameter):
     if request.args.get(parameter) is not None:
@@ -325,22 +400,32 @@ def acknowledge_alerts():
     return pdm.pod
 
 def shutdown():
+    global g_deny
+    verify_auth(request)
+
+    g_deny = True
+
     pdm = get_pdm()
-    if pdm.is_busy():
-        raise RestApiException("cannot shutdown while pdm is busy")
-    else:
-        return None
+    while pdm.is_busy():
+        time.sleep(1)
+    os.system("sudo shutdown -h -t 7s")
+    return {"shutdown": time.time()}
 
 def restart():
-    pdm = get_pdm()
-    if pdm.is_busy():
-        raise RestApiException("cannot restart while pdm is busy")
-    else:
-        return None
+    global g_deny
+    verify_auth(request)
 
-@app.route(REST_URL_GET_VERSION)
+    g_deny = True
+
+    pdm = get_pdm()
+    while pdm.is_busy():
+        time.sleep(1)
+    os.system("sudo shutdown -r -t 7s")
+    return {"shutdown": time.time()}
+
+@app.route(REST_URL_PING)
 def a00():
-    return _api_result(lambda: get_api_version(), "Failure while getting version")
+    return _api_result(lambda: ping(), "Failure while getting version")
 
 @app.route(REST_URL_TOKEN)
 def a01():
@@ -406,15 +491,30 @@ def a15():
 def a16():
     return _api_result(lambda: restart(), "Failure while executing reboot")
 
+@app.route(REST_URL_ACTIVATE_POD)
+def a04():
+    return _api_result(lambda: new_pod(), "Failure while activating a new pod")
+
+@app.route(REST_URL_START_POD)
+def a04():
+    return _api_result(lambda: new_pod(), "Failure while starting a newly activated pod")
+
+
 if __name__ == '__main__':
     try:
         logger.info("Rest api is starting")
+        if not os.path.isdir(TMPFS_ROOT):
+            os.mkdir(TMPFS_ROOT)
         if os.path.isfile(TOKENS_FILE):
             logger.debug("removing tokens from previous session")
             os.remove(TOKENS_FILE)
         if os.path.isfile(RESPONSE_FILE):
             logger.debug("removing response queue from previous session")
             os.remove(RESPONSE_FILE)
+
+        with open(KEY_FILE, "rb") as keyfile:
+            g_key = keyfile.read(32)
+
     except IOError as ioe:
         logger.warning("Error while removing stale files: %s", exc_info=ioe)
 
