@@ -18,9 +18,6 @@ class Pdm:
         self.radio = None
         self.logger = getLogger()
 
-    def set_pod(self, pod):
-        self.pod = pod
-
     def get_nonce(self):
         if self.nonce is None and self.pod is not None and \
                  self.pod.id_lot is not None and self.pod.id_t is not None:
@@ -45,6 +42,57 @@ class Pdm:
             self.radio = Radio(msg_sequence=ms, pkt_sequence=ps)
 
         return self.radio
+
+    @staticmethod
+    def customMessage(message_parts, with_nonce=False, lot=None, tid=None,
+                      addr=0xFFFFFFFF, addr2=None, nonce_seek=None, nonce_seed=None,
+                      radio_message_sequence=0, radio_packet_sequence=0, low_tx=False,
+                      high_tx=False, unknown_bits=0, radio=None, stay_connected=False):
+        if radio is None:
+            radio = Radio(radio_message_sequence, radio_packet_sequence, debug_mode=True)
+        message = Message(MessageType.PDM, addr, sequence=radio_message_sequence)
+        for command, body in message_parts:
+            message.addCommand(command, body)
+
+        message.unknownBits = unknown_bits
+        nonce_obj = None
+        if with_nonce:
+            nonce_obj = Nonce(lot, tid, seekNonce=nonce_seek, seed=nonce_seed)
+            nonce = nonce_obj.getNext()
+            message.setNonce(nonce)
+        try:
+            response_message = radio.send_request_get_response(message, address2=addr2, low_tx=low_tx, high_tx=high_tx,
+                                                               stay_connected=stay_connected)
+
+            contents = response_message.getContents()
+            for (ctype, content) in contents:
+                if ctype == 0x06 and content[0] == 0x14:
+                    getLogger().debug("Bad nonce error - renegotiating")
+                    nonce_sync_word = struct.unpack(">H", content[1:])[0]
+                    nonce_obj.sync(nonce_sync_word, message.sequence)
+                    radio.messageSequence = message.sequence
+                    return Pdm.customMessage(message_parts, with_nonce=with_nonce, lot=lot, tid=tid,
+                                addr=addr, addr2=addr2, nonce_seek=nonce_seek, nonce_seed=nonce_seed,
+                                radio_message_sequence=message.sequence, radio_packet_sequence=radio_packet_sequence,
+                                             low_tx=low_tx, high_tx=high_tx, stay_connected=stay_connected)
+
+            return response_message
+        except TransmissionOutOfSyncError:
+            radio.disconnect()
+            parts = []
+            parts.append((0x0e, bytes([0x00])))
+            Pdm.customMessage(parts, with_nonce=False, lot=lot, tid=tid,
+                                     addr=addr, addr2=addr2, nonce_seek=nonce_seek, nonce_seed=nonce_seed,
+                                     radio_message_sequence=message.sequence,
+                                     radio_packet_sequence=radio_packet_sequence,
+                                     low_tx=low_tx, high_tx=high_tx)
+        except:
+            getLogger().exception("Error while custom message")
+            raise
+        finally:
+            if not stay_connected:
+                radio.disconnect()
+
 
     def updatePodStatus(self, update_type=0):
         try:
@@ -331,11 +379,10 @@ class Pdm:
                 radio.messageSequence = 0
                 self.pod.radio_address = 0xffffffff
 
-                address_candidate = 0x66000000
-                address_candidate_bytes = struct.pack(">I", address_candidate)
+                address_candidate_bytes = struct.pack(">I", self.pod.radio_address_candidate)
                 msg = self._createMessage(0x07, address_candidate_bytes)
-                self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % address_candidate,
-                                  stay_connected=True, low_tx=True, resync_allowed=False, address2=address_candidate)
+                self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % self.pod.radio_address_candidate,
+                                  stay_connected=True, low_tx=True, resync_allowed=True, address2=self.pod.radio_address_candidate)
 
                 self._assert_pod_can_activate()
 
@@ -359,7 +406,8 @@ class Pdm:
 
                 msg = self._createMessage(0x03, command_body)
                 self._sendMessage(msg, with_nonce=False, request_msg="PAIR POD",
-                                  stay_connected=True, low_tx=True, resync_allowed=False, address2=address_candidate)
+                                  stay_connected=True, low_tx=True, resync_allowed=False,
+                                  address2=self.pod.radio_address_candidate)
 
                 self._assert_pod_paired()
                 self.pod.nonce_seed = 0
@@ -422,6 +470,28 @@ class Pdm:
             with pdmlock():
                 if self.pod.state_progress != PodProgress.ReadyForInjection:
                     raise PdmError("Pod is not at the injection stage")
+
+                self._assert_basal_schedule_is_valid(self.pod.var_basal_schedule)
+
+                self._set_basal_schedule(self.pod.var_basal_schedule, stay_connected=True)
+
+                if self.pod.state_progress != PodProgress.BasalScheduleSet:
+                    raise PdmError("Pod did not acknowledge basal schedule")
+
+                self._immediate_bolus(10, stay_connected=True, pulse_speed=8, delivery_delay=1,
+                                      request_msg="INSERT CANNULA")
+
+                if self.pod.state_progress != PodProgress.Inserting:
+                    raise PdmError("Pod did not acknowledge cannula insertion start")
+
+                time.sleep(10)
+
+                while self.pod.state_progress == PodProgress.Inserting:
+                    time.sleep(5)
+                    self._update_status(stay_connected=True)
+
+                if self.pod.state_progress != PodProgress.Running:
+                    raise PdmError("Pod did not get to running state")
 
         except OmnipyError:
             raise
@@ -630,7 +700,7 @@ class Pdm:
         self._sendMessage(msg, with_nonce=True, stay_connected=stay_connected,
                           request_msg="ACTIVATE ALERT %d: %s" %(alert_bit, activate))
 
-    def _set_basal_schedule(self, schedule):
+    def _set_basal_schedule(self, schedule, stay_connected=False):
 
         halved_schedule = []
         two = Decimal("2")
@@ -669,22 +739,17 @@ class Pdm:
         seconds_past_hh8 = seconds_past_hh * 8
 
         if current_hh_pulse_count == 0:
-            partial_pulse_count = 0
+            remaining_pulse_count = 0
             body_checksum += struct.pack(">H", (1800 * 8) - seconds_past_hh8)
             body_checksum += struct.pack(">H", 0)
         else:
             current_hh_interval_8 = int(1800 * 8 / current_hh_pulse_count)
             past_pulse_count = int(seconds_past_hh8 / current_hh_interval_8)
-            partial_pulse_count = current_hh_pulse_count - past_pulse_count
-            current_interval_remaining8 = current_hh_interval_8 - (seconds_past_hh8 % current_hh_interval_8) - 1
+            remaining_pulse_count = current_hh_pulse_count - past_pulse_count
 
-            body_checksum += struct.pack(">H", current_interval_remaining8)
-            body_checksum += struct.pack(">H", 1)
-
-            remaining_regular_pulses = current_hh_pulse_count - past_pulse_count - 1
-            if remaining_regular_pulses > 0:
+            if remaining_pulse_count > 0:
                 body_checksum += struct.pack(">H", current_hh_interval_8)
-                body_checksum += struct.pack(">H", remaining_regular_pulses)
+                body_checksum += struct.pack(">H", remaining_pulse_count)
 
         checksum = getChecksum(body_checksum + pulse_body)
 
@@ -704,7 +769,7 @@ class Pdm:
         command_body += b"\x00"
         pulse_entries = getPulseIntervalEntries(halved_schedule)
 
-        command_body += struct.pack(">H", partial_pulse_count * 10)
+        command_body += struct.pack(">H", remaining_pulse_count * 10)
         command_body += struct.pack(">I", (1800 - seconds_past_hh) * 1000 * 1000)
 
         for pulse_count, interval in pulse_entries:
@@ -717,7 +782,8 @@ class Pdm:
         for entry in schedule:
             schedule_str += "%2.2f " % entry
 
-        self._sendMessage(msg, with_nonce=True, request_msg="SETBASALSCHEDULE (%s)" % schedule_str)
+        self._sendMessage(msg, with_nonce=True, request_msg="SETBASALSCHEDULE (%s)" % schedule_str,
+                          stay_connected=stay_connected)
 
     def _is_bolus_running(self):
         if self.pod.state_last_updated is not None and self.pod.state_bolus != BolusState.Immediate:
