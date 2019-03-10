@@ -383,7 +383,7 @@ def cancel_temp_basal():
 def is_pdm_busy():
     try:
         pdm = get_pdm()
-        result = pdm.is_busy()
+        result = pdm.is_busy();
         return respond_ok({"busy": result})
     except RestApiException as rae:
         return respond_error(str(rae))
