@@ -11,10 +11,22 @@ read -p "Press Enter to continue..."
 echo
 echo ${bold}Step 1/11: ${normal}Updating package repositories
 sudo apt update
+if [[ $? > 0 ]]
+then
+    echo "Warning: updating package repositories failed on first attempt - retrying"
+    sudo apt update || echo "Error: updating package repositories failed on second attempt - aborting" && exit
+    echo "Retry successful - updating package repositories suceeded on second attempt"
+fi
 
 echo
 echo ${bold}Step 2/11: ${normal}Upgrading existing packages
 sudo apt upgrade -y
+if [[ $? > 0 ]]
+then
+    echo "Warning: updating existing packages failed on first attempt - retrying"
+    sudo apt upgrade -y || echo "Error: updating existing packages failed on second attempt - aborting" && exit
+    echo "Retry successful - updating existing packages suceeded on second attempt"
+fi
 
 sudo systemctl stop omnipy-pan.service > /dev/null 2>&1
 sudo systemctl stop omnipy.service > /dev/null 2>&1
@@ -41,11 +53,11 @@ chmod 755 /home/pi/omnipy/omni.py
 
 echo
 echo ${bold}Step 4/11: ${normal}Installing dependencies
-sudo apt install -y bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim
-sudo pip3 install simplejson
-sudo pip3 install Flask
-sudo pip3 install cryptography
-sudo pip3 install requests
+sudo apt install -y bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim || echo "Error: installing dependencies failed - aborting" && exit
+sudo pip3 install simplejson || echo "Error: installing dependencies failed - aborting" && exit
+sudo pip3 install Flask || echo "Error: installing dependencies failed - aborting" && exit
+sudo pip3 install cryptography || echo "Error: installing dependencies failed - aborting" && exit
+sudo pip3 install requests || echo "Error: installing dependencies failed - aborting" && exit
 
 echo
 echo ${bold}Step 5/11: ${normal}Configuring and installing bluepy
@@ -69,7 +81,7 @@ sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} 
 echo
 echo ${bold}Step 7/11: ${normal}Safe shutdown
 echo
-read -p "Are you using/planning to use a LipoShim to safely power down the pi if you get a low battery? Press y if so to install the relevant service, or n if you are using a USB power pack (y/n) " -r
+read -p "Are you using/planning a LipoShim to safely power down the pi if you get a low battery? Press y if so to install the relevant service, or n if you are using a USB power pack (y/n) " -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
