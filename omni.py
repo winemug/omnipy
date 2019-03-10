@@ -20,7 +20,7 @@ def get_auth_params():
 
     r = requests.get(ROOT_URL + REST_URL_TOKEN, timeout=20)
     j = json.loads(r.text)
-    token = base64.b64decode(j["result"]["token"])
+    token = base64.b64decode(j["response"]["token"])
 
     i = os.urandom(16)
     cipher = AES.new(key, AES.MODE_CBC, i)
@@ -74,6 +74,14 @@ def deactivate(args, pa):
     call_api(args.url, REST_URL_DEACTIVATE_POD, pa)
 
 
+def shutdown(args, pa):
+    call_api(args.url, REST_URL_OMNIPY_SHUTDOWN, pa)
+
+
+def restart(args, pa):
+    call_api(args.url, REST_URL_OMNIPY_RESTART, pa)
+
+
 def main():
     parser = argparse.ArgumentParser(description="Send a command to omnipy API")
     parser.add_argument("-u", "--url", type=str, default="http://127.0.0.1:4444", required=False)
@@ -109,6 +117,12 @@ def main():
 
     subparser = subparsers.add_parser("deactivate", help="deactivate -h")
     subparser.set_defaults(func=deactivate)
+
+    subparser = subparsers.add_parser("shutdown", help="shutdown -h")
+    subparser.set_defaults(func=shutdown)
+
+    subparser = subparsers.add_parser("restart", help="restart -h")
+    subparser.set_defaults(func=restart)
 
     args = parser.parse_args()
     pa = get_auth_params()
