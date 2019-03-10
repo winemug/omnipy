@@ -9,11 +9,11 @@ echo
 read -p "Press Enter to continue..."
 
 echo
-echo ${bold}Step 1/10: ${normal}Updating package repositories
+echo ${bold}Step 1/11: ${normal}Updating package repositories
 sudo apt update
 
 echo
-echo ${bold}Step 2/10: ${normal}Upgrading existing packages
+echo ${bold}Step 2/11: ${normal}Upgrading existing packages
 sudo apt upgrade -y
 
 sudo systemctl stop omnipy-pan.service > /dev/null 2>&1
@@ -23,13 +23,13 @@ sudo systemctl stop omnipy-beacon.service > /dev/null 2>&1
 if [[ ! -d /home/pi/omnipy ]]
 then
 echo
-echo ${bold}Step 3/10: ${normal}Downloading and installing omnipy
+echo ${bold}Step 3/11: ${normal}Downloading and installing omnipy
 cd /home/pi
 git clone https://github.com/winemug/omnipy.git
 cd /home/pi/omnipy
 else
 echo
-echo ${bold}Step 3/10: ${normal}Updating omnipy
+echo ${bold}Step 3/11: ${normal}Updating omnipy
 cd /home/pi/omnipy
 git config --global user.email "omnipy@balya.net"
 git config --global user.name "Omnipy Setup"
@@ -40,7 +40,7 @@ mkdir /home/pi/omnipy/data > /dev/null 2>&1
 chmod 755 /home/pi/omnipy/omni.py
 
 echo
-echo ${bold}Step 4/10: ${normal}Installing dependencies
+echo ${bold}Step 4/11: ${normal}Installing dependencies
 sudo apt install -y bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim
 sudo pip3 install simplejson
 sudo pip3 install Flask
@@ -48,7 +48,7 @@ sudo pip3 install cryptography
 sudo pip3 install requests
 
 echo
-echo ${bold}Step 5/10: ${normal}Configuring and installing bluepy
+echo ${bold}Step 5/11: ${normal}Configuring and installing bluepy
 cd /home/pi
 git clone https://github.com/IanHarvey/bluepy.git
 cd bluepy
@@ -57,7 +57,7 @@ sudo python3 ./setup.py install
 cd /home/pi/omnipy
 
 echo
-echo ${bold}Step 6/10: ${normal}Enabling bluetooth management for users
+echo ${bold}Step 6/11: ${normal}Enabling bluetooth management for users
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hciconfig`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which btmgmt`
@@ -67,11 +67,21 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
 sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
 echo
-echo ${bold}Step 7/10: ${normal}Omnipy HTTP API Password configuration
+echo ${bold}Step 7/11: ${normal}Safe shutdown
+echo
+read -p "Are you using/planning to use a LipoShim to safely power down the pi if you get a low battery? Press y if so to install the relevant service, or n if you are using a USB power pack (y/n) " -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    curl https://github.com/dexdan/clean-shutdown/raw/master/zerolipo_omnipy | bash
+fi
+
+echo
+echo ${bold}Step 8/11: ${normal}Omnipy HTTP API Password configuration
 /usr/bin/python3 /home/pi/omnipy/set_api_password.py
 
 echo
-echo ${bold}Step 8/10: ${normal}RileyLink test
+echo ${bold}Step 9/11: ${normal}RileyLink test
 echo
 echo This step will test if your RileyLink device is connectable and has the
 echo correct firmware version installed.
@@ -83,7 +93,7 @@ then
     /usr/bin/python3 /home/pi/omnipy/verify_rl.py
 fi
 
-echo ${bold}Step 9/10: ${normal}Setting up bluetooth personal area network
+echo ${bold}Step 10/11: ${normal}Setting up bluetooth personal area network
 echo
 read -p "Do you want to set up a bluetooth personal area network? (y/n) " -r
 if [[ $REPLY =~ ^[Yy]$ ]]
@@ -149,7 +159,7 @@ then
 fi
 
 echo
-echo ${bold}Step 10/10: ${normal}Creating and starting omnipy services
+echo ${bold}Step 11/11: ${normal}Creating and starting omnipy services
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
 sudo chown -R pi.pi /home/pi/bluepy
