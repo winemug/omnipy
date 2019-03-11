@@ -492,11 +492,11 @@ def a16():
     return _api_result(lambda: restart(), "Failure while executing reboot")
 
 @app.route(REST_URL_ACTIVATE_POD)
-def a04():
+def a17():
     return _api_result(lambda: new_pod(), "Failure while activating a new pod")
 
 @app.route(REST_URL_START_POD)
-def a04():
+def a18():
     return _api_result(lambda: new_pod(), "Failure while starting a newly activated pod")
 
 
