@@ -1,4 +1,6 @@
 #!/usr/bin/python3
+from threading import Thread
+import signal
 import base64
 from uuid import getnode as get_mac
 import os
@@ -499,6 +501,23 @@ def a17():
 def a18():
     return _api_result(lambda: new_pod(), "Failure while starting a newly activated pod")
 
+def run_flask():
+    try:
+        app.run(host='0.0.0.0', port=4444, debug=True, use_reloader=False)
+    except:
+        logger.exception("Error while running rest api, exiting")
+
+def exit_with_grace():
+    try:
+        global g_deny
+        g_deny = True
+        pdm = get_pdm()
+        while pdm.is_busy():
+            time.sleep(1)
+    except:
+        logger.exception("error during graceful shutdown")
+
+    exit(0)
 
 if __name__ == '__main__':
     try:
@@ -518,14 +537,22 @@ if __name__ == '__main__':
     except IOError as ioe:
         logger.warning("Error while removing stale files: %s", exc_info=ioe)
 
-    try:
-        os.system("sudo systemctl restart systemd-timesyncd")
-        os.system("sudo systemctl daemon-reload")
-    except:
-        logger.exception("Error while reloading timesync daemon")
+    # try:
+    #     os.system("sudo systemctl restart systemd-timesyncd")
+    #     os.system("sudo systemctl daemon-reload")
+    # except:
+    #     logger.exception("Error while reloading timesync daemon")
+
+    signal.signal(signal.SIGTERM, exit_with_grace)
+
+    t = Thread(target=run_flask)
+    t.setDaemon(True)
+    t.start()
 
     try:
-        app.run(host='0.0.0.0', port=4444)
-    except:
-        logger.exception("Error while running rest api, exiting")
-        raise
+        while True:
+            time.sleep(1)
+
+    except KeyboardInterrupt:
+        exit_with_grace()
+

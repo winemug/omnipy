@@ -93,7 +93,6 @@ class Pdm:
             if not stay_connected:
                 radio.disconnect()
 
-
     def updatePodStatus(self, update_type=0):
         try:
             self._assert_pod_address_assigned()
@@ -101,7 +100,7 @@ class Pdm:
                     self.pod.state_last_updated is not None and \
                     time.time() - self.pod.state_last_updated < 60:
                 return
-            with pdmlock():
+            with PdmLock():
                 self.logger.debug("updating pod status")
                 self._update_status(update_type, stay_connected=False)
 
@@ -117,7 +116,7 @@ class Pdm:
         try:
             self._assert_can_acknowledge_alerts()
 
-            with pdmlock():
+            with PdmLock():
                 self.logger.debug("acknowledging alerts with bitmask %d" % alert_mask)
                 self._acknowledge_alerts(alert_mask)
 
@@ -131,7 +130,7 @@ class Pdm:
 
     def is_busy(self):
         try:
-            with pdmlock():
+            with PdmLock():
                 return self._is_bolus_running()
         except PdmBusyError:
             return True
@@ -144,7 +143,7 @@ class Pdm:
 
     def bolus(self, bolus_amount):
         try:
-            with pdmlock():
+            with PdmLock():
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
@@ -188,7 +187,7 @@ class Pdm:
 
     def cancelBolus(self, beep=False):
         try:
-            with pdmlock():
+            with PdmLock():
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_not_faulted()
@@ -215,7 +214,7 @@ class Pdm:
 
     def cancelTempBasal(self, beep=False):
         try:
-            with pdmlock():
+            with PdmLock():
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
@@ -244,7 +243,7 @@ class Pdm:
 
     def setTempBasal(self, basalRate, hours, confidenceReminder=False):
         try:
-            with pdmlock():
+            with PdmLock():
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
@@ -325,7 +324,7 @@ class Pdm:
 
     def set_basal_schedule(self, schedule):
         try:
-            with pdmlock():
+            with PdmLock():
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
@@ -354,7 +353,7 @@ class Pdm:
 
     def deactivate_pod(self):
         try:
-            with pdmlock():
+            with PdmLock():
                 msg = self._createMessage(0x1c, bytes([0, 0, 0, 0]))
                 self._sendMessage(msg, with_nonce=True, request_msg="DEACTIVATE POD")
 
@@ -368,7 +367,7 @@ class Pdm:
 
     def activate_pod(self):
         try:
-            with pdmlock():
+            with PdmLock():
 
                 self._assert_pod_activate_can_start()
 
@@ -467,7 +466,7 @@ class Pdm:
 
     def inject_and_start(self):
         try:
-            with pdmlock():
+            with PdmLock():
                 if self.pod.state_progress != PodProgress.ReadyForInjection:
                     raise PdmError("Pod is not at the injection stage")
 

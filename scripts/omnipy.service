@@ -7,7 +7,8 @@ ExecStart=/usr/bin/python3 -u /home/pi/omnipy/restapi.py
 WorkingDirectory=/home/pi/omnipy
 StandardOutput=inherit
 StandardError=inherit
-Restart=always
+TimeoutStopSec=90
+Restart=on-abort
 User=pi
 
 [Install]

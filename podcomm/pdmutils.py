@@ -2,13 +2,25 @@ from decimal import *
 from .exceptions import PdmError, PdmBusyError
 from .definitions import *
 import struct
+import fcntl
 
+class PdmLock():
+    def __init__(self):
+        self.fd = None
 
-def pdmlock():
-    try:
-        return open(PDM_LOCK_FILE, "w")
-    except IOError as ioe:
-        raise PdmBusyError from ioe
+    def __enter__(self):
+        try:
+            self.fd = open(PDM_LOCK_FILE, "w")
+            fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except IOError as ioe:
+            self.fd = None
+            raise PdmBusyError from ioe
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        try:
+            fcntl.flock(self.fd, fcntl.LOCK_UN)
+        except IOError as ioe:
+            raise
 
 def getPulsesForHalfHours(halfHourUnits):
     halfHourlyDeliverySubtotals = []
