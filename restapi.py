@@ -188,7 +188,7 @@ def send_content(path):
 def _api_result(result_lambda, generic_err_message):
     try:
         return create_response(True,
-                               response=result_lambda())
+                               response=result_lambda(), pod_status=get_pod())
     except RestApiException as rae:
         return create_response(False, rae)
     except Exception as e:
