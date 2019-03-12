@@ -3,11 +3,11 @@ import os
 import logging
 from logging.handlers import MemoryHandler
 
-TMPFS_ROOT = "/run/user/" + str(os.getuid())
-RILEYLINK_MAC_FILE = TMPFS_ROOT + "/omnipy/rladdr"
-RILEYLINK_VERSION_FILE = TMPFS_ROOT + "/omnipy/rlversion"
-PDM_LOCK_FILE = TMPFS_ROOT + "/omnipy/pdmlock"
-TOKENS_FILE = TMPFS_ROOT + "/omnipy/tokens"
+TMPFS_ROOT = "/run/user/" + str(os.getuid()) + "/omnipy"
+RILEYLINK_MAC_FILE = TMPFS_ROOT + "/rladdr"
+RILEYLINK_VERSION_FILE = TMPFS_ROOT + "/rlversion"
+PDM_LOCK_FILE = TMPFS_ROOT + "/pdmlock"
+TOKENS_FILE = TMPFS_ROOT + "/tokens"
 KEY_FILE = "data/key"
 RESPONSE_FILE = "data/response"
 LAST_ACTIVATED_FILE = "data/lastactivated"
