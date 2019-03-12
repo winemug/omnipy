@@ -130,7 +130,7 @@ class Pdm:
 
     def is_busy(self):
         try:
-            with PdmLock():
+            with PdmLock(0):
                 return self._is_bolus_running()
         except PdmBusyError:
             return True

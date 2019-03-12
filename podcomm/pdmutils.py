@@ -3,18 +3,27 @@ from .exceptions import PdmError, PdmBusyError
 from .definitions import *
 import struct
 import fcntl
+import time
 
 class PdmLock():
-    def __init__(self):
+    def __init__(self, timeout=10):
         self.fd = None
+        self.timeout = timeout
 
     def __enter__(self):
-        try:
-            self.fd = open(PDM_LOCK_FILE, "w")
-            fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except IOError as ioe:
-            self.fd = None
-            raise PdmBusyError from ioe
+        time_start = time.time()
+        while True:
+            try:
+                self.fd = open(PDM_LOCK_FILE, "w")
+                fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except IOError as ioe:
+                if self.timeout > 0 and time.time() - time_start < self.timeout:
+                    time.sleep(1)
+                    continue
+                else:
+                    self.fd = None
+                    raise PdmBusyError from ioe
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
