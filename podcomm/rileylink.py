@@ -301,7 +301,7 @@ class RileyLink:
             raise
 
     def tx_up(self):
-        if self.pa_level_index < 8:
+        if self.pa_level_index < len(PA_LEVELS) - 1:
             self.pa_level_index += 1
             self._set_amp()
 
@@ -314,10 +314,10 @@ class RileyLink:
         self._set_amp(0)
 
     def set_normal_tx(self):
-        self._set_amp(len(PA_LEVELS)/2)
+        self._set_amp(int(len(PA_LEVELS)/2))
 
     def set_high_tx(self):
-        self._set_amp(len(PA_LEVELS))
+        self._set_amp(len(PA_LEVELS)-1)
 
     def get_packet(self, timeout=5.0):
         try:
