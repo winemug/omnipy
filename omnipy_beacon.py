@@ -8,13 +8,12 @@ class OmnipyBeacon(BaseRequestHandler):
         try:
             data = self.request[0].strip()
             socket = self.request[1]
-            host, port = self.client_address[0]
+            host, port = self.client_address
             getLogger().info("UDP broadcast message from %s: %s" % (host, data))
             socket.sendto("wut".encode("ascii"), (host, 6665))
         except Exception:
-            getLogger().exception()
-            getLogger().warning("Error while responding to udp broadcast")
-            
+            getLogger().exception("Error while responding to udp broadcast")
+
 
 try:
     configureLogging()
@@ -22,6 +21,4 @@ try:
     server = UDPServer(address, OmnipyBeacon)
     server.serve_forever()
 except Exception:
-    getLogger().exception()
-    getLogger().error("Error while running omnipy beacon")
-    raise
+    getLogger().exception("Error while running omnipy beacon")
