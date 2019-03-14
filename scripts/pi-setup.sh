@@ -14,7 +14,7 @@ sudo apt update
 if [[ $? > 0 ]]
 then
     echo "Warning: updating package repositories failed on first attempt - retrying"
-    sudo apt update || echo "Error: updating package repositories failed on second attempt - aborting" && exit
+    sudo apt update || ((echo "Error: updating package repositories failed on second attempt - aborting" && exit))
     echo "Retry successful - updating package repositories suceeded on second attempt"
 fi
 
@@ -24,7 +24,7 @@ sudo apt upgrade -y
 if [[ $? > 0 ]]
 then
     echo "Warning: updating existing packages failed on first attempt - retrying"
-    sudo apt upgrade -y || echo "Error: updating existing packages failed on second attempt - aborting" && exit
+    sudo apt upgrade -y || ((echo "Error: updating existing packages failed on second attempt - aborting" && exit))
     echo "Retry successful - updating existing packages suceeded on second attempt"
 fi
 
@@ -53,11 +53,11 @@ chmod 755 /home/pi/omnipy/omni.py
 
 echo
 echo ${bold}Step 4/11: ${normal}Installing dependencies
-sudo apt install -y bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim || echo "Error: installing dependencies failed - aborting" && exit
-sudo pip3 install simplejson || echo "Error: installing dependencies failed - aborting" && exit
-sudo pip3 install Flask || echo "Error: installing dependencies failed - aborting" && exit
-sudo pip3 install cryptography || echo "Error: installing dependencies failed - aborting" && exit
-sudo pip3 install requests || echo "Error: installing dependencies failed - aborting" && exit
+sudo apt install -y bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim || ((echo "Error: installing dependencies failed - aborting" && exit))
+sudo pip3 install simplejson || ((echo "Error: installing dependencies failed - aborting" && exit))
+sudo pip3 install Flask || ((echo "Error: installing dependencies failed - aborting" && exit))
+sudo pip3 install cryptography || ((echo "Error: installing dependencies failed - aborting" && exit))
+sudo pip3 install requests || ((echo "Error: installing dependencies failed - aborting" && exit))
 
 echo
 echo ${bold}Step 5/11: ${normal}Configuring and installing bluepy
