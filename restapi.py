@@ -107,11 +107,17 @@ def save_activated_pod_address(addr):
         logger.exception("Error while storing activated radio address")
 
 def create_response(success, response, pod_status=None):
-    if pod_status is not None and pod_status.__class__ != dict:
+
+    if pod_status is None:
+        pod_status = {}
+    elif pod_status.__class__ != dict:
         pod_status = pod_status.__dict__
 
-    if response is not None and response.__class__ != dict:
+    if response is None:
+        response = {}
+    elif response.__class__ != dict:
         response = response.__dict__
+
     return json.dumps({"success": success,
                        "response": response,
                        "status": pod_status,
@@ -236,7 +242,7 @@ def get_pdm_address():
         if p is None:
             raise RestApiException("No pdm packet detected")
 
-        return {"radio_address": p.address}
+        return {"radio_address": p.address, "radio_address_hex": "%8X" % p.address2}
     finally:
         r.disconnect(ignore_errors=True)
 
@@ -389,6 +395,19 @@ def cancel_temp_basal():
     pdm.cancelTempBasal()
     return pdm.pod
 
+def set_basal_schedule():
+    verify_auth(request)
+    pdm = get_pdm()
+
+    schedule=[]
+
+    for i in range(0,48):
+        rate = Decimal(request.args.get("h"+str(i)))
+        schedule.append(rate)
+
+    pdm.set_basal_schedule(schedule)
+    return pdm.pod
+
 def is_pdm_busy():
     pdm = get_pdm()
     return {"busy": pdm.is_busy()}
@@ -500,6 +519,10 @@ def a17():
 @app.route(REST_URL_START_POD)
 def a18():
     return _api_result(lambda: new_pod(), "Failure while starting a newly activated pod")
+
+@app.route(REST_URL_SET_BASAL_SCHEDULE)
+def a19():
+    return _api_result(lambda: set_basal_schedule(), "Failure while setting a basal schedule")
 
 def run_flask():
     try:

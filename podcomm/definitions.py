@@ -43,6 +43,7 @@ REST_URL_BOLUS = "/pdm/bolus"
 REST_URL_CANCEL_BOLUS = "/pdm/cancelbolus"
 REST_URL_SET_TEMP_BASAL = "/pdm/settempbasal"
 REST_URL_CANCEL_TEMP_BASAL = "/pdm/canceltempbasal"
+REST_URL_SET_BASAL_SCHEDULE = "/pdm/setbasalschedule"
 
 logger = None
 
