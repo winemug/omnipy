@@ -93,16 +93,17 @@ class Pdm:
             if not stay_connected:
                 radio.disconnect()
 
-    def updatePodStatus(self, update_type=0):
+    def updatePodStatus(self, update_type=0, debug_func=None):
         try:
-            self._assert_pod_address_assigned()
-            if update_type == 0 and \
-                    self.pod.state_last_updated is not None and \
-                    time.time() - self.pod.state_last_updated < 60:
-                return
+            if debug_func is not None:
+                self._assert_pod_address_assigned()
+                if update_type == 0 and \
+                        self.pod.state_last_updated is not None and \
+                        time.time() - self.pod.state_last_updated < 60:
+                    return
             with PdmLock():
                 self.logger.debug("updating pod status")
-                self._update_status(update_type, stay_connected=False)
+                self._update_status(update_type, stay_connected=False, debug_func=debug_func)
 
         except OmnipyError:
             raise
@@ -365,72 +366,80 @@ class Pdm:
             self.get_radio().disconnect()
             self._savePod()
 
-    def activate_pod(self):
+    def activate_pod(self, debug_func=None):
         try:
             with PdmLock():
 
-                self._assert_pod_activate_can_start()
+                if debug_func is None or debug_func("1"):
+                    self._assert_pod_activate_can_start()
 
                 radio = self.get_radio()
                 if radio is None:
                     raise PdmError("Cannot create radio instance")
-                radio.packetSequence = 0
-                radio.messageSequence = 0
-                self.pod.radio_address = 0xffffffff
 
                 address_candidate_bytes = struct.pack(">I", self.pod.radio_address_candidate)
-                msg = self._createMessage(0x07, address_candidate_bytes)
-                self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % self.pod.radio_address_candidate,
-                                  stay_connected=True, low_tx=True, resync_allowed=True, address2=self.pod.radio_address_candidate)
 
-                self._assert_pod_can_activate()
+                if debug_func is None or debug_func("1"):
+                    radio.packetSequence = 0
+                    radio.messageSequence = 0
+                    self.pod.radio_address = 0xffffffff
 
-                command_body = address_candidate_bytes
-                packet_timeout = 4
-                command_body += bytes([0x14, packet_timeout])
+                    msg = self._createMessage(0x07, address_candidate_bytes)
+                    self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % self.pod.radio_address_candidate,
+                                      stay_connected=True, low_tx=True, resync_allowed=True, address2=self.pod.radio_address_candidate)
 
-                utc_offset = timedelta(minutes=self.pod.var_utc_offset)
-                pod_date = datetime.utcnow() + utc_offset
+                    self._assert_pod_can_activate()
 
-                year = pod_date.year
-                month = pod_date.month
-                day = pod_date.day
-                hour = pod_date.hour
-                minute = pod_date.minute
+                if debug_func is None or debug_func("2"):
+                    command_body = address_candidate_bytes
+                    packet_timeout = 4
+                    command_body += bytes([0x14, packet_timeout])
 
-                command_body += bytes([month, day, year - 2000, hour, minute])
+                    utc_offset = timedelta(minutes=self.pod.var_utc_offset)
+                    pod_date = datetime.utcnow() + utc_offset
 
-                command_body += struct.pack(">I", self.pod.id_lot)
-                command_body += struct.pack(">I", self.pod.id_t)
+                    year = pod_date.year
+                    month = pod_date.month
+                    day = pod_date.day
+                    hour = pod_date.hour
+                    minute = pod_date.minute
 
-                msg = self._createMessage(0x03, command_body)
-                self._sendMessage(msg, with_nonce=False, request_msg="PAIR POD",
-                                  stay_connected=True, low_tx=True, resync_allowed=False,
-                                  address2=self.pod.radio_address_candidate)
+                    command_body += bytes([month, day, year - 2000, hour, minute])
 
-                self._assert_pod_paired()
-                self.pod.nonce_seed = 0
-                self.pod.nonce_last = None
+                    command_body += struct.pack(">I", self.pod.id_lot)
+                    command_body += struct.pack(">I", self.pod.id_t)
 
-                if self.pod.var_alert_low_reservoir is not None:
-                    self._configure_alert(PodAlertBit.LowReservoir,
+                    msg = self._createMessage(0x03, command_body)
+                    self._sendMessage(msg, with_nonce=False, request_msg="PAIR POD",
+                                      stay_connected=True, low_tx=True, resync_allowed=False,
+                                      address2=self.pod.radio_address_candidate)
+
+                if debug_func is None or debug_func("2"):
+                    self._assert_pod_paired()
+
+                if debug_func is None or debug_func("3"):
+                    self.pod.nonce_seed = 0
+                    self.pod.nonce_last = None
+
+                    if self.pod.var_alert_low_reservoir is not None:
+                        self._configure_alert(PodAlertBit.LowReservoir,
+                                              activate=True,
+                                              trigger_auto_off=False,
+                                              duration_minutes=0,
+                                              trigger_reservoir=True,
+                                              alert_after_reservoir=float(self.pod.var_alert_low_reservoir),
+                                              beep_repeat_type=BeepPattern.OnceEveryMinuteForThreeMinutesAndRepeatHourly,
+                                              beep_type=BeepType.BipBeepFourTimes,
+                                              stay_connected=True)
+
+                    self._configure_alert(PodAlertBit.TimerLimit,
                                           activate=True,
                                           trigger_auto_off=False,
-                                          duration_minutes=0,
-                                          trigger_reservoir=True,
-                                          alert_after_reservoir=float(self.pod.var_alert_low_reservoir),
-                                          beep_repeat_type=BeepPattern.OnceEveryMinuteForThreeMinutesAndRepeatHourly,
-                                          beep_type=BeepType.BipBeepFourTimes,
+                                          duration_minutes=55,
+                                          alert_after_minutes=5,
+                                          beep_repeat_type=BeepPattern.OnceEveryMinuteForThreeMinutesAndRepeatEveryFifteenMinutes,
+                                          beep_type=BeepType.BipBipBipTwice,
                                           stay_connected=True)
-
-                self._configure_alert(PodAlertBit.TimerLimit,
-                                      activate=True,
-                                      trigger_auto_off=False,
-                                      duration_minutes=55,
-                                      alert_after_minutes=5,
-                                      beep_repeat_type=BeepPattern.OnceEveryMinuteForThreeMinutesAndRepeatEveryFifteenMinutes,
-                                      beep_type=BeepType.BipBipBipTwice,
-                                      stay_connected=True)
 
                 self._immediate_bolus(52, stay_connected=True, pulse_speed=8, delivery_delay=1,
                                       request_msg="PRIMING 2.6U")
@@ -579,7 +588,10 @@ class Pdm:
             raise PdmError("Pod status was not saved") from e
 
     def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0, stay_connected=False, request_msg=None,
-                     resync_allowed=True, low_tx=False, high_tx=False, address2=None):
+                     resync_allowed=True, low_tx=False, high_tx=False, address2=None, debug_func=None):
+
+        if address2 is None and self.pod.radio_address_candidate is not None:
+            address2 = self.pod.radio_address_candidate
         requested_stay_connected = stay_connected
         if with_nonce:
             nonce_obj = self.get_nonce()
@@ -591,8 +603,12 @@ class Pdm:
             message.setNonce(nonce)
         try:
             response_message = self.get_radio().send_request_get_response(message, stay_connected=stay_connected,
-                                                                    low_tx=low_tx, high_tx=high_tx, address2=address2)
+                                                                    low_tx=low_tx, high_tx=high_tx, address2=address2,
+                                                                          debug_func=debug_func)
         except TransmissionOutOfSyncError:
+            if debug_func is not None:
+                debug_func("syncedy")
+
             if resync_allowed:
                 self._interim_resync()
                 return self._sendMessage(message, with_nonce=with_nonce, nonce_retry_count=nonce_retry_count,
@@ -629,11 +645,12 @@ class Pdm:
                           resync_allowed=True, high_tx=True)
         time.sleep(10)
 
-    def _update_status(self, update_type=0, stay_connected=True):
+    def _update_status(self, update_type=0, stay_connected=True, debug_func=None):
         commandType = 0x0e
         commandBody = bytes([update_type])
         msg = self._createMessage(commandType, commandBody)
-        self._sendMessage(msg, stay_connected=stay_connected, request_msg="STATUS REQ %d" % update_type)
+        self._sendMessage(msg, stay_connected=stay_connected, request_msg="STATUS REQ %d" % update_type,
+                          debug_func=debug_func)
 
     def _acknowledge_alerts(self, alert_mask):
         commandType = 0x11
@@ -860,14 +877,14 @@ class Pdm:
         if self.pod is None:
             raise PdmError("No pod instance created")
 
-        if self.pod.radio_address is not None:
+        if self.pod.radio_address is not None and self.pod.radio_address != 0xffffffff:
             raise PdmError("Radio radio_address already set")
 
     def _assert_pod_address_assigned(self):
         if self.pod is None:
             raise PdmError("No pod instance created")
 
-        if self.pod.radio_address is None:
+        if self.pod.radio_address is None or self.pod.radio_address == 0xffffffff:
             raise PdmError("Radio radio_address not set")
 
     def _assert_pod_can_activate(self):
