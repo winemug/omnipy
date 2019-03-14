@@ -3,10 +3,11 @@ import os
 import subprocess
 import struct
 import time
+from .packet_radio import PacketRadio
 from .definitions import *
 from enum import IntEnum
 from threading import Event
-from .exceptions import RileyLinkError
+from .exceptions import PacketRadioError
 
 from bluepy.btle import Peripheral, Scanner, BTLEException
 
@@ -89,17 +90,16 @@ PA_LEVELS = [0x12, 0x12,
              0xC0, 0xC0]
 
 
-class RileyLink:
-    def __init__(self, address = None):
+class RileyLink(PacketRadio):
+    def __init__(self):
         self.peripheral = None
         self.pa_level_index = 3;
         self.data_handle = None
         self.logger = getLogger()
-        if address is None:
-            if os.path.exists(RILEYLINK_MAC_FILE):
-                with open(RILEYLINK_MAC_FILE, "r") as stream:
-                    address = stream.read()
-        self.address = address
+        self.address = None
+        if os.path.exists(RILEYLINK_MAC_FILE):
+            with open(RILEYLINK_MAC_FILE, "r") as stream:
+                self.address = stream.read()
         self.service = None
         self.response_handle = None
         self.notify_event = Event()
@@ -181,7 +181,7 @@ class RileyLink:
             return { "battery_level": battery_value, "mac_address": self.address,
                     "version_string": version, "version_major": v_major, "version_minor": v_minor }
         except BTLEException as btlee:
-            raise RileyLinkError("Error communicating with RileyLink") from btlee
+            raise PacketRadioError("Error communicating with RileyLink") from btlee
         finally:
             self.disconnect()
 
@@ -209,7 +209,7 @@ class RileyLink:
             try:
                 m = re.search(".+([0-9]+)\\.([0-9]+)", version)
                 if m is None:
-                    raise RileyLinkError("Failed to parse firmware version string: %s" % version)
+                    raise PacketRadioError("Failed to parse firmware version string: %s" % version)
 
                 v_major = int(m.group(1))
                 v_minor = int(m.group(2))
@@ -218,11 +218,11 @@ class RileyLink:
                 return version, v_major, v_minor
 
             except Exception as ex:
-                raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
+                raise PacketRadioError("Failed to parse firmware version string: %s" % version) from ex
 
         except IOError:
             self.logger.exception("Error reading version file")
-        except RileyLinkError:
+        except PacketRadioError:
             raise
 
         response = self._command(Command.GET_VERSION)
@@ -232,17 +232,17 @@ class RileyLink:
             try:
                 m = re.search(".+([0-9]+)\\.([0-9]+)", version)
                 if m is None:
-                    raise RileyLinkError("Failed to parse firmware version string: %s" % version)
+                    raise PacketRadioError("Failed to parse firmware version string: %s" % version)
 
                 v_major = int(m.group(1))
                 v_minor = int(m.group(2))
                 self.logger.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
 
                 return (version, v_major, v_minor)
-            except RileyLinkError:
+            except PacketRadioError:
                 raise
             except Exception as ex:
-                raise RileyLinkError("Failed to parse firmware version string: %s" % version) from ex
+                raise PacketRadioError("Failed to parse firmware version string: %s" % version) from ex
 
     def init_radio(self, force_init=False):
         try:
@@ -250,7 +250,7 @@ class RileyLink:
 
             if v_major < 2:
                 self.logger.error("Firmware version is below 2.0")
-                raise RileyLinkError("Unsupported RileyLink firmware %d.%d (%s)" %
+                raise PacketRadioError("Unsupported RileyLink firmware %d.%d (%s)" %
                                         (v_major, v_minor, version))
 
             if not force_init:
@@ -292,23 +292,23 @@ class RileyLink:
 
             response = self._command(Command.GET_STATE)
             if response != b"OK":
-                raise RileyLinkError("Rileylink state is not OK. Response returned: %s" % response)
+                raise PacketRadioError("Rileylink state is not OK. Response returned: %s" % response)
 
             self.initialized = True
 
-        except RileyLinkError as rle:
+        except PacketRadioError as rle:
             self.logger.error("Error while initializing rileylink radio: %s", rle)
             raise
 
     def tx_up(self):
         if self.pa_level_index < len(PA_LEVELS) - 1:
             self.pa_level_index += 1
-            self._set_amp()
+            self._set_amp(self.pa_level_index)
 
     def tx_down(self):
         if self.pa_level_index > 0:
             self.pa_level_index -= 1
-            self._set_amp()
+            self._set_amp(self.pa_level_index)
 
     def set_low_tx(self):
         self._set_amp(0)
@@ -324,7 +324,7 @@ class RileyLink:
             self.connect()
             return self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)),
                                  timeout=float(timeout)+0.5)
-        except RileyLinkError as rle:
+        except PacketRadioError as rle:
             self.logger.error("Error while receiving data: %s", rle)
             raise
 
@@ -343,7 +343,7 @@ class RileyLink:
                                               preamble_ext_ms)
                                               + packet,
                                   timeout=30)
-        except RileyLinkError as rle:
+        except PacketRadioError as rle:
             self.logger.error("Error while sending and receiving data: %s", rle)
             raise
 
@@ -354,7 +354,7 @@ class RileyLink:
                                                                    preamble_extension_ms) + packet,
                                   timeout=30)
             return result
-        except RileyLinkError as rle:
+        except PacketRadioError as rle:
             self.logger.error("Error while sending data: %s", rle)
             raise
 
@@ -364,7 +364,7 @@ class RileyLink:
             if index is not None:
                 self.pa_level_index = index
             self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
-        except RileyLinkError:
+        except PacketRadioError:
             self.logger.exception("Error while setting tx amplification")
             raise
 
@@ -388,7 +388,7 @@ class RileyLink:
                     break
 
         if found is None:
-            raise RileyLinkError("Could not find RileyLink")
+            raise PacketRadioError("Could not find RileyLink")
 
         return found
 
@@ -425,12 +425,12 @@ class RileyLink:
             self.peripheral.writeCharacteristic(self.data_handle, data, withResponse=True)
 
             if not self.peripheral.waitForNotifications(timeout):
-                raise RileyLinkError("Timed out while waiting for a response from RileyLink")
+                raise PacketRadioError("Timed out while waiting for a response from RileyLink")
 
             response = self.peripheral.readCharacteristic(self.data_handle)
 
             if response is None or len(response) == 0:
-                raise RileyLinkError("RileyLink returned no response")
+                raise PacketRadioError("RileyLink returned no response")
             else:
                 if response[0] == Response.COMMAND_SUCCESS:
                     return response[1:]
@@ -440,7 +440,7 @@ class RileyLink:
                 elif response[0] == Response.RX_TIMEOUT:
                     return None
                 else:
-                    raise RileyLinkError("RileyLink returned error code: %02X. Additional response data: %s"
+                    raise PacketRadioError("RileyLink returned error code: %02X. Additional response data: %s"
                                          % (response[0], response[1:]), response[0])
         except Exception as e:
-            raise RileyLinkError("Error executing command") from e
+            raise PacketRadioError("Error executing command") from e

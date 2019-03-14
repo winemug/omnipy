@@ -15,7 +15,7 @@ from podcomm.crc import crc8
 from podcomm.packet import Packet
 from podcomm.pdm import Pdm
 from podcomm.pod import Pod
-from podcomm.rileylink import RileyLink
+from podcomm.pr_rileylink import RileyLink
 from podcomm.definitions import *
 
 

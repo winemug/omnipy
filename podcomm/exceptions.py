@@ -4,7 +4,7 @@ class OmnipyError(Exception):
         self.error_message = message
 
 
-class RileyLinkError(OmnipyError):
+class PacketRadioError(OmnipyError):
     def __init__(self, message="Unknown RL error", err_code=None):
         OmnipyError.__init__(self, message)
         self.err_code = err_code
