@@ -1,4 +1,26 @@
 from podcomm.exceptions import PdmError
+from enum import IntEnum
+
+
+class PdmRequest(IntEnum):
+    SetupPod = 0x03
+    AssignAddress = 0x07
+    Status = 0x0e
+    AcknowledgeAlerts = 0x11
+    BasalSchedule = 0x13
+    TempBasalSchedule = 0x16
+    BolusSchedule = 0x17
+    ConfigureAlerts = 0x19
+    InsulinSchedule = 0x1a
+    DeactivatePod = 0x1c
+    CancelDelivery = 0x1f
+
+
+class PodResponse(IntEnum):
+    VersionInfo = 0x01
+    DetailInfo = 0x02
+    BadNonce = 0x06
+    Status = 0x1d
 
 
 def alert_configuration_message_body(alert_bit, activate, trigger_auto_off, duration_minutes, beep_repeat_type, beep_type,
