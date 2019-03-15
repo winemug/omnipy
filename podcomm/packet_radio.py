@@ -1,4 +1,14 @@
 import abc
+from enum import IntEnum
+
+
+class TxPower(IntEnum):
+    Lowest = 0
+    Low = 1
+    Normal = 2
+    High = 3
+    Highest = 4
+
 
 class PacketRadio(abc.ABC):
     @abc.abstractmethod
@@ -30,15 +40,7 @@ class PacketRadio(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def set_low_tx(self):
-        pass
-
-    @abc.abstractmethod
-    def set_normal_tx(self):
-        pass
-
-    @abc.abstractmethod
-    def set_high_tx(self):
+    def set_tx_power(self, tx_power):
         pass
 
     @abc.abstractmethod

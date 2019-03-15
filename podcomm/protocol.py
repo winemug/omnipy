@@ -1,4 +1,4 @@
-from podcomm.message import PdmMessage, Message, MessageType
+from podcomm.message import Message, MessageType
 from podcomm.protocol_common import *
 from podcomm.definitions import *
 from enum import IntEnum
@@ -61,7 +61,7 @@ def request_set_pod_expiry_alert(minutes_after_activation):
                                                  activate=True,
                                                  trigger_auto_off=False,
                                                  duration_minutes=60,
-                                                 alert_after_reservoir=iu_reservoir_level,
+                                                 alert_after_minutes=minutes_after_activation,
                                                  beep_type=BeepType.BipBip,
                                                  beep_repeat_type=BeepPattern.OnceEveryHour)
     return _cm(PdmRequest.ConfigureAlerts, cmd_body)

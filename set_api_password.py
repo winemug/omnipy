@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 import hashlib
-import getpass
 from podcomm.definitions import *
 
 

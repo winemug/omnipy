@@ -1,9 +1,8 @@
 import re
-import os
 import subprocess
 import struct
 import time
-from .packet_radio import PacketRadio
+from .packet_radio import PacketRadio, TxPower
 from .definitions import *
 from enum import IntEnum
 from threading import Event
@@ -163,7 +162,7 @@ class RileyLink(PacketRadio):
                 if self.peripheral is not None:
                     self.peripheral.disconnect()
                     self.peripheral = None
-            except BTLEException as btlee:
+            except BTLEException:
                 if ignore_errors:
                     self.logger.exception("Ignoring btle exception during disconnect")
                 else:
@@ -310,14 +309,19 @@ class RileyLink(PacketRadio):
             self.pa_level_index -= 1
             self._set_amp(self.pa_level_index)
 
-    def set_low_tx(self):
-        self._set_amp(0)
-
-    def set_normal_tx(self):
-        self._set_amp(int(len(PA_LEVELS)/2))
-
-    def set_high_tx(self):
-        self._set_amp(len(PA_LEVELS)-1)
+    def set_tx_power(self, tx_power):
+        if tx_power is None:
+            return
+        elif tx_power == TxPower.Lowest:
+            self._set_amp(0)
+        elif tx_power == TxPower.Low:
+            self._set_amp(PA_LEVELS.index(0x12))
+        elif tx_power == TxPower.Normal:
+            self._set_amp(PA_LEVELS.index(0x60))
+        elif tx_power == TxPower.High:
+            self._set_amp(PA_LEVELS.index(0xC8))
+        elif tx_power == TxPower.Highest:
+            self._set_amp(PA_LEVELS.index(0xC0))
 
     def get_packet(self, timeout=5.0):
         try:

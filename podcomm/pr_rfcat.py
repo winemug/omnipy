@@ -12,7 +12,6 @@ from .packet import Packet
 class Radio(PacketRadio):
 
     def __init__(self):
-        super.__init__()
         self.codec = ManchesterCodec()
 
     def connect(self, force_initialize=False):
@@ -48,13 +47,7 @@ class Radio(PacketRadio):
     def tx_down(self):
         pass
 
-    def set_low_tx(self):
-        pass
-
-    def set_normal_tx(self):
-        pass
-
-    def set_high_tx(self):
+    def set_tx_level(self, tx_level):
         pass
 
     def get_packet(self, timeout=5.0):

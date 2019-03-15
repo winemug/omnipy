@@ -3,7 +3,6 @@ from threading import Thread
 import signal
 import base64
 from uuid import getnode as get_mac
-import os
 from decimal import *
 
 from Crypto.Cipher import AES

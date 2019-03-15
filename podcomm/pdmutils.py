@@ -28,7 +28,7 @@ class PdmLock():
     def __exit__(self, exc_type, exc_val, exc_tb):
         try:
             fcntl.flock(self.fd, fcntl.LOCK_UN)
-        except IOError as ioe:
+        except IOError:
             raise
 
 def getPulsesForHalfHours(halfHourUnits):

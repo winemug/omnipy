@@ -33,7 +33,7 @@ class ManchesterCodec:
         decoded = bytes()
         for i in range(0, len(data), 2):
             word = data[i:i + 2]
-            if self.decode_dict.has_key(word):
+            if self.decode_dict[word] is not None:
                 decoded += self.decode_dict[word]
             else:
                 break
