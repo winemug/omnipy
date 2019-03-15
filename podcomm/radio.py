@@ -5,6 +5,7 @@ from .pr_rileylink import RileyLink
 from .message import Message, MessageState
 from .packet import Packet
 from .definitions import *
+from threading import Thread, Event
 
 class Radio:
     def __init__(self, msg_sequence=0, pkt_sequence=0):
@@ -14,19 +15,67 @@ class Radio:
         self.logger = getLogger()
         self.packetRadio = RileyLink()
         self.last_packet_received = None
+        self.response_received = Event()
+        self.request_arrived = Event()
+        self.radio_ready = Event()
+        self.request_message = None
+        self.tx_power = None
+        self.response_message = None
+        self.response_exception = None
+        self.radio_thread = Thread(target=self._radio_loop)
+        self.radio_thread.setDaemon(True)
+        self.radio_thread.start()
 
     def send_request_get_response(self, message, tx_power=None):
-        try:
-            return self._send_request(message, tx_power=tx_power)
-        except Exception:
-            self.packetRadio.disconnect(ignore_errors=True)
-            raise
+        self.radio_ready.wait()
+        self.radio_ready.clear()
+
+        self.request_message = message
+        self.tx_power = tx_power
+
+        self.request_arrived.set()
+
+        self.response_received.wait()
+        self.response_received.clear()
+        if self.response_message is None:
+            raise self.response_exception
+        return self.response_message
 
     def disconnect(self):
         try:
             self.packetRadio.disconnect(ignore_errors=True)
-        except Exception as e:
-            self.logger.warning("Error while disconnecting %s" % str(e))
+        except Exception:
+            self.logger.exception("Error while disconnecting")
+
+    def _radio_loop(self):
+        self.radio_ready.set()
+        while True:
+            if not self.request_arrived.wait(timeout=10.0):
+                self.disconnect()
+            self.request_arrived.wait()
+            self.request_arrived.clear()
+
+            message_address = self.request_message.address
+
+            try:
+                self.response_message = self._send_request(self.request_message, tx_power=self.tx_power)
+            except Exception as e:
+                self.response_message = None
+                self.response_exception = e
+            finally:
+                self.response_received.set()
+
+            self.radio_ready.set()
+
+            try:
+                self.logger.debug("Ending conversation")
+                ack_packet = Packet.Ack(message_address, 0x00000000)
+                self._send_packet(ack_packet)
+                self.logger.debug("Conversation ended")
+            except Exception as e:
+                self.logger.exception("Error during ending conversation, ignored.")
+
+
 
     def _send_request(self, message, tx_power=None):
         try:
@@ -68,17 +117,14 @@ class Radio:
                 raise ProtocolError("Received message is not valid")
 
             self.logger.debug("RECEIVED MSG: %s" % pod_response)
-
-            self.logger.debug("Sending end of conversation")
-            ack_packet = Packet.Ack(message.address, 0x00000000)
-            self._send_packet(ack_packet)
-            self.logger.debug("Conversation ended")
-
             self.messageSequence = (pod_response.sequence + 1) % 16
             return pod_response
         finally:
             if tx_power is not None:
-                self.packetRadio.set_tx_power(TxPower.Normal)
+                try:
+                    self.packetRadio.set_tx_power(TxPower.Normal)
+                except:
+                    pass
 
 
     def _exchange_packets(self, packet_to_send, expected_type):
@@ -143,6 +189,10 @@ class Radio:
 
                 self.logger.debug("SENDING FINAL PACKET: %s" % packetToSend)
                 received = self.packetRadio.send_and_receive_packet(data, 0, 0, 100, 3, 20)
+                if self.request_arrived.wait(timeout=0):
+                    self.logger.debug("Prematurely exiting final phase to process next request")
+                    self.packetSequence = (self.packetSequence + 2) % 32
+                    return
                 if received is None:
                     received = self.packetRadio.get_packet(1.0)
                     if received is None:
