@@ -83,10 +83,6 @@ class Pdm:
     def updatePodStatus(self, update_type=0):
         try:
             self._assert_pod_address_assigned()
-            if update_type == 0 and \
-                    self.pod.state_last_updated is not None and \
-                    time.time() - self.pod.state_last_updated < 60:
-                return
             with PdmLock():
                 self.logger.debug("updating pod status")
                 self._update_status(update_type)
