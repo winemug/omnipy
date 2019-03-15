@@ -6,7 +6,29 @@ echo
 echo Welcome to ${bold}omnipy${normal} installation script
 echo This script will aid you in configuring your raspberry pi to run omnipy
 echo
+
+if [[ -d /home/pi/omnipy ]]
+then
+
+echo
+read -p "You seem to have omnipy already installed, do you want to reinstall it?" -r
+echo
+
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+sudo systemctl stop omnipy.service
+sudo systemctl stop omnipy-beacon.service
+sudo systemctl stop omnipy-pan.service
+
+sudo systemctl disable omnipy.service
+sudo systemctl disable omnipy-beacon.service
+sudo systemctl disable omnipy-pan.service
+
+fi
+
+else
 read -p "Press Enter to continue..."
+fi
 
 echo
 echo ${bold}Step 1/10: ${normal}Updating package repositories
