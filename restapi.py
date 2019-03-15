@@ -242,7 +242,7 @@ def get_pdm_address():
         if p is None:
             raise RestApiException("No pdm packet detected")
 
-        return {"radio_address": p.address, "radio_address_hex": "%8X" % p.address2}
+        return {"radio_address": p.address, "radio_address_hex": "%8X" % p.address}
     finally:
         r.disconnect(ignore_errors=True)
 
@@ -258,6 +258,7 @@ def new_pod():
         pod.id_t = int(request.args.get('id_t'))
     if request.args.get('radio_address') is not None:
         pod.radio_address = int(request.args.get('radio_address'))
+        pod.radio_address2 = int(request.args.get('radio_address'))
 
     archive_pod()
     pod.Save(POD_FILE + POD_FILE_SUFFIX)
@@ -268,7 +269,7 @@ def activate_pod():
 
     pod = Pod()
     archive_pod()
-    pod.radio_address_candidate = get_next_pod_address()
+    pod.radio_address2 = get_next_pod_address()
     pod.Save(POD_FILE + POD_FILE_SUFFIX)
 
     pdm = get_pdm()

@@ -1,5 +1,5 @@
 import time
-from .exceptions import ProtocolError, PacketRadioError, TransmissionOutOfSyncError
+from .exceptions import ProtocolError, PacketRadioError
 from podcomm import crc
 from .packet_radio import PacketRadio
 from .pr_rileylink import RileyLink
@@ -18,12 +18,10 @@ class Radio:
         self.debug_mode = debug_mode
 
     def send_request_get_response(self, message, stay_connected=True, low_tx=False, high_tx=False,
-                                  address2=None, debug_func=None):
+                                  debug_func=None):
         try:
-            return self._send_request_get_response(message, stay_connected, low_tx, high_tx, address2,
+            return self._send_request_get_response(message, stay_connected, low_tx, high_tx,
                                                    debug_func=debug_func)
-        except TransmissionOutOfSyncError:
-            raise
         except Exception:
             self.packetRadio.disconnect(ignore_errors=True)
             raise
@@ -34,19 +32,14 @@ class Radio:
         except Exception as e:
             self.logger.warning("Error while disconnecting %s" % str(e))
 
-    def _send_request_get_response(self, message, stay_connected=True, low_tx=False, high_tx=False,
-                                   address2=None, debug_func=None):
+    def _send_request_get_response(self, message, stay_connected=True, low_tx=False, high_tx=False):
         try:
-            return self._send_request(message, low_tx=low_tx, high_tx=high_tx,
-                                      address2=address2, debug_func=debug_func)
-        except TransmissionOutOfSyncError:
-            self.logger.warning("Transmission out of sync, radio needs resyncing")
-            raise
+            return self._send_request(message, low_tx=low_tx, high_tx=high_tx)
         finally:
             if not stay_connected:
                 self.packetRadio.disconnect()
 
-    def _send_request(self, message, low_tx=False, high_tx=False, address2=None, debug_func=None):
+    def _send_request(self, message, low_tx=False, high_tx=False):
         try:
             if low_tx:
                 self.packetRadio.set_low_tx()
@@ -55,7 +48,7 @@ class Radio:
 
             message.setSequence(self.messageSequence)
             self.logger.debug("SENDING MSG: %s" % message)
-            packets = message.getPackets(address2)
+            packets = message.getPackets()
             received = None
             packet_index = 1
             packet_count = len(packets)
@@ -76,7 +69,7 @@ class Radio:
             pod_response = Message.fromPacket(received)
 
             while pod_response.state == MessageState.Incomplete:
-                ack_packet = Packet.Ack(message.address, False, address2)
+                ack_packet = Packet.Ack(message.address, message.address2)
                 received = self._exchange_packets(ack_packet, "CON")
                 if received is None:
                     raise ProtocolError("Timeout reached waiting for a response.")
@@ -90,39 +83,15 @@ class Radio:
             self.logger.debug("RECEIVED MSG: %s" % pod_response)
 
             self.logger.debug("Sending end of conversation")
-            ack_packet = Packet.Ack(message.address, True, address2)
+            ack_packet = Packet.Ack(message.address, 0x00000000)
             self._send_packet(ack_packet, debug_func=debug_func)
             self.logger.debug("Conversation ended")
 
             self.messageSequence = (pod_response.sequence + 1) % 16
             return pod_response
-        except TransmissionOutOfSyncError:
-            self.messageSequence = (self.messageSequence + 2) % 16
-            self.packetSequence = (self.packetSequence + 1) % 32
-            self._send_request(message, low_tx, high_tx, address2)
         finally:
             if low_tx or high_tx:
                 self.packetRadio.set_normal_tx()
-
-    def _resync(self, p, o):
-        self.packetSequence = 31 #(p.sequence ) % 32
-        self.messageSequence = self.messageSequence + 1 % 16
-
-        ack_packet = Packet.Ack(o.address, False, o.address2)
-        ack_packet.setSequence(self.packetSequence)
-        while True:
-            received = self.packetRadio.send_and_receive_packet(ack_packet.data, 10, 20, 300, 10, 80)
-            if received is None:
-                self.logger.debug("Received nothing")
-                self.packetSequence = (self.packetSequence + 2) % 32
-                return
-            else:
-                p, rssi = self._get_packet(received)
-                if p is None:
-                    self.logger.debug("Received illegal packet")
-                    self.packetRadio.tx_down()
-                else:
-                    print(p)
 
 
     def _exchange_packets(self, packet_to_send, expected_type, debug_func=None):
@@ -148,7 +117,7 @@ class Radio:
                     continue
                 p, rssi = self._get_packet(received)
                 if p is None:
-                    self.logger.debug("Received illegal packet")
+                    self.logger.debug("Received bad packet")
                     self.packetRadio.tx_down()
                     continue
                 if p.address != expected_address and p.address2 != packet_to_send.address2:
@@ -164,9 +133,11 @@ class Radio:
                             self.packetRadio.tx_up()
                             continue
 
-                    self.logger.debug("Resynchronization requested")
-                    if debug_func is not None and debug_func("resync"):
-                        self._resync(p, packet_to_send)
+                    self.logger.debug("Received unexpected packet")
+                    self.packetSequence = (p.sequence + 1) % 32
+                    continue
+                    # if debug_func is not None and debug_func("resync"):
+                    #     self._resync(p, packet_to_send)
 
                 self.packetSequence = (self.packetSequence + 2) % 32
                 self.last_packet_received = p
@@ -210,10 +181,12 @@ class Radio:
                         self.logger.debug("Received previous response")
                         self.packetRadio.tx_up()
                         continue
-                self.logger.warning("Resynchronization requested")
-                if debug_func is not None and debug_func("resync"):
-                    self._resync(p)
+                self.logger.debug("Received unexpected packet")
+                self.packetSequence = (p.sequence + 1) % 32
                 continue
+                # if debug_func is not None and debug_func("resync"):
+                #     self._resync(p)
+                # continue
 
             except PacketRadioError:
                 self.logger.exception("Radio error during sending")

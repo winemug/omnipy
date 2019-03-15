@@ -11,7 +11,7 @@ class StatusRequestType(IntEnum):
 
 
 def _cm(cmd_type, cmd_body):
-    m = Message(MessageType.PDM, 0)
+    m = Message(MessageType.PDM, 0, 0)
     m.addCommand(cmd_type, cmd_body)
     return m
 

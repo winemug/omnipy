@@ -15,11 +15,6 @@ class ProtocolError(OmnipyError):
         OmnipyError.__init__(self, message)
 
 
-class TransmissionOutOfSyncError(ProtocolError):
-    def __init__(self, message="Transmission out of sync error"):
-        ProtocolError.__init__(self, message)
-
-
 class PdmError(OmnipyError):
     def __init__(self, message="Unknown pdm error"):
         OmnipyError.__init__(self, message)

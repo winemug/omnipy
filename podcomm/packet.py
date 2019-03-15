@@ -13,15 +13,10 @@ class Packet:
         self.ack_final = False
 
     @staticmethod
-    def Ack(address, ack_final, address2=None):
+    def Ack(address, address2):
         data = struct.pack(">I", address)
         data +=  b"\x40"
-        if address2 is not None:
-            data += struct.pack(">I", address2)
-        elif ack_final:
-            data += b"\x00\x00\x00\x00"
-        else:
-            data += struct.pack(">I", address)
+        data += struct.pack(">I", address2)
         return Packet.from_data(data)
 
     @staticmethod
@@ -53,17 +48,17 @@ class Packet:
             p.body = data[9:]
             p.address2 = struct.unpack(">I", data[5:9])[0]
             if p.address2 != 0 and p.address != p.address2 and p.address != 0xffffffff:
-                raise ProtocolError("Address mismatch in packet. Addr1: 0x%08X Addr2: 0x%08X"
+                raise ProtocolError("Address error in packet. Addr1: 0x%08X Addr2: 0x%08X"
                                     % (p.address, p.address2))
         elif p.type == "ACK":
             if len(data) != 9:
                 raise ProtocolError("Incorrect packet length for type ACK")
 
             p.address2 = struct.unpack(">I", data[5:9])[0]
-            if p.address2 == p.address:
-                p.final_ack = False
-            elif p.address2 == 0:
+            if p.address2 == 0:
                 p.final_ack = True
+            else:
+                p.final_ack = False
 
         elif p.type == "CON":
             if len(data) < 6:

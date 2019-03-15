@@ -113,9 +113,10 @@ class PdmMessage:
 
 
 class Message:
-    def __init__(self, mtype, address, unknownBits = 0, sequence = 0):
+    def __init__(self, mtype, address, address2, unknownBits = 0, sequence = 0):
         self.type = mtype
         self.address = address
+        self.address2 = address2
         self.unknownBits = unknownBits
         self.sequence = sequence
         self.length = 0
@@ -153,7 +154,7 @@ class Message:
         unknownBits = b0 >> 6
         sequence = (b0 & 0x3C) >> 2
 
-        m = Message(mType, packet.address, unknownBits, sequence)
+        m = Message(mType, packet.address, packet.address2, unknownBits, sequence)
         m.length = ((b0 & 3) <<8) | b1
         m.body = packet.body[2:]
         m.updateMessageState()
@@ -170,17 +171,14 @@ class Message:
     def setSequence(self, sequence):
         self.sequence = sequence
 
-    def getPackets(self, address2 = None):
+    def getPackets(self):
         self.body = self.body[0:-2] + self.calculateChecksum(self.body[0:-2])
 
         data = struct.pack(">I", self.address)
 
         if self.type == MessageType.PDM:
             data += b"\xA0"
-            if address2 is None:
-                data += struct.pack(">I", self.address)
-            else:
-                data += struct.pack(">I", address2)
+            data += struct.pack(">I", self.address2)
         else:
             data += b"\xE0"
             data += struct.pack(">I", 0)

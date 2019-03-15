@@ -2,7 +2,7 @@ from .pdmutils import *
 from .nonce import *
 from .radio import Radio
 from .message import Message, MessageType
-from .exceptions import PdmError, OmnipyError, TransmissionOutOfSyncError
+from .exceptions import PdmError, OmnipyError
 from .definitions import *
 
 from decimal import *
@@ -45,12 +45,12 @@ class Pdm:
 
     @staticmethod
     def customMessage(message_parts, with_nonce=False, lot=None, tid=None,
-                      addr=0xFFFFFFFF, addr2=None, nonce_seek=None, nonce_seed=None,
+                      addr=0xFFFFFFFF, addr2=0xFFFFFFFF, nonce_seek=None, nonce_seed=None,
                       radio_message_sequence=0, radio_packet_sequence=0, low_tx=False,
                       high_tx=False, unknown_bits=0, radio=None, stay_connected=False):
         if radio is None:
             radio = Radio(radio_message_sequence, radio_packet_sequence, debug_mode=True)
-        message = Message(MessageType.PDM, addr, sequence=radio_message_sequence)
+        message = Message(MessageType.PDM, addr, addr2, sequence=radio_message_sequence)
         for command, body in message_parts:
             message.addCommand(command, body)
 
@@ -61,7 +61,7 @@ class Pdm:
             nonce = nonce_obj.getNext()
             message.setNonce(nonce)
         try:
-            response_message = radio.send_request_get_response(message, address2=addr2, low_tx=low_tx, high_tx=high_tx,
+            response_message = radio.send_request_get_response(message, low_tx=low_tx, high_tx=high_tx,
                                                                stay_connected=stay_connected)
 
             contents = response_message.getContents()
@@ -77,15 +77,6 @@ class Pdm:
                                              low_tx=low_tx, high_tx=high_tx, stay_connected=stay_connected)
 
             return response_message
-        except TransmissionOutOfSyncError:
-            radio.disconnect()
-            parts = []
-            parts.append((0x0e, bytes([0x00])))
-            Pdm.customMessage(parts, with_nonce=False, lot=lot, tid=tid,
-                                     addr=addr, addr2=addr2, nonce_seek=nonce_seek, nonce_seed=nonce_seed,
-                                     radio_message_sequence=message.sequence,
-                                     radio_packet_sequence=radio_packet_sequence,
-                                     low_tx=low_tx, high_tx=high_tx)
         except:
             getLogger().exception("Error while custom message")
             raise
@@ -93,17 +84,16 @@ class Pdm:
             if not stay_connected:
                 radio.disconnect()
 
-    def updatePodStatus(self, update_type=0, debug_func=None):
+    def updatePodStatus(self, update_type=0):
         try:
-            if debug_func is not None:
-                self._assert_pod_address_assigned()
-                if update_type == 0 and \
-                        self.pod.state_last_updated is not None and \
-                        time.time() - self.pod.state_last_updated < 60:
-                    return
+            self._assert_pod_address_assigned()
+            if update_type == 0 and \
+                    self.pod.state_last_updated is not None and \
+                    time.time() - self.pod.state_last_updated < 60:
+                return
             with PdmLock():
                 self.logger.debug("updating pod status")
-                self._update_status(update_type, stay_connected=False, debug_func=debug_func)
+                self._update_status(update_type, stay_connected=False)
 
         except OmnipyError:
             raise
@@ -377,21 +367,21 @@ class Pdm:
                 if radio is None:
                     raise PdmError("Cannot create radio instance")
 
-                address_candidate_bytes = struct.pack(">I", self.pod.radio_address_candidate)
+                address2_bytes = struct.pack(">I", self.pod.radio_address2)
 
                 if debug_func is None or debug_func("1"):
                     radio.packetSequence = 0
                     radio.messageSequence = 0
                     self.pod.radio_address = 0xffffffff
 
-                    msg = self._createMessage(0x07, address_candidate_bytes)
-                    self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % self.pod.radio_address_candidate,
-                                      stay_connected=True, low_tx=True, resync_allowed=True, address2=self.pod.radio_address_candidate)
+                    msg = self._createMessage(0x07, address2_bytes)
+                    self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % self.pod.radio_address2,
+                                      stay_connected=True, low_tx=True)
 
                     self._assert_pod_can_activate()
 
                 if debug_func is None or debug_func("2"):
-                    command_body = address_candidate_bytes
+                    command_body = address2_bytes
                     packet_timeout = 4
                     command_body += bytes([0x14, packet_timeout])
 
@@ -411,8 +401,7 @@ class Pdm:
 
                     msg = self._createMessage(0x03, command_body)
                     self._sendMessage(msg, with_nonce=False, request_msg="PAIR POD",
-                                      stay_connected=True, low_tx=True, resync_allowed=False,
-                                      address2=self.pod.radio_address_candidate)
+                                      stay_connected=True, low_tx=True)
 
                 if debug_func is None or debug_func("2"):
                     self._assert_pod_paired()
@@ -565,7 +554,7 @@ class Pdm:
         self._sendMessage(msg, with_nonce=True, stay_connected=True, request_msg="CANCEL %s" % act_str)
 
     def _createMessage(self, commandType, commandBody):
-        msg = Message(MessageType.PDM, self.pod.radio_address, sequence=self.get_radio().messageSequence)
+        msg = Message(MessageType.PDM, self.pod.radio_address, self.pod.radio_address2, sequence=self.get_radio().messageSequence)
         msg.addCommand(commandType, commandBody)
         return msg
 
@@ -588,10 +577,8 @@ class Pdm:
             raise PdmError("Pod status was not saved") from e
 
     def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0, stay_connected=False, request_msg=None,
-                     resync_allowed=True, low_tx=False, high_tx=False, address2=None, debug_func=None):
+                     low_tx=False, high_tx=False):
 
-        if address2 is None and self.pod.radio_address_candidate is not None:
-            address2 = self.pod.radio_address_candidate
         requested_stay_connected = stay_connected
         if with_nonce:
             nonce_obj = self.get_nonce()
@@ -601,21 +588,10 @@ class Pdm:
             if nonce == FAKE_NONCE:
                 stay_connected = True
             message.setNonce(nonce)
-        try:
-            response_message = self.get_radio().send_request_get_response(message, stay_connected=stay_connected,
+
+        response_message = self.get_radio().send_request_get_response(message, stay_connected=stay_connected,
                                                                     low_tx=low_tx, high_tx=high_tx, address2=address2,
                                                                           debug_func=debug_func)
-        except TransmissionOutOfSyncError:
-            if debug_func is not None:
-                debug_func("syncedy")
-
-            if resync_allowed:
-                self._interim_resync()
-                return self._sendMessage(message, with_nonce=with_nonce, nonce_retry_count=nonce_retry_count,
-                                         stay_connected=requested_stay_connected, request_msg=request_msg,
-                                         resync_allowed=False, low_tx=low_tx, high_tx=high_tx, address2=address2)
-            else:
-                raise
 
         contents = response_message.getContents()
         for (ctype, content) in contents:
@@ -636,14 +612,6 @@ class Pdm:
                     self.get_radio().messageSequence = message.sequence
                     return self._sendMessage(message, with_nonce=True, nonce_retry_count=nonce_retry_count + 1,
                                              stay_connected=requested_stay_connected, request_msg=request_msg)
-
-    def _interim_resync(self):
-        commandType = 0x0e
-        commandBody = bytes([0])
-        msg = self._createMessage(commandType, commandBody)
-        self._sendMessage(msg, stay_connected=True, request_msg="STATUS REQ %d" % 0,
-                          resync_allowed=True, high_tx=True)
-        time.sleep(10)
 
     def _update_status(self, update_type=0, stay_connected=True, debug_func=None):
         commandType = 0x0e
@@ -891,8 +859,8 @@ class Pdm:
         if self.pod is None:
             raise PdmError("No pod instance created")
 
-        if self.pod.radio_address_candidate is None:
-            raise PdmError("Radio radio_address candidate not set")
+        if self.pod.radio_address2 is None:
+            raise PdmError("Radio radio_address2 not set")
 
         if self.pod.id_lot is None:
             raise PdmError("Lot number unknown")
