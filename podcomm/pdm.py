@@ -107,7 +107,6 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            self.get_radio().disconnect()
             self._savePod()
 
     def is_busy(self):
@@ -120,8 +119,6 @@ class Pdm:
             raise
         except Exception as e:
             raise PdmError("Unexpected error") from e
-        finally:
-            self.get_radio().disconnect()
 
     def bolus(self, bolus_amount):
         try:
@@ -163,7 +160,6 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            self.get_radio().disconnect()
             self._savePod()
 
 
@@ -191,7 +187,6 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            self.get_radio().disconnect()
             self._savePod()
 
     def cancelTempBasal(self, beep=False):
@@ -220,7 +215,6 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            self.get_radio().disconnect()
             self._savePod()
 
     def setTempBasal(self, basalRate, hours, confidenceReminder=False):
@@ -244,7 +238,7 @@ class Pdm:
                     raise PdmError("Requested rate exceeds maximum temp basal capability")
 
                 if self._is_temp_basal_active():
-                    self.cancelTempBasal()
+                    self._cancelActivity(cancelTempBasal=True, beep=confidenceReminder)
 
                 halfHourUnits = [basalRate / Decimal(2)] * halfHours
                 pulseList = getPulsesForHalfHours(halfHourUnits)
@@ -301,7 +295,6 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            self.get_radio().disconnect()
             self._savePod()
 
     def set_basal_schedule(self, schedule):
@@ -333,7 +326,6 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            self.get_radio().disconnect()
             self._savePod()
 
     def deactivate_pod(self):
@@ -347,7 +339,6 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            self.get_radio().disconnect()
             self._savePod()
 
     def activate_pod(self):
@@ -444,7 +435,6 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            self.get_radio().disconnect()
             self._savePod()
 
     def inject_and_start(self):
@@ -481,7 +471,6 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            self.get_radio().disconnect()
             self._savePod()
 
     def _immediate_bolus(self, pulse_count, pulse_speed=16, reminders=0, delivery_delay=2, request_msg=""):
