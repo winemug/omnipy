@@ -1,9 +1,9 @@
 from decimal import *
 from .exceptions import PdmError, PdmBusyError
 import struct
-from threading import Lock
+from threading import RLock
 
-g_lock = Lock()
+g_lock = RLock()
 
 class PdmLock():
     def __init__(self, timeout=2):
