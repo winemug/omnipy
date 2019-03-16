@@ -15,9 +15,10 @@ class Radio:
         self.logger = getLogger()
         self.packetRadio = RileyLink()
         self.last_packet_received = None
-        self.response_received = Event()
-        self.request_arrived = Event()
         self.radio_ready = Event()
+        self.request_arrived = Event()
+        self.response_received = Event()
+        self.send_final_complete = Event()
         self.request_message = None
         self.tx_power = None
         self.response_message = None
@@ -51,7 +52,10 @@ class Radio:
         self.radio_ready.set()
         while True:
             if not self.request_arrived.wait(timeout=10.0):
-                self.disconnect()
+                if self.send_final_complete.wait(timeout=0):
+                    self.disconnect()
+                else:
+                    continue
             self.request_arrived.wait()
             self.request_arrived.clear()
 
@@ -78,53 +82,46 @@ class Radio:
 
 
     def _send_request(self, message, tx_power=None):
-        try:
-            if tx_power is not None:
-                self.packetRadio.set_tx_power(tx_power)
+        if tx_power is not None:
+            self.packetRadio.set_tx_power(tx_power)
 
-            message.setSequence(self.messageSequence)
-            self.logger.debug("SENDING MSG: %s" % message)
-            packets = message.getPackets()
-            received = None
-            packet_index = 1
-            packet_count = len(packets)
-            for packet in packets:
-                if packet_index == packet_count:
-                    expected_type = "POD"
-                else:
-                    expected_type = "ACK"
-                received = self._exchange_packets(packet, expected_type)
-                if received is None:
-                    raise ProtocolError("Timeout reached waiting for a response.")
+        message.setSequence(self.messageSequence)
+        self.logger.debug("SENDING MSG: %s" % message)
+        packets = message.getPackets()
+        received = None
+        packet_index = 1
+        packet_count = len(packets)
+        for packet in packets:
+            if packet_index == packet_count:
+                expected_type = "POD"
+            else:
+                expected_type = "ACK"
+            received = self._exchange_packets(packet, expected_type)
+            if received is None:
+                raise ProtocolError("Timeout reached waiting for a response.")
 
-                if received.type != expected_type:
-                    raise ProtocolError("Invalid response received. Expected type %s, received %s"
-                                        % (expected_type, received.type))
-                packet_index += 1
+            if received.type != expected_type:
+                raise ProtocolError("Invalid response received. Expected type %s, received %s"
+                                    % (expected_type, received.type))
+            packet_index += 1
 
-            pod_response = Message.fromPacket(received)
+        pod_response = Message.fromPacket(received)
 
-            while pod_response.state == MessageState.Incomplete:
-                ack_packet = Packet.Ack(message.address, message.address2)
-                received = self._exchange_packets(ack_packet, "CON")
-                if received is None:
-                    raise ProtocolError("Timeout reached waiting for a response.")
-                if received.type != "CON":
-                    raise ProtocolError("Invalid response received. Expected type CON, received %s" % received.type)
-                pod_response.addConPacket(received)
+        while pod_response.state == MessageState.Incomplete:
+            ack_packet = Packet.Ack(message.address, message.address2)
+            received = self._exchange_packets(ack_packet, "CON")
+            if received is None:
+                raise ProtocolError("Timeout reached waiting for a response.")
+            if received.type != "CON":
+                raise ProtocolError("Invalid response received. Expected type CON, received %s" % received.type)
+            pod_response.addConPacket(received)
 
-            if pod_response.state == MessageState.Invalid:
-                raise ProtocolError("Received message is not valid")
+        if pod_response.state == MessageState.Invalid:
+            raise ProtocolError("Received message is not valid")
 
-            self.logger.debug("RECEIVED MSG: %s" % pod_response)
-            self.messageSequence = (pod_response.sequence + 1) % 16
-            return pod_response
-        finally:
-            if tx_power is not None:
-                try:
-                    self.packetRadio.set_tx_power(TxPower.Normal)
-                except:
-                    pass
+        self.logger.debug("RECEIVED MSG: %s" % pod_response)
+        self.messageSequence = (pod_response.sequence + 1) % 16
+        return pod_response
 
 
     def _exchange_packets(self, packet_to_send, expected_type):
@@ -181,6 +178,7 @@ class Radio:
             raise ProtocolError("Exceeded retry count while send and receive")
 
     def _send_packet(self, packetToSend):
+        self.send_final_complete.clear()
         while True:
             try:
                 packetToSend.setSequence(self.packetSequence)
@@ -222,6 +220,7 @@ class Radio:
                 self.packetRadio.disconnect()
         self.packetSequence = (self.packetSequence + 1) % 32
         self.logger.debug("SEND FINAL complete")
+        self.send_final_complete.set()
 
     @staticmethod
     def _get_packet(data):
