@@ -198,7 +198,7 @@ class Radio:
                         break
                 p, rssi = self._get_packet(received)
                 if p is None:
-                    self.logger.debug("Received illegal packet")
+                    self.logger.debug("Received bad packet")
                     self.packetRadio.tx_down()
                     continue
                 if p.address != packetToSend.address and p.address2 != packetToSend.address2:
