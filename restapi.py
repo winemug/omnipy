@@ -4,7 +4,7 @@ import signal
 import base64
 from uuid import getnode as get_mac
 from decimal import *
-
+from threading import Lock
 from Crypto.Cipher import AES
 import simplejson as json
 from flask import Flask, request, send_from_directory
@@ -22,6 +22,8 @@ g_key = None
 g_pod = None
 g_pdm = None
 g_deny = False
+g_tokens = []
+g_token_lock = Lock()
 
 app = Flask(__name__, static_url_path="/")
 configureLogging()
@@ -142,30 +144,11 @@ def verify_auth(request_obj):
         cipher = AES.new(g_key, AES.MODE_CBC, iv)
         token = cipher.decrypt(auth)
 
-        with open(TOKENS_FILE, "a+b") as tokens:
-            tokens.seek(0, 0)
-            found = False
-            while True:
-                read_token = tokens.read(16)
-                if len(read_token) < 16:
-                    break
-                if read_token == token:
-                    found = True
-                    break
-
-            if found:
-                while True:
-                    read_token = tokens.read(16)
-                    if len(read_token) < 16:
-                        tokens.seek(-16 - len(read_token), 1)
-                        break
-                    tokens.seek(-32, 1)
-                    tokens.write(read_token)
-                    tokens.seek(16, 1)
-                tokens.truncate()
-
-        if not found:
-            raise RestApiException("Invalid authentication token")
+        with g_token_lock:
+            if token in g_tokens:
+                g_tokens.remove(token)
+            else:
+                raise RestApiException("Invalid authentication token")
     except RestApiException:
         logger.exception("Authentication error")
         raise
@@ -206,9 +189,9 @@ def ping():
 
 
 def create_token():
-    with open(TOKENS_FILE, "a+b") as tokens:
-        token = bytes(os.urandom(16))
-        tokens.write(token)
+    token = bytes(os.urandom(16))
+    with g_token_lock:
+        g_tokens.append(token)
     return {"token": base64.b64encode(token)}
 
 
@@ -546,10 +529,9 @@ if __name__ == '__main__':
     try:
         logger.info("Rest api is starting")
         if not os.path.isdir(TMPFS_ROOT):
+            if not os.path.isdir(TMPFS_USER):
+                os.mkdir(TMPFS_USER)
             os.mkdir(TMPFS_ROOT)
-        if os.path.isfile(TOKENS_FILE):
-            logger.debug("removing tokens from previous session")
-            os.remove(TOKENS_FILE)
         if os.path.isfile(RESPONSE_FILE):
             logger.debug("removing response queue from previous session")
             os.remove(RESPONSE_FILE)
