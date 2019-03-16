@@ -307,6 +307,9 @@ class Pdm:
     def set_basal_schedule(self, schedule):
         try:
             with PdmLock():
+                self.pod.var_basal_schedule = schedule
+                return
+
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
@@ -350,7 +353,7 @@ class Pdm:
     def activate_pod(self):
         try:
             with PdmLock():
-
+                return
                 self._assert_pod_activate_can_start()
 
                 radio = self.get_radio()
@@ -446,6 +449,7 @@ class Pdm:
 
     def inject_and_start(self):
         try:
+            return
             with PdmLock():
                 if self.pod.state_progress != PodProgress.ReadyForInjection:
                     raise PdmError("Pod is not at the injection stage")
