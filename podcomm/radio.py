@@ -52,10 +52,7 @@ class Radio:
         self.radio_ready.set()
         while True:
             if not self.request_arrived.wait(timeout=10.0):
-                if self.send_final_complete.wait(timeout=0):
-                    self.disconnect()
-                else:
-                    continue
+                self.disconnect()
             self.request_arrived.wait()
             self.request_arrived.clear()
 
@@ -186,7 +183,7 @@ class Radio:
                 data += bytes([crc.crc8(data)])
 
                 self.logger.debug("SENDING FINAL PACKET: %s" % packetToSend)
-                received = self.packetRadio.send_and_receive_packet(data, 0, 0, 100, 3, 20)
+                received = self.packetRadio.send_and_receive_packet(data, 3, 100, 100, 3, 20)
                 if self.request_arrived.wait(timeout=0):
                     self.logger.debug("Prematurely exiting final phase to process next request")
                     self.packetSequence = (self.packetSequence + 2) % 32
