@@ -3,7 +3,8 @@ import os
 import logging
 from logging.handlers import MemoryHandler
 
-TMPFS_ROOT = "/run/user/" + str(os.getuid()) + "/omnipy"
+TMPFS_USER = "/run/user/" + str(os.getuid())
+TMPFS_ROOT = TMPFS_USER + "/omnipy"
 RILEYLINK_MAC_FILE = TMPFS_ROOT + "/rladdr"
 RILEYLINK_VERSION_FILE = TMPFS_ROOT + "/rlversion"
 PDM_LOCK_FILE = TMPFS_ROOT + "/pdmlock"
