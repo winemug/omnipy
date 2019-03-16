@@ -92,7 +92,7 @@ PA_LEVELS = [0x12,
 class RileyLink(PacketRadio):
     def __init__(self):
         self.peripheral = None
-        self.pa_level_index = 3;
+        self.pa_level_index = PA_LEVELS.index(0x84)
         self.data_handle = None
         self.logger = getLogger()
         self.address = None
@@ -368,6 +368,7 @@ class RileyLink(PacketRadio):
             if index is not None:
                 self.pa_level_index = index
             self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
+            self.logger.debug("Setting pa level to index %d of %d" % (self.pa_level_index, len(PA_LEVELS)))
         except PacketRadioError:
             self.logger.exception("Error while setting tx amplification")
             raise
