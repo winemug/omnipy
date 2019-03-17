@@ -107,7 +107,7 @@ read -p "Are you using/planning a LipoShim to safely power down the pi if you ge
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
-    curl https://github.com/dexdan/clean-shutdown/raw/master/zerolipo_omnipy | bash
+    curl https://raw.githubusercontent.com/dexdan/clean-shutdown/master/zerolipo_omnipy | bash
 fi
 
 echo
