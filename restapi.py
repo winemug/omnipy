@@ -412,7 +412,7 @@ def shutdown():
     pdm = get_pdm()
     while pdm.is_busy():
         time.sleep(1)
-    os.system("sudo shutdown -h -t 7s")
+    os.system("sudo shutdown -H -t 7s")
     return {"shutdown": time.time()}
 
 def restart():
