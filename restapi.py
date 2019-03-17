@@ -536,17 +536,20 @@ if __name__ == '__main__':
             logger.debug("removing response queue from previous session")
             os.remove(RESPONSE_FILE)
 
-        with open(KEY_FILE, "rb") as keyfile:
-            g_key = keyfile.read(32)
-
     except IOError as ioe:
         logger.warning("Error while removing stale files: %s", exc_info=ioe)
 
-    # try:
-    #     os.system("sudo systemctl restart systemd-timesyncd")
-    #     os.system("sudo systemctl daemon-reload")
-    # except:
-    #     logger.exception("Error while reloading timesync daemon")
+    try:
+        with open(KEY_FILE, "rb") as keyfile:
+            g_key = keyfile.read(32)
+    except IOError:
+        logger.exception("Error while reading keyfile. Did you forget to set a password?")
+        raise
+
+    try:
+        os.system("sudo systemctl restart systemd-timesyncd && sudo systemctl daemon-reload")
+    except:
+        logger.exception("Error while reloading timesync daemon")
 
     signal.signal(signal.SIGTERM, exit_with_grace)
 

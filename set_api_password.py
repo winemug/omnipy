@@ -27,6 +27,8 @@ def main():
             getLogger().error("Error while creating and saving password: %s" % e)
             raise
     print("Password has been set.")
+    print("Restarting omnipy.service for changes to take effect")
+    os.system("sudo systemctl restart omnipy.service")
     return
 
 
