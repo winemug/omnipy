@@ -1,9 +1,12 @@
-# Project status March 8th
+# Project status March 17th
 
-* New features: No more hurting your fingers with clunky PDM buttons! Pod activation and basal schedule settings.
-* [Wiki](https://github.com/winemug/omnipy/wiki) is constantly being updated, many thanks to [@dexdan](https://github.com/dexdan), [@scudrunner](https://github.com/scudrunner), [@Kywalh](https://github.com/Kywalh) and [@badgerpapa](https://github.com/badgerpapa)!
-* Fixed an issue when a BLE connection to RileyLink were to be dropped in the middle of executing a command, it could cause the pod to fail. (It still can, but omnipy will prevent failure if it can reestablish BT connection within the next few minutes)
-* Watch out on this page for release announcement and links. Join us in the [slack space](https://join.slack.com/t/omnicore-pdm/) for questions, updates and support via this [invite link](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY).
+omnipy v1.1 released.
+
+Due to lack of testing resources, pod activation and basal rate settings could not make it into this release. There is however a significant number of improvements and fixes. See [release notes](https://github.com/winemug/omnipy/wiki/Release-Notes) on the wiki for more information.
+
+Also see [upgrading](https://github.com/winemug/omnipy/wiki/Upgrading-Software) if you are already running v1.0.
+
+Watch out on this page for release announcement and links. Join us in the [slack space](https://join.slack.com/t/omnicore-pdm/) for questions, updates and support via this [invite link](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY).
 
 # Wiki Links
 
