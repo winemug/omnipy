@@ -1,6 +1,10 @@
 # Project status March 17th
 
-omnipy v1.1 released.
+[March 17th] omnipy v1.2 released  
+
+This release fixes an issue with the AAPS client incorrectly registering failed commands as succeeded. For all changes, see [release notes](https://github.com/winemug/omnipy/wiki/Release-Notes) on the wiki for more information.
+
+[March 16th] omnipy v1.1 released
 
 Due to lack of testing resources, pod activation and basal rate settings could not make it into this release. There is however a significant number of improvements and fixes. See [release notes](https://github.com/winemug/omnipy/wiki/Release-Notes) on the wiki for more information.
 
