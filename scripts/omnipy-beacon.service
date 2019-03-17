@@ -7,7 +7,7 @@ ExecStart=/usr/bin/python3 -u /home/pi/omnipy/omnipy_beacon.py
 WorkingDirectory=/home/pi/omnipy
 StandardOutput=inherit
 StandardError=inherit
-Restart=always
+Restart=on-abort
 User=pi
 
 [Install]

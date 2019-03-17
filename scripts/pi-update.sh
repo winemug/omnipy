@@ -67,6 +67,8 @@ fi
 read -p "Do you want reconfigure bluetooth personal area network? " -r
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
+    sudo systemctl stop omnipy-pan.service > /dev/null 2>&1
+    sudo systemctl disable omnipy-pan.service > /dev/null 2>&1
     echo
     echo "Removing existing bluetooth devices"
     sudo btmgmt power on

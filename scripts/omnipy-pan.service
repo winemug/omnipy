@@ -7,7 +7,7 @@ ExecStart=/bin/bash /home/pi/omnipy/scripts/btnap-custom.sh
 WorkingDirectory=/home/pi/omnipy/scripts/
 StandardOutput=inherit
 StandardError=inherit
-Restart=always
+Restart=on-abort
 User=root
 
 [Install]
