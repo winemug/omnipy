@@ -412,7 +412,7 @@ def shutdown():
     pdm = get_pdm()
     while pdm.is_busy():
         time.sleep(1)
-    os.system("sudo shutdown -H -t 7s")
+    os.system("sleep 5 && sudo shutdown -h")
     return {"shutdown": time.time()}
 
 def restart():
@@ -424,7 +424,7 @@ def restart():
     pdm = get_pdm()
     while pdm.is_busy():
         time.sleep(1)
-    os.system("sudo shutdown -r -t 7s")
+    os.system("sleep 5 &^ sudo shutdown -r")
     return {"shutdown": time.time()}
 
 @app.route(REST_URL_PING)
