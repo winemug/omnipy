@@ -270,11 +270,11 @@ class Pdm:
 
                 pulseEntries = getPulseIntervalEntries(halfHourUnits)
 
-                firstPulseCount, firstInterval = pulseEntries[0]
+                firstPulseCount, firstInterval, _ = pulseEntries[0]
                 commandBody += struct.pack(">H", firstPulseCount)
                 commandBody += struct.pack(">I", firstInterval)
 
-                for pulseCount, interval in pulseEntries:
+                for pulseCount, interval, _ in pulseEntries:
                     commandBody += struct.pack(">H", pulseCount)
                     commandBody += struct.pack(">I", interval)
 
@@ -301,8 +301,6 @@ class Pdm:
         try:
             with PdmLock():
                 self.pod.var_basal_schedule = schedule
-                return
-
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
@@ -649,7 +647,7 @@ class Pdm:
         self._sendMessage(msg, with_nonce=True,
                           request_msg="ACTIVATE ALERT %d: %s" %(alert_bit, activate))
 
-    def _set_basal_schedule(self, schedule):
+    def _set_basal_schedule(self, schedule, hour=None, minute=None, second=None):
 
         halved_schedule = []
         two = Decimal("2")
@@ -660,9 +658,12 @@ class Pdm:
         utc_offset = timedelta(minutes=self.pod.var_utc_offset)
         pod_date = datetime.utcnow() + utc_offset
 
-        hour = pod_date.hour
-        minute = pod_date.minute
-        second = pod_date.second
+        if hour is None:
+            hour = pod_date.hour
+        if minute is None:
+            minute = pod_date.minute
+        if second is None:
+            second = pod_date.second
 
         current_hh = hour * 2
         if minute < 30:
@@ -672,6 +673,7 @@ class Pdm:
             current_hh += 1
 
         seconds_past_hh += second
+        seconds_to_hh = 1800 - seconds_past_hh
 
         pulse_list = getPulsesForHalfHours(halved_schedule)
         ise_list = getInsulinScheduleTableFromPulses(pulse_list)
@@ -684,21 +686,10 @@ class Pdm:
         body_checksum = bytes([current_hh])
 
         current_hh_pulse_count = pulse_list[current_hh]
+        remaining_pulse_count = int(current_hh_pulse_count * seconds_to_hh / 1800)
 
-        seconds_past_hh8 = seconds_past_hh * 8
-
-        if current_hh_pulse_count == 0:
-            remaining_pulse_count = 0
-            body_checksum += struct.pack(">H", (1800 * 8) - seconds_past_hh8)
-            body_checksum += struct.pack(">H", 0)
-        else:
-            current_hh_interval_8 = int(1800 * 8 / current_hh_pulse_count)
-            past_pulse_count = int(seconds_past_hh8 / current_hh_interval_8)
-            remaining_pulse_count = current_hh_pulse_count - past_pulse_count
-
-            if remaining_pulse_count > 0:
-                body_checksum += struct.pack(">H", current_hh_interval_8)
-                body_checksum += struct.pack(">H", remaining_pulse_count)
+        body_checksum += struct.pack(">H", seconds_to_hh * 8)
+        body_checksum += struct.pack(">H", remaining_pulse_count)
 
         checksum = getChecksum(body_checksum + pulse_body)
 
@@ -716,12 +707,26 @@ class Pdm:
         command_body = bytes([reminders])
 
         command_body += b"\x00"
+
         pulse_entries = getPulseIntervalEntries(halved_schedule)
+        table_index = 0
+        for pulses10, interval, indices in pulse_entries:
+            if current_hh in indices:
+                command_body += bytes([table_index])
+                ii = indices.index(current_hh)
 
-        command_body += struct.pack(">H", remaining_pulse_count * 10)
-        command_body += struct.pack(">I", (1800 - seconds_past_hh) * 1000 * 1000)
+                pulses_past_intervals = int(ii * 1800000000 / interval)
+                pulses_past_this_interval = int(seconds_past_hh * 1000000 / interval)
+                remaining_pulses_this_interval = pulses10 - pulses_past_this_interval - pulses_past_intervals
+                microseconds_to_next_interval = interval - (seconds_past_hh * 1000000 % interval)
 
-        for pulse_count, interval in pulse_entries:
+                command_body += struct.pack(">H", remaining_pulses_this_interval)
+                command_body += struct.pack(">I", microseconds_to_next_interval)
+                break
+            else:
+                table_index += 1
+
+        for pulse_count, interval, _ in pulse_entries:
             command_body += struct.pack(">H", pulse_count)
             command_body += struct.pack(">I", interval)
 
