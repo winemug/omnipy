@@ -209,7 +209,7 @@ class RileyLink(PacketRadio):
 
                 g_rl_v_major = int(m.group(1))
                 g_rl_v_minor = int(m.group(2))
-                self.logger.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
+                self.logger.debug("Interpreted version major: %d minor: %d" % (g_rl_v_major, g_rl_v_minor))
 
                 return g_rl_version, g_rl_v_major, g_rl_v_minor
 
@@ -218,25 +218,6 @@ class RileyLink(PacketRadio):
 
         except PacketRadioError:
             raise
-
-        response = self._command(Command.GET_VERSION)
-        if response is not None and len(response) > 0:
-            version = response.decode("ascii")
-            self.logger.debug("RL reports version string: %s" % version)
-            try:
-                m = re.search(".+([0-9]+)\\.([0-9]+)", version)
-                if m is None:
-                    raise PacketRadioError("Failed to parse firmware version string: %s" % version)
-
-                v_major = int(m.group(1))
-                v_minor = int(m.group(2))
-                self.logger.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
-
-                return (version, v_major, v_minor)
-            except PacketRadioError:
-                raise
-            except Exception as ex:
-                raise PacketRadioError("Failed to parse firmware version string: %s" % version) from ex
 
     def init_radio(self, force_init=False):
         try:
