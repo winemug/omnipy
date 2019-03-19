@@ -526,18 +526,7 @@ def exit_with_grace():
     exit(0)
 
 if __name__ == '__main__':
-    try:
-        logger.info("Rest api is starting")
-        if not os.path.isdir(TMPFS_USER):
-            os.mkdir(TMPFS_USER)
-        if not os.path.isdir(TMPFS_ROOT):
-            os.mkdir(TMPFS_ROOT)
-        if os.path.isfile(RESPONSE_FILE):
-            logger.debug("removing response queue from previous session")
-            os.remove(RESPONSE_FILE)
-
-    except IOError as ioe:
-        logger.exception("Error while removing stale files and creating directories")
+    logger.info("Rest api is starting")
 
     try:
         with open(KEY_FILE, "rb") as keyfile:

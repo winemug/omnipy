@@ -3,12 +3,7 @@ import os
 import logging
 from logging.handlers import MemoryHandler
 
-TMPFS_USER = "/run/user/" + str(os.getuid())
-TMPFS_ROOT = TMPFS_USER + "/omnipy"
-RILEYLINK_MAC_FILE = TMPFS_ROOT + "/rladdr"
-RILEYLINK_VERSION_FILE = TMPFS_ROOT + "/rlversion"
 KEY_FILE = "data/key"
-RESPONSE_FILE = "data/response"
 LAST_ACTIVATED_FILE = "data/lastactivated"
 POD_FILE = "data/pod"
 POD_FILE_SUFFIX = ".json"

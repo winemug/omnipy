@@ -89,16 +89,18 @@ PA_LEVELS = [0x12,
              0xC0, 0xC0]
 
 
+g_rl_address = None
+g_rl_version = None
+g_rl_v_major = None
+g_rl_v_minor = None
+
 class RileyLink(PacketRadio):
     def __init__(self):
         self.peripheral = None
         self.pa_level_index = PA_LEVELS.index(0x84)
         self.data_handle = None
         self.logger = getLogger()
-        self.address = None
-        if os.path.exists(RILEYLINK_MAC_FILE):
-            with open(RILEYLINK_MAC_FILE, "r") as stream:
-                self.address = stream.read()
+        self.address = g_rl_address
         self.service = None
         self.response_handle = None
         self.notify_event = Event()
@@ -185,22 +187,17 @@ class RileyLink(PacketRadio):
             self.disconnect()
 
     def _read_version(self):
+        global g_rl_version, g_rl_v_major, g_rl_v_minor
         version = None
         try:
-            if os.path.exists(RILEYLINK_VERSION_FILE):
-                with open(RILEYLINK_VERSION_FILE, "r") as stream:
-                    version = stream.read()
+            if g_rl_version is not None:
+                return g_rl_version, g_rl_v_major, g_rl_v_minor
             else:
                 response = self._command(Command.GET_VERSION)
                 if response is not None and len(response) > 0:
                     version = response.decode("ascii")
                     self.logger.debug("RL reports version string: %s" % version)
-
-                    try:
-                        with open(RILEYLINK_VERSION_FILE, "w") as stream:
-                            stream.write(version)
-                    except IOError:
-                        self.logger.exception("Failed to store version in file")
+                    g_rl_version = version
 
             if version is None:
                 return "0.0", 0, 0
@@ -210,17 +207,15 @@ class RileyLink(PacketRadio):
                 if m is None:
                     raise PacketRadioError("Failed to parse firmware version string: %s" % version)
 
-                v_major = int(m.group(1))
-                v_minor = int(m.group(2))
+                g_rl_v_major = int(m.group(1))
+                g_rl_v_minor = int(m.group(2))
                 self.logger.debug("Interpreted version major: %d minor: %d" % (v_major, v_minor))
 
-                return version, v_major, v_minor
+                return g_rl_version, g_rl_v_major, g_rl_v_minor
 
             except Exception as ex:
                 raise PacketRadioError("Failed to parse firmware version string: %s" % version) from ex
 
-        except IOError:
-            self.logger.exception("Error reading version file")
         except PacketRadioError:
             raise
 
@@ -375,27 +370,22 @@ class RileyLink(PacketRadio):
 
 
     def _findRileyLink(self):
+        global g_rl_address
         scanner = Scanner()
-        found = None
+        g_rl_address = None
         self.logger.debug("Scanning for RileyLink")
         retries = 10
-        while found is None and retries > 0:
+        while g_rl_address is None and retries > 0:
             retries -= 1
             for result in scanner.scan(1.0):
                 if result.getValueText(7) == RILEYLINK_SERVICE_UUID:
                     self.logger.debug("Found RileyLink")
-                    found = result.addr
-                    try:
-                        with open(RILEYLINK_MAC_FILE, "w") as stream:
-                            stream.write(result.addr)
-                    except IOError:
-                        self.logger.warning("Cannot store rileylink mac radio_address for later")
-                    break
+                    g_rl_address = result.addr
 
-        if found is None:
+        if g_rl_address is None:
             raise PacketRadioError("Could not find RileyLink")
 
-        return found
+        return g_rl_address
 
     def _connect_retry(self, retries):
         while retries > 0:
