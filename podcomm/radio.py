@@ -20,6 +20,7 @@ class Radio:
         self.response_received = Event()
         self.send_final_complete = Event()
         self.request_message = None
+        self.double_take = False
         self.tx_power = None
         self.response_message = None
         self.response_exception = None
@@ -27,11 +28,12 @@ class Radio:
         self.radio_thread.setDaemon(True)
         self.radio_thread.start()
 
-    def send_request_get_response(self, message, tx_power=None):
+    def send_request_get_response(self, message, tx_power=None, double_take=False):
         self.radio_ready.wait()
         self.radio_ready.clear()
 
         self.request_message = message
+        self.double_take = double_take
         self.tx_power = tx_power
 
         self.request_arrived.set()
@@ -59,7 +61,8 @@ class Radio:
             message_address = self.request_message.address
 
             try:
-                self.response_message = self._send_request(self.request_message, tx_power=self.tx_power)
+                self.response_message = self._send_request(self.request_message, tx_power=self.tx_power,
+                                                           double_take=self.double_take)
             except Exception as e:
                 self.response_message = None
                 self.response_exception = e
@@ -78,7 +81,8 @@ class Radio:
 
 
 
-    def _send_request(self, message, tx_power=None):
+    def _send_request(self, message, tx_power=None, double_take=False):
+
         if tx_power is not None:
             self.packetRadio.set_tx_power(tx_power)
 
@@ -89,17 +93,24 @@ class Radio:
         packet_index = 1
         packet_count = len(packets)
         for packet in packets:
-            if packet_index == packet_count:
-                expected_type = "POD"
-            else:
-                expected_type = "ACK"
-            received = self._exchange_packets(packet, expected_type)
-            if received is None:
-                raise ProtocolError("Timeout reached waiting for a response.")
+            while True:
+                if packet_index == packet_count:
+                    expected_type = "POD"
+                else:
+                    expected_type = "ACK"
+                received = self._exchange_packets(packet, expected_type)
+                if received is None:
+                    raise ProtocolError("Timeout reached waiting for a response.")
 
-            if received.type != expected_type:
-                raise ProtocolError("Invalid response received. Expected type %s, received %s"
-                                    % (expected_type, received.type))
+                if received.type != expected_type:
+                    raise ProtocolError("Invalid response received. Expected type %s, received %s"
+                                        % (expected_type, received.type))
+
+                if double_take:
+                    double_take=False
+                else:
+                    break
+
             packet_index += 1
 
         pod_response = Message.fromPacket(received)

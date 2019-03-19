@@ -547,7 +547,8 @@ class Pdm:
         except Exception as e:
             raise PdmError("Pod status was not saved") from e
 
-    def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0, request_msg=None, tx_power=None):
+    def _sendMessage(self, message, with_nonce=False, nonce_retry_count=0, request_msg=None, tx_power=None,
+                     double_take=False):
 
         if with_nonce:
             nonce_obj = self.get_nonce()
@@ -556,7 +557,8 @@ class Pdm:
             nonce = nonce_obj.getNext()
             message.setNonce(nonce)
 
-        response_message = self.get_radio().send_request_get_response(message, tx_power=tx_power)
+        response_message = self.get_radio().send_request_get_response(message, tx_power=tx_power,
+                                                                      double_take=double_take)
 
         contents = response_message.getContents()
         for (ctype, content) in contents:
@@ -736,7 +738,8 @@ class Pdm:
         for entry in schedule:
             schedule_str += "%2.2f " % entry
 
-        self._sendMessage(msg, with_nonce=True, request_msg="SETBASALSCHEDULE (%s)" % schedule_str)
+        self._sendMessage(msg, with_nonce=True, request_msg="SETBASALSCHEDULE (%s)" % schedule_str,
+                          double_take=True)
 
     def _is_bolus_running(self):
         if self.pod.state_last_updated is not None and self.pod.state_bolus != BolusState.Immediate:
