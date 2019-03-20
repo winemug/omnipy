@@ -50,9 +50,12 @@ then
     echo "Retry successful - updating existing packages suceeded on second attempt"
 fi
 
+sudo systemctl disable omnipy.service > /dev/null 2>&1
+sudo systemctl disable omnipy-beacon.service > /dev/null 2>&1
+sudo systemctl disable omnipy-pan.service > /dev/null 2>&1
 sudo systemctl stop omnipy-pan.service > /dev/null 2>&1
-sudo systemctl stop omnipy.service > /dev/null 2>&1
 sudo systemctl stop omnipy-beacon.service > /dev/null 2>&1
+sudo systemctl stop omnipy.service > /dev/null 2>&1
 
 if [[ ! -d /home/pi/omnipy ]]
 then
@@ -132,8 +135,6 @@ echo
 read -p "Do you want to set up a bluetooth personal area network? (y/n) " -r
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
-    sudo systemctl stop omnipy-pan.service > /dev/null 2>&1
-    sudo systemctl disable omnipy-pan.service > /dev/null 2>&1
     echo
     echo "Removing existing bluetooth devices"
     sudo btmgmt power on
@@ -196,10 +197,12 @@ fi
 
 echo
 echo ${bold}Step 11/11: ${normal}Creating and starting omnipy services
-sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
-sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
+
 sudo chown -R pi.pi /home/pi/bluepy
 sudo chown -R pi.pi /home/pi/omnipy
+
+sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
 sudo systemctl start omnipy.service

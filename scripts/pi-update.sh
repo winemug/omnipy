@@ -14,6 +14,14 @@ normal=$(tput sgr0)
 echo
 echo "Welcome to ${bold}omnipy${normal} update script"
 echo "This script will let you reconfigure omnipy as in the setup script"
+echo
+echo "Stopping omnipy services"
+sudo systemctl disable omnipy.service
+sudo systemctl disable omnipy-beacon.service
+sudo systemctl disable omnipy-pan.service
+sudo systemctl stop omnipy.service
+sudo systemctl stop omnipy-beacon.service
+sudo systemctl stop omnipy-pan.service
 
 
 read -p "Do you want update to the latest version in the github repository? " -r
@@ -127,14 +135,17 @@ then
     echo
     echo
     echo "${bold}Connection test succeeeded${normal}. IP address: $ipaddr"
+    sudo systemctl stop omnipy-pan.service
 fi
 
 echo
 echo Updating service scripts and restarting services
 
+sudo chown -R pi.pi /home/pi/bluepy
+sudo chown -R pi.pi /home/pi/omnipy
+
 if [[ -d /etc/systemd/system/omnipy-pan.service ]]
 then
-    sudo systemctl stop omnipy-pan.service
     sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
     sudo systemctl enable omnipy-pan.service
     sudo systemctl start omnipy-pan.service
@@ -142,10 +153,6 @@ fi
 
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
-sudo chown -R pi.pi /home/pi/bluepy
-sudo chown -R pi.pi /home/pi/omnipy
-sudo systemctl stop omnipy.service
-sudo systemctl stop omnipy-beacon.service
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
 sudo systemctl start omnipy.service
