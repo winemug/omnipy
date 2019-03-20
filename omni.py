@@ -77,6 +77,19 @@ def deactivate(args, pa):
     call_api(args.url, REST_URL_DEACTIVATE_POD, pa)
 
 
+def activate(args, pa):
+    call_api(args.url, REST_URL_ACTIVATE_POD, pa)
+
+
+def start(args, pa):
+    for i in range(0,48):
+        pa["h" + str(i)] = args.basalrate
+
+    pa["hours"] = 0
+    pa["minutes"] = 0
+    pa["seconds"] = 0
+    call_api(args.url, REST_URL_START_POD, pa)
+
 def shutdown(args, pa):
     call_api(args.url, REST_URL_OMNIPY_SHUTDOWN, pa)
 
@@ -117,6 +130,13 @@ def main():
 
     subparser = subparsers.add_parser("cancelbolus", help="cancelbolus -h")
     subparser.set_defaults(func=cancel_bolus)
+
+    subparser = subparsers.add_parser("activate", help="activate -h")
+    subparser.set_defaults(func=activate)
+
+    subparser = subparsers.add_parser("start", help="start -h")
+    subparser.add_argument("basalrate", type=str, help="Fixed basal rate in U/h. e.g '0.4' for 0.4U/h")
+    subparser.set_defaults(func=start)
 
     subparser = subparsers.add_parser("deactivate", help="deactivate -h")
     subparser.set_defaults(func=deactivate)

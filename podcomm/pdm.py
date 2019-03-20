@@ -339,7 +339,7 @@ class Pdm:
         finally:
             self._savePod()
 
-    def activate_pod(self):
+    def activate_pod(self, candidate_address):
         try:
             with PdmLock():
                 self._assert_pod_activate_can_start()
@@ -348,17 +348,18 @@ class Pdm:
                 if radio is None:
                     raise PdmError("Cannot create radio instance")
 
-                address2_bytes = struct.pack(">I", self.pod.radio_address2)
+                address2_bytes = struct.pack(">I", candidate_address)
 
                 radio.packetSequence = 0
                 radio.messageSequence = 0
                 self.pod.radio_address = 0xffffffff
+                self.pod.radio_address2 = 0xffffffff
 
-                msg = self._createMessage(0x07, address2_bytes)
-                self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % self.pod.radio_address2,
-                                  tx_power=TxPower.Low)
+                msg = self._createMessage(0x07, address2_bytes, candidate_address=candidate_address)
+                # self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % self.pod.radio_address2,
+                #                   tx_power=TxPower.Low)
 
-                self._assert_pod_can_activate()
+                #self._assert_pod_can_activate()
 
                 command_body = address2_bytes
                 packet_timeout = 4
@@ -378,13 +379,16 @@ class Pdm:
                 command_body += struct.pack(">I", self.pod.id_lot)
                 command_body += struct.pack(">I", self.pod.id_t)
 
-                msg = self._createMessage(0x03, command_body)
+                msg = self._createMessage(0x03, command_body, candidate_address=candidate_address)
                 self._sendMessage(msg, with_nonce=False, request_msg="PAIR POD", tx_power=TxPower.Low)
 
                 self._assert_pod_paired()
 
                 self.pod.nonce_seed = 0
                 self.pod.nonce_last = None
+
+                self.pod.radio_address = candidate_address
+                self.pod.radio_address2 = candidate_address
 
                 if self.pod.var_alert_low_reservoir is not None:
                     self._configure_alert(PodAlertBit.LowReservoir,
@@ -436,18 +440,20 @@ class Pdm:
         finally:
             self._savePod()
 
-    def inject_and_start(self):
+    def inject_and_start(self, basal_schedule, hour, minute, second):
         try:
             with PdmLock():
                 if self.pod.state_progress != PodProgress.ReadyForInjection:
                     raise PdmError("Pod is not at the injection stage")
 
-                self._assert_basal_schedule_is_valid(self.pod.var_basal_schedule)
+                self._assert_basal_schedule_is_valid(basal_schedule)
 
-                self._set_basal_schedule(self.pod.var_basal_schedule)
+                self._set_basal_schedule(basal_schedule, hour=hour, minute=minute, second=second)
 
                 if self.pod.state_progress != PodProgress.BasalScheduleSet:
                     raise PdmError("Pod did not acknowledge basal schedule")
+
+                self._set_delivery_flags(0, 0)
 
                 self._immediate_bolus(10, pulse_speed=8, delivery_delay=1,
                                       request_msg="INSERT CANNULA")
@@ -530,8 +536,9 @@ class Pdm:
         msg = self._createMessage(0x1f, commandBody)
         self._sendMessage(msg, with_nonce=True, request_msg="CANCEL %s" % act_str)
 
-    def _createMessage(self, commandType, commandBody):
-        msg = Message(MessageType.PDM, self.pod.radio_address, self.pod.radio_address2, sequence=self.get_radio().messageSequence)
+    def _createMessage(self, commandType, commandBody, candidate_address=None):
+        msg = Message(MessageType.PDM, self.pod.radio_address, self.pod.radio_address2, sequence=self.get_radio().messageSequence,
+                      candidate_address=candidate_address)
         msg.addCommand(commandType, commandBody)
         return msg
 
@@ -801,7 +808,6 @@ class Pdm:
 
     def _assert_pod_activate_can_start(self):
         self._assert_pod_address_not_assigned()
-        self._assert_basal_schedule_is_valid(self.pod.var_basal_schedule)
 
     def _assert_basal_schedule_is_valid(self, schedule):
         if schedule is None:

@@ -59,6 +59,7 @@ class Radio:
             self.request_arrived.clear()
 
             message_address = self.request_message.address
+            message_candidate_address = self.request_message.candidate_address
 
             try:
                 self.response_message = self._send_request(self.request_message, tx_power=self.tx_power,
@@ -73,7 +74,10 @@ class Radio:
 
             try:
                 self.logger.debug("Ending conversation")
-                ack_packet = Packet.Ack(message_address, 0x00000000)
+                if message_address == 0xffffffff and message_candidate_address is not None:
+                    ack_packet = Packet.Ack(message_address, message_candidate_address)
+                else:
+                    ack_packet = Packet.Ack(message_address, 0x00000000)
                 self._send_packet(ack_packet)
                 self.logger.debug("Conversation ended")
             except Exception as e:
@@ -116,7 +120,10 @@ class Radio:
         pod_response = Message.fromPacket(received)
 
         while pod_response.state == MessageState.Incomplete:
-            ack_packet = Packet.Ack(message.address, message.address2)
+            if message.candidate_address is not None:
+                ack_packet = Packet.Ack(message.address, message.candidate_address)
+            else:
+                ack_packet = Packet.Ack(message.address, message.address2)
             received = self._exchange_packets(ack_packet, "CON")
             if received is None:
                 raise ProtocolError("Timeout reached waiting for a response.")

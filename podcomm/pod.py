@@ -256,6 +256,7 @@ class Pod:
 
         self.Save()
 
+### TODO: needs improving for nonetype crashes etc
         self.log("%d\t%s\t%s\t%f\t%f\t%d\t%s\t%s\t%s\t%d\t%s\t%s\t%d\t%d\t0x%8X\n" % \
                  (self.state_last_updated, ds, orq, self.insulin_delivered, self.insulin_canceled, self.state_active_minutes,
                   PodProgress(self.state_progress).name,

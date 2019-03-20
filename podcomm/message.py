@@ -113,11 +113,12 @@ class PdmMessage:
 
 
 class Message:
-    def __init__(self, mtype, address, address2, unknownBits = 0, sequence = 0):
+    def __init__(self, mtype, address, address2, candidate_address=None, unknownBits=0, sequence=0):
         self.type = mtype
         self.address = address
         self.address2 = address2
         self.unknownBits = unknownBits
+        self.candidate_address = candidate_address
         self.sequence = sequence
         self.length = 0
         self.body = b"\x00\x00"

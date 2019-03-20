@@ -251,11 +251,11 @@ def activate_pod():
 
     pod = Pod()
     archive_pod()
-    pod.radio_address2 = get_next_pod_address()
     pod.Save(POD_FILE + POD_FILE_SUFFIX)
 
     pdm = get_pdm()
-    pdm.activate_pod()
+
+    pdm.activate_pod(get_next_pod_address())
     save_activated_pod_address(pod.radio_address)
     return pod
 
@@ -263,7 +263,18 @@ def start_pod():
     verify_auth(request)
 
     pdm = get_pdm()
-    pdm.inject_and_start()
+
+    schedule=[]
+
+    for i in range(0,48):
+        rate = Decimal(request.args.get("h"+str(i)))
+        schedule.append(rate)
+
+    hours = int(request.args.get("hours"))
+    minutes = int(request.args.get("minutes"))
+    seconds = int(request.args.get("seconds"))
+
+    pdm.inject_and_start(schedule, hours, minutes, seconds)
     return pdm.pod
 
 def _int_parameter(obj, parameter):
@@ -388,7 +399,10 @@ def set_basal_schedule():
         rate = Decimal(request.args.get("h"+str(i)))
         schedule.append(rate)
 
-    pdm.set_basal_schedule(schedule)
+    hours = int(request.args.get("hours"))
+    minutes = int(request.args.get("minutes"))
+    seconds = int(request.args.get("seconds"))
+    pdm.set_basal_schedule(schedule, hours, minutes, seconds)
     return pdm.pod
 
 def is_pdm_busy():
@@ -497,11 +511,11 @@ def a16():
 
 @app.route(REST_URL_ACTIVATE_POD)
 def a17():
-    return _api_result(lambda: new_pod(), "Failure while activating a new pod")
+    return _api_result(lambda: activate_pod(), "Failure while activating a new pod")
 
 @app.route(REST_URL_START_POD)
 def a18():
-    return _api_result(lambda: new_pod(), "Failure while starting a newly activated pod")
+    return _api_result(lambda: start_pod(), "Failure while starting a newly activated pod")
 
 @app.route(REST_URL_SET_BASAL_SCHEDULE)
 def a19():
