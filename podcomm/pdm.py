@@ -297,7 +297,7 @@ class Pdm:
         finally:
             self._savePod()
 
-    def set_basal_schedule(self, schedule):
+    def set_basal_schedule(self, schedule, hours=None, minutes=None, seconds=None):
         try:
             with PdmLock():
                 self.pod.var_basal_schedule = schedule
@@ -312,7 +312,7 @@ class Pdm:
 
                 self._assert_basal_schedule_is_valid(schedule)
 
-                self._set_basal_schedule(schedule)
+                self._set_basal_schedule(schedule, hour=hours, minute=minutes, second=seconds)
 
                 if self.pod.state_basal != BasalState.Program:
                     raise PdmError("Failed to set basal schedule")
@@ -342,7 +342,6 @@ class Pdm:
     def activate_pod(self):
         try:
             with PdmLock():
-                return
                 self._assert_pod_activate_can_start()
 
                 radio = self.get_radio()
@@ -405,6 +404,8 @@ class Pdm:
                                       beep_repeat_type=BeepPattern.OnceEveryMinuteForThreeMinutesAndRepeatEveryFifteenMinutes,
                                       beep_type=BeepType.BipBipBipTwice)
 
+                self._set_delivery_flags(0, 0)
+
                 self._immediate_bolus(52, pulse_speed=8, delivery_delay=1,
                                       request_msg="PRIMING 2.6U")
 
@@ -437,7 +438,6 @@ class Pdm:
 
     def inject_and_start(self):
         try:
-            return
             with PdmLock():
                 if self.pod.state_progress != PodProgress.ReadyForInjection:
                     raise PdmError("Pod is not at the injection stage")
@@ -470,6 +470,12 @@ class Pdm:
             raise PdmError("Unexpected error") from e
         finally:
             self._savePod()
+
+    def _set_delivery_flags(self, table5byte16, table5byte17):
+        commandBody = bytes(0, 0, 0, 0, table5byte16, table5byte17)
+        msg = self._createMessage(0x08, commandBody)
+        self._sendMessage(msg, with_nonce=True, request_msg="SET DELIVERY FLAGS %d %d" %
+                                                            (table5byte16, table5byte17))
 
     def _immediate_bolus(self, pulse_count, pulse_speed=16, reminders=0, delivery_delay=2, request_msg=""):
 
@@ -657,6 +663,9 @@ class Pdm:
         for entry in schedule:
             halved_schedule.append(entry / two)
 
+        if self.pod.var_utc_offset is None:
+            self.pod.var_utc_offset = 0
+
         utc_offset = timedelta(minutes=self.pod.var_utc_offset)
         pod_date = datetime.utcnow() + utc_offset
 
@@ -809,9 +818,6 @@ class Pdm:
                 raise PdmError("A basal rate schedule entry cannot be less than 0.05U/h")
             if entry > max_rate:
                 raise PdmError("A basal rate schedule entry cannot be more than 30U/h")
-
-        if self.pod.var_utc_offset is None:
-            raise PdmError("Pod utc offset not set")
 
     def _assert_pod_address_not_assigned(self):
         if self.pod is None:
