@@ -144,7 +144,7 @@ echo Updating service scripts and restarting services
 sudo chown -R pi.pi /home/pi/bluepy
 sudo chown -R pi.pi /home/pi/omnipy
 
-if [[ -d /home/pi/omnipy/scripts/btnap-custom.sh ]]
+if [[ -f /home/pi/omnipy/scripts/btnap-custom.sh ]]
 then
     sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
     sudo systemctl enable omnipy-pan.service
