@@ -17,7 +17,6 @@ class Pod:
         self.id_version_unknown_7_bytes = None
 
         self.radio_address = None
-        self.radio_address2 = None
         self.radio_packet_sequence = 0
         self.radio_message_sequence = 0
         self.radio_low_gain = None
@@ -98,7 +97,6 @@ class Pod:
             p.id_version_unknown_7_bytes = d["id_version_unknown_7_bytes"]
 
             p.radio_address = d["radio_address"]
-            p.radio_address2 = d["radio_address2"]
             p.radio_packet_sequence = d["radio_packet_sequence"]
             p.radio_message_sequence = d["radio_message_sequence"]
             p.radio_low_gain = d["radio_low_gain"]
@@ -150,7 +148,7 @@ class Pod:
         return p
 
     def is_active(self):
-        return not(self.id_lot is None or self.id_t is None or self.radio_address is None or self.radio_address2 is None) \
+        return not(self.id_lot is None or self.id_t is None or self.radio_address is None) \
             and (self.state_progress == PodProgress.Running or self.state_progress == PodProgress.RunningLow) \
             and not self.state_faulted
 
@@ -176,10 +174,7 @@ class Pod:
         self.id_lot = struct.unpack(">I", message_body[8:12])[0]
         self.id_t = struct.unpack(">I", message_body[12:16])[0]
         address = struct.unpack(">I", message_body[16:20])[0]
-        if candidate_only:
-            self.radio_address2 = address
-        else:
-            self.radio_address = address
+        self.radio_address = address
 
     def handle_information_response(self, response, original_request=None):
         if response[0] == 0x01:

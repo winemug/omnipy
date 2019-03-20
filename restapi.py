@@ -240,7 +240,6 @@ def new_pod():
         pod.id_t = int(request.args.get('id_t'))
     if request.args.get('radio_address') is not None:
         pod.radio_address = int(request.args.get('radio_address'))
-        pod.radio_address2 = int(request.args.get('radio_address'))
 
     archive_pod()
     pod.Save(POD_FILE + POD_FILE_SUFFIX)

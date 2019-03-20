@@ -350,20 +350,19 @@ class Pdm:
                 if radio is None:
                     raise PdmError("Cannot create radio instance")
 
-                address2_bytes = struct.pack(">I", candidate_address)
+                candidate_bytes = struct.pack(">I", candidate_address)
 
                 radio.packetSequence = 0
                 radio.messageSequence = 0
                 self.pod.radio_address = 0xffffffff
-                self.pod.radio_address2 = 0xffffffff
 
-                msg = self._createMessage(0x07, address2_bytes, candidate_address=candidate_address)
-                self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % self.pod.radio_address2,
+                msg = self._createMessage(0x07, candidate_bytes, )
+                self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % candidate_address,
                                   tx_power=TxPower.Low)
 
                 self._assert_pod_can_activate()
 
-                command_body = address2_bytes
+                command_body = candidate_bytes
                 packet_timeout = 4
                 command_body += bytes([0x14, packet_timeout])
 
@@ -381,7 +380,7 @@ class Pdm:
                 command_body += struct.pack(">I", self.pod.id_lot)
                 command_body += struct.pack(">I", self.pod.id_t)
 
-                msg = self._createMessage(0x03, command_body, candidate_address=candidate_address)
+                msg = self._createMessage(0x03, command_body)
                 self._sendMessage(msg, with_nonce=False, request_msg="PAIR POD", tx_power=TxPower.Low)
 
                 self._assert_pod_paired()
@@ -390,7 +389,6 @@ class Pdm:
                 self.pod.nonce_last = None
 
                 self.pod.radio_address = candidate_address
-                self.pod.radio_address2 = candidate_address
 
                 if self.pod.var_alert_low_reservoir is not None:
                     self._configure_alert(PodAlertBit.LowReservoir,
@@ -481,7 +479,7 @@ class Pdm:
             self._savePod()
 
     def _set_delivery_flags(self, table5byte16, table5byte17):
-        commandBody = bytes(0, 0, 0, 0, table5byte16, table5byte17)
+        commandBody = bytes([0, 0, 0, 0, table5byte16, table5byte17])
         msg = self._createMessage(0x08, commandBody)
         self._sendMessage(msg, with_nonce=True, request_msg="SET DELIVERY FLAGS %d %d" %
                                                             (table5byte16, table5byte17))
@@ -539,9 +537,8 @@ class Pdm:
         msg = self._createMessage(0x1f, commandBody)
         self._sendMessage(msg, with_nonce=True, request_msg="CANCEL %s" % act_str)
 
-    def _createMessage(self, commandType, commandBody, candidate_address=None):
-        msg = Message(MessageType.PDM, self.pod.radio_address, self.pod.radio_address2, sequence=self.get_radio().messageSequence,
-                      candidate_address=candidate_address)
+    def _createMessage(self, commandType, commandBody):
+        msg = Message(MessageType.PDM, self.pod.radio_address, sequence=self.get_radio().messageSequence)
         msg.addCommand(commandType, commandBody)
         return msg
 
@@ -845,9 +842,6 @@ class Pdm:
     def _assert_pod_can_activate(self):
         if self.pod is None:
             raise PdmError("No pod instance created")
-
-        if self.pod.radio_address2 is None:
-            raise PdmError("Radio radio_address2 not set")
 
         if self.pod.id_lot is None:
             raise PdmError("Lot number unknown")

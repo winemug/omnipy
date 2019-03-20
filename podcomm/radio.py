@@ -59,7 +59,6 @@ class Radio:
             self.request_arrived.clear()
 
             message_address = self.request_message.address
-            message_candidate_address = self.request_message.candidate_address
 
             try:
                 self.response_message = self._send_request(self.request_message, tx_power=self.tx_power,
@@ -74,10 +73,7 @@ class Radio:
 
             try:
                 self.logger.debug("Ending conversation")
-                if message_address == 0xffffffff and message_candidate_address is not None:
-                    ack_packet = Packet.Ack(message_address, message_candidate_address)
-                else:
-                    ack_packet = Packet.Ack(message_address, 0x00000000)
+                ack_packet = Packet.Ack(message_address, 0x00000000)
                 self._send_packet(ack_packet)
                 self.logger.debug("Conversation ended")
             except Exception as e:
@@ -120,10 +116,7 @@ class Radio:
         pod_response = Message.fromPacket(received)
 
         while pod_response.state == MessageState.Incomplete:
-            if message.candidate_address is not None:
-                ack_packet = Packet.Ack(message.address, message.candidate_address)
-            else:
-                ack_packet = Packet.Ack(message.address, message.address2)
+            ack_packet = Packet.Ack(message.address, message.address)
             received = self._exchange_packets(ack_packet, "CON")
             if received is None:
                 raise ProtocolError("Timeout reached waiting for a response.")
@@ -165,7 +158,7 @@ class Radio:
                     self.logger.debug("Received bad packet")
                     self.packetRadio.tx_down()
                     continue
-                if p.address != expected_address and p.address2 != packet_to_send.address2:
+                if p.address != expected_address:
                     self.logger.debug("Received packet for a different radio_address")
                     self.packetRadio.tx_down()
                     continue
@@ -216,7 +209,7 @@ class Radio:
                     self.logger.debug("Received bad packet")
                     self.packetRadio.tx_down()
                     continue
-                if p.address != packetToSend.address and p.address2 != packetToSend.address2:
+                if p.address != packetToSend.address:
                     self.logger.debug("Received packet for a different radio_address")
                     self.packetRadio.tx_down()
                     continue
