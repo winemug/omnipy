@@ -6,9 +6,6 @@ import os
 
 logger = getLogger()
 
-if os.path.exists(RILEYLINK_MAC_FILE):
-    os.remove(RILEYLINK_MAC_FILE)
-
 print("connecting to RL..")
 r = RileyLink()
 r.connect()
