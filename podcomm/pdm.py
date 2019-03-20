@@ -301,6 +301,7 @@ class Pdm:
         try:
             with PdmLock():
                 self.pod.var_basal_schedule = schedule
+                return
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
@@ -341,6 +342,7 @@ class Pdm:
 
     def activate_pod(self, candidate_address):
         try:
+            return
             with PdmLock():
                 self._assert_pod_activate_can_start()
 
@@ -356,10 +358,10 @@ class Pdm:
                 self.pod.radio_address2 = 0xffffffff
 
                 msg = self._createMessage(0x07, address2_bytes, candidate_address=candidate_address)
-                # self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % self.pod.radio_address2,
-                #                   tx_power=TxPower.Low)
+                self._sendMessage(msg, with_nonce=False, request_msg="ASSIGN ADDRESS 0x%08X" % self.pod.radio_address2,
+                                  tx_power=TxPower.Low)
 
-                #self._assert_pod_can_activate()
+                self._assert_pod_can_activate()
 
                 command_body = address2_bytes
                 packet_timeout = 4
@@ -442,6 +444,7 @@ class Pdm:
 
     def inject_and_start(self, basal_schedule, hour, minute, second):
         try:
+            return
             with PdmLock():
                 if self.pod.state_progress != PodProgress.ReadyForInjection:
                     raise PdmError("Pod is not at the injection stage")
