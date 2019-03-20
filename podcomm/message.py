@@ -145,7 +145,7 @@ class Message:
         else:
             raise ProtocolError("Packet type %s not valid for a first packet in a message" % packet.type)
 
-        msg_addr = struct.unpack(">I", packet.body[0:4])
+        msg_addr = struct.unpack(">I", packet.body[0:4])[0]
         b0 = packet.body[4]
         b1 = packet.body[5]
         unknownBits = b0 >> 6
