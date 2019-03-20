@@ -145,14 +145,15 @@ class Message:
         else:
             raise ProtocolError("Packet type %s not valid for a first packet in a message" % packet.type)
 
-        b0 = packet.body[0]
-        b1 = packet.body[1]
+        msg_addr = struct.unpack(">I", packet.body[0:4])
+        b0 = packet.body[4]
+        b1 = packet.body[5]
         unknownBits = b0 >> 6
         sequence = (b0 & 0x3C) >> 2
 
-        m = Message(mType, packet.address, unknownBits, sequence)
+        m = Message(mType, msg_addr, unknownBits, sequence)
         m.length = ((b0 & 3) <<8) | b1
-        m.body = packet.body[2:]
+        m.body = packet.body[6:]
         m.updateMessageState()
         m.acknowledged = False
         return m
