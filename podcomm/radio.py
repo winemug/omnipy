@@ -85,13 +85,13 @@ class Radio:
 
         if tx_power is not None:
             self.packetRadio.set_tx_power(tx_power)
-
         message.setSequence(self.messageSequence)
         self.logger.debug("SENDING MSG: %s" % message)
         packets = message.getPackets()
         received = None
         packet_index = 1
         packet_count = len(packets)
+        self._awaken()
         for packet in packets:
             while True:
                 if packet_index == packet_count:
@@ -229,6 +229,9 @@ class Radio:
         self.packetSequence = (self.packetSequence + 1) % 32
         self.logger.debug("SEND FINAL complete")
         self.send_final_complete.set()
+
+    def _awaken(self):
+        self.packetRadio.send_packet(bytes([0xFF, 0xFF, 0xFF, 0xFF]), 0, 0, 300)
 
     @staticmethod
     def _get_packet(data):

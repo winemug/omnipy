@@ -123,6 +123,7 @@ class Pdm:
     def bolus(self, bolus_amount):
         try:
             with PdmLock():
+                self._update_status()
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
@@ -192,6 +193,7 @@ class Pdm:
     def cancelTempBasal(self, beep=False):
         try:
             with PdmLock():
+                self._update_status()
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
@@ -220,6 +222,7 @@ class Pdm:
     def setTempBasal(self, basalRate, hours, confidenceReminder=False):
         try:
             with PdmLock():
+                self._update_status()
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
@@ -302,6 +305,7 @@ class Pdm:
             with PdmLock():
                 self.pod.var_basal_schedule = schedule
                 return
+                self._update_status()
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
