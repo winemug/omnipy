@@ -87,7 +87,7 @@ sudo pip3 install requests || ((echo "Error: installing dependencies failed - ab
 echo
 echo ${bold}Step 5/11: ${normal}Configuring and installing bluepy
 cd /home/pi
-git clone https://github.com/IanHarvey/bluepy.git
+git clone https://github.com/winemug/bluepy.git
 cd bluepy
 python3 ./setup.py build
 sudo python3 ./setup.py install

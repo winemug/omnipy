@@ -51,7 +51,7 @@ sudo pip3 install requests
 echo
 echo Configuring and installing bluepy
 cd /home/pi
-git clone https://github.com/IanHarvey/bluepy.git
+git clone https://github.com/winemug/bluepy.git
 cd bluepy
 python3 ./setup.py build
 sudo python3 ./setup.py install
