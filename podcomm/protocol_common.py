@@ -33,29 +33,29 @@ class PodMessage:
         self.body = None
 
     def add_packet_data(self, data):
-        t = data[4] >> 5
+        t = data[0] >> 5
         if t == 7:
-            self.address = struct.unpack(">I", data[5:9])[0]
-            self.sequence = (data[10] >> 2) & 0x0f
-            self.expect_critical_followup = (data[10] & 0x80) > 0
-            self.body_length = ((data[10] & 0x03) << 8) | data[11]
-            self.body = data[12:]
+            self.address = struct.unpack(">I", data[1:5])[0]
+            self.sequence = (data[6] >> 2) & 0x0f
+            self.expect_critical_followup = (data[6] & 0x80) > 0
+            self.body_length = ((data[6] & 0x03) << 8) | data[11]
+            self.body = data[8:]
         elif t == 4:
-            self.body += data[5:]
+            self.body += data[1:]
         else:
             raise ProtocolError("Packet type invalid")
 
         return self.body_length == len(self.body) + 2
 
 class PdmMessage:
-    def __init__(self, message_address, cmd_type, cmd_body):
-        self.message_address = message_address
+    def __init__(self, cmd_type, cmd_body):
         self.parts = []
         self.add_part(cmd_type, cmd_body)
 
-    def get_packets(self, packet_address,
-                    first_packet_sequence,
+    def get_packets(self, message_address,
                     message_sequence,
+                    packet_address,
+                    first_packet_sequence,
                     expect_critical_follow_up=False):
 
         message_body_len = 0
@@ -73,7 +73,7 @@ class PdmMessage:
         b0 |= (message_body_len >> 8) & 0x03
         b1 = message_body_len & 0xff
 
-        message_body = struct.pack(">I", self.message_address)
+        message_body = struct.pack(">I", message_address)
         message_body +=  bytes([b0, b1])
         for cmd_type, cmd_body, nonce in self.parts:
             if nonce is None:
@@ -84,7 +84,8 @@ class PdmMessage:
             message_body += cmd_body
 
         crc_calculated = crc16(message_body)
-        message_body += struct.pack(">H", crc_calculated)
+        x = struct.pack(">H", crc_calculated)
+        message_body += x
 
         index = 0
         first_packet = True
@@ -102,7 +103,7 @@ class PdmMessage:
                 seq_byte |= 0x80
 
             packet_data += bytes([seq_byte])
-            to_write = min(25, total_body_len - index)
+            to_write = min(31, total_body_len - index)
             packet_data += message_body[index:index+to_write]
             packet_data += bytes([crc8(packet_data)])
             packets.append(packet_data)
