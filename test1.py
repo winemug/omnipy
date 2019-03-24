@@ -19,7 +19,6 @@ def get_pdm():
 def main():
     schedule = [Decimal("15.00")] * 48
     pdm = get_pdm()
-    pdm.updatePodStatus()
     pdm.set_basal_schedule(schedule, hours=0, minutes=14, seconds=17)
     start_time = time.time()
     while not pdm.pod.state_faulted:
