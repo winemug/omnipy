@@ -51,6 +51,7 @@ sudo pip3 install requests
 echo
 echo Configuring and installing bluepy
 cd /home/pi
+sudo rm -rf bluepy
 git clone https://github.com/winemug/bluepy.git
 cd bluepy
 python3 ./setup.py build
