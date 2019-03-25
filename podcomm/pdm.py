@@ -572,8 +572,15 @@ class Pdm:
             nonce = nonce_obj.getNext()
             message.setNonce(nonce)
 
-        response_message = self.get_radio().send_request_get_response(message, tx_power=tx_power,
+        radio = self.get_radio()
+
+        try:
+            response_message = radio.send_request_get_response(message, tx_power=tx_power,
                                                                       double_take=double_take)
+        except:
+            if with_nonce:
+                nonce_obj.reset()
+            raise
 
         contents = response_message.getContents()
         for (ctype, content) in contents:
@@ -590,10 +597,10 @@ class Pdm:
                     elif nonce_retry_count > 3:
                         raise PdmError("Nonce re-negotiation failed")
                     nonce_sync_word = struct.unpack(">H", content[1:])[0]
-                    self.get_nonce().sync(nonce_sync_word, message.sequence)
-                    self.get_radio().messageSequence = message.sequence
+                    nonce_obj.sync(nonce_sync_word, message.sequence)
+                    radio.messageSequence = message.sequence
                     return self._sendMessage(message, with_nonce=True, nonce_retry_count=nonce_retry_count + 1,
-                                             request_msg=request_msg)
+                                             request_msg=request_msg, tx_power=tx_power, double_take=double_take)
 
     def _update_status(self, update_type=0):
         commandType = 0x0e

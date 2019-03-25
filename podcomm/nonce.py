@@ -26,6 +26,9 @@ class Nonce:
         self.nonce_runs += 1
         return nonce
 
+    def reset(self):
+        self.nonce_runs = 255
+
     def sync(self, syncWord, msgSequence):
         w_sum = (self.lastNonce & 0xFFFF) + (crc16_table[msgSequence] & 0xFFFF) \
               + (self.lot & 0xFFFF) + (self.tid & 0xFFFF)

@@ -175,6 +175,9 @@ def send_content(path):
 
 def _api_result(result_lambda, generic_err_message):
     try:
+        if g_deny:
+            raise RestApiException("Pdm is shutting down")
+
         return create_response(True,
                                response=result_lambda(), pod_status=get_pod())
     except RestApiException as rae:
@@ -243,7 +246,6 @@ def new_pod():
 
     archive_pod()
     pod.Save(POD_FILE + POD_FILE_SUFFIX)
-    return pod
 
 def activate_pod():
     verify_auth(request)
@@ -256,7 +258,6 @@ def activate_pod():
 
     pdm.activate_pod(get_next_pod_address())
     save_activated_pod_address(pod.radio_address)
-    return pod
 
 def start_pod():
     verify_auth(request)
@@ -274,7 +275,6 @@ def start_pod():
     seconds = int(request.args.get("seconds"))
 
     pdm.inject_and_start(schedule, hours, minutes, seconds)
-    return pdm.pod
 
 def _int_parameter(obj, parameter):
     if request.args.get(parameter) is not None:
@@ -304,33 +304,35 @@ def set_pod_parameters():
     verify_auth(request)
 
     pod = get_pod()
-    reset_nonce = False
-    if _int_parameter(pod, "id_lot"):
-        reset_nonce = True
-    if _int_parameter(pod, "id_t"):
-        reset_nonce = True
+    try:
+        reset_nonce = False
+        if _int_parameter(pod, "id_lot"):
+            reset_nonce = True
+        if _int_parameter(pod, "id_t"):
+            reset_nonce = True
 
-    if reset_nonce:
-        pod.nonce_last = None
-        pod.nonce_seed = 0
+        if reset_nonce:
+            pod.nonce_last = None
+            pod.nonce_seed = 0
 
-    if _int_parameter(pod, "radio_address"):
-        pod.radio_packet_sequence = 0
-        pod.radio_message_sequence = 0
+        if _int_parameter(pod, "radio_address"):
+            pod.radio_packet_sequence = 0
+            pod.radio_message_sequence = 0
 
-    _float_parameter(pod, "var_utc_offset")
-    _float_parameter(pod, "var_maximum_bolus")
-    _float_parameter(pod, "var_maximum_temp_basal_rate")
-    _float_parameter(pod, "var_alert_low_reservoir")
-    _int_parameter(pod, "var_alert_replace_pod")
-    _bool_parameter(pod, "var_notify_bolus_start")
-    _bool_parameter(pod, "var_notify_bolus_cancel")
-    _bool_parameter(pod, "var_notify_temp_basal_set")
-    _bool_parameter(pod, "var_notify_temp_basal_cancel")
-    _bool_parameter(pod, "var_notify_basal_schedule_change")
-
-    pod.Save()
-    return None
+        _float_parameter(pod, "var_utc_offset")
+        _float_parameter(pod, "var_maximum_bolus")
+        _float_parameter(pod, "var_maximum_temp_basal_rate")
+        _float_parameter(pod, "var_alert_low_reservoir")
+        _int_parameter(pod, "var_alert_replace_pod")
+        _bool_parameter(pod, "var_notify_bolus_start")
+        _bool_parameter(pod, "var_notify_bolus_cancel")
+        _bool_parameter(pod, "var_notify_temp_basal_set")
+        _bool_parameter(pod, "var_notify_temp_basal_cancel")
+        _bool_parameter(pod, "var_notify_basal_schedule_change")
+    except:
+        raise
+    finally:
+        pod.Save()
 
 
 def get_rl_info():
@@ -348,14 +350,12 @@ def get_status():
 
     pdm = get_pdm()
     pdm.updatePodStatus(req_type)
-    return pdm.pod
 
 def deactivate_pod():
     verify_auth(request)
     pdm = get_pdm()
     pdm.deactivate_pod()
     archive_pod()
-    return pdm.pod
 
 def bolus():
     verify_auth(request)
@@ -363,14 +363,12 @@ def bolus():
     pdm = get_pdm()
     amount = Decimal(request.args.get('amount'))
     pdm.bolus(amount)
-    return pdm.pod
 
 def cancel_bolus():
     verify_auth(request)
 
     pdm = get_pdm()
     pdm.cancelBolus()
-    return pdm.pod
 
 def set_temp_basal():
     verify_auth(request)
@@ -379,14 +377,12 @@ def set_temp_basal():
     amount = Decimal(request.args.get('amount'))
     hours = Decimal(request.args.get('hours'))
     pdm.setTempBasal(amount, hours, False)
-    return pdm.pod
 
 def cancel_temp_basal():
     verify_auth(request)
 
     pdm = get_pdm()
     pdm.cancelTempBasal()
-    return pdm.pod
 
 def set_basal_schedule():
     verify_auth(request)
@@ -402,7 +398,6 @@ def set_basal_schedule():
     minutes = int(request.args.get("minutes"))
     seconds = int(request.args.get("seconds"))
     pdm.set_basal_schedule(schedule, hours, minutes, seconds)
-    return pdm.pod
 
 def is_pdm_busy():
     pdm = get_pdm()
@@ -414,7 +409,6 @@ def acknowledge_alerts():
     mask = Decimal(request.args.get('alertmask'))
     pdm = get_pdm()
     pdm.acknowledge_alerts(mask)
-    return pdm.pod
 
 def shutdown():
     global g_deny
