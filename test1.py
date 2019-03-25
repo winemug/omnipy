@@ -7,6 +7,7 @@ import struct
 from podcomm.pdmutils import *
 import time
 from datetime import timedelta, datetime
+import sys
 
 def get_pod():
     return Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
@@ -19,7 +20,14 @@ def get_pdm():
 def main():
     schedule = [Decimal("15.00")] * 48
     pdm = get_pdm()
-    pdm.set_basal_schedule(schedule, hours=0, minutes=14, seconds=17)
+
+    if sys.argv[1] == "a":
+        pdm.set_basal_schedule_w_cancel(schedule, hours=0, minutes=14, seconds=17)
+    elif sys.argv[1] == "b":
+        pdm.set_basal_schedule(schedule, hours=0, minutes=14, seconds=17)
+    else:
+        exit(0)
+
     start_time = time.time()
     while not pdm.pod.state_faulted:
         time.sleep(30)
