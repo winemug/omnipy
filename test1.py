@@ -18,12 +18,13 @@ def get_pdm():
 
 
 def main():
-    schedule = [Decimal("15.00")] * 48
     pdm = get_pdm()
 
     if sys.argv[1] == "a":
+        schedule = [Decimal("15.00")] * 48
         pdm.set_basal_schedule_w_cancel(schedule, hours=0, minutes=14, seconds=17)
     elif sys.argv[1] == "b":
+        schedule = [Decimal("9.00")] * 48
         pdm.set_basal_schedule(schedule, hours=0, minutes=14, seconds=17)
     else:
         exit(0)
