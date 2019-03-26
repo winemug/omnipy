@@ -131,7 +131,7 @@ class Radio:
             self.messageSequence = (pod_response.sequence + 1) % 16
             return pod_response
         except:
-            self.messageSequence = (self.messageSequenceq + 1) % 16
+            self.messageSequence = (self.messageSequence + 1) % 16
             raise
 
     def _exchange_packets(self, packet_to_send, expected_type):
