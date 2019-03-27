@@ -56,8 +56,14 @@ git clone https://github.com/winemug/bluepy.git
 cd bluepy
 python3 ./setup.py build
 sudo python3 ./setup.py install
+sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hciconfig`
+sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
+sudo setcap 'cap_net_raw,cap_net_admin+eip' `which btmgmt`
+sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-agent`
+sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-network`
+sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
+sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 fi
-
 
 read -p "Do you want reconfigure the API password? " -r
 if [[ $REPLY =~ ^[Yy]$ ]]
