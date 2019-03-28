@@ -125,6 +125,9 @@ class PodMessage:
         else:
             return False
 
+    def get_parts(self):
+        return self.parts
+
     def __str__(self):
         s = "Pod Address: 0x%8X Sequence: %s Critical Follow-up: %s\n" % ( self.address,
                                                                     self.sequence,
