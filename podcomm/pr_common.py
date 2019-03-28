@@ -16,13 +16,18 @@ def _ack_data(address1, address2, sequence):
 class PdmRadio:
     pod_message: PodMessage
 
-    def __init__(self, radio_address, msg_sequence=0, pkt_sequence=0):
+    def __init__(self, radio_address, msg_sequence=0, pkt_sequence=0, packet_radio=None):
         self.radio_address = radio_address
         self.message_sequence = msg_sequence
         self.packet_sequence = pkt_sequence
         self.last_received_packet = None
         self.logger = getLogger()
-        self.packet_radio = RileyLink()
+
+        if packet_radio is None:
+            self.packet_radio = RileyLink()
+        else:
+            self.packet_radio = packet_radio
+
         self.last_packet_received = None
         self.radio_ready = Event()
         self.request_arrived = Event()

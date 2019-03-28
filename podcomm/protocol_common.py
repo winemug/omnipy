@@ -73,9 +73,7 @@ class RadioPacket:
     def __str__(self):
             return "Packet Addr: 0x%08x Type: %s Seq: 0x%02x Body: %s" % (self.address, self.type, self.sequence, self.body.hex())
 
-
-
-class PodMessage:
+class BaseMessage:
     def __init__(self):
         self.address = None
         self.sequence = None
@@ -84,9 +82,12 @@ class PodMessage:
         self.body = None
         self.body_prefix = None
         self.parts = []
+        self.message_str_prefix = "\n"
+        self.type = None
 
     def add_radio_packet(self, radio_packet):
-        if radio_packet.type == RadioPacketType.POD:
+        if radio_packet.type == RadioPacketType.POD or radio_packet.type == RadioPacketType.PDM:
+            self.type = radio_packet.type
             self.address = struct.unpack(">I", radio_packet.body[0:4])[0]
             self.sequence = (radio_packet.body[4] >> 2) & 0x0f
             self.expect_critical_followup = (radio_packet.body[4] & 0x80) > 0
@@ -129,22 +130,6 @@ class PodMessage:
     def get_parts(self):
         return self.parts
 
-    def __str__(self):
-        s = "Pod Address: 0x%8X Sequence: %s Critical Follow-up: %s\n" % ( self.address,
-                                                                    self.sequence,
-                                                                    self.expect_critical_followup)
-
-        for r_type, r_body in self.parts:
-            s += "Response: %02x Body: %s\n" % (r_type, r_body.hex())
-        return s
-
-
-class PdmMessage:
-    def __init__(self, cmd_type, cmd_body):
-        self.parts = []
-        self.add_part(cmd_type, cmd_body)
-        self.message_str_prefix = "\n"
-
     def get_radio_packets(self, message_address,
                     message_sequence,
                     packet_address,
@@ -172,7 +157,10 @@ class PdmMessage:
         message_body +=  bytes([b0, b1])
         for cmd_type, cmd_body, nonce in self.parts:
             if nonce is None:
-                message_body += bytes([cmd_type, len(cmd_body)])
+                if cmd_type == PodResponse.Status:
+                    message_body += bytes([cmd_type])
+                else:
+                    message_body += bytes([cmd_type, len(cmd_body)])
             else:
                 message_body += bytes([cmd_type, len(cmd_body) + 4])
                 message_body += struct.pack(">I", nonce)
@@ -192,7 +180,7 @@ class PdmMessage:
             packet_body = message_body[index:index+to_write]
 
             radio_packets.append(RadioPacket(packet_address,
-                                             RadioPacketType.PDM if first_packet else RadioPacketType.CON,
+                                             self.type if first_packet else RadioPacketType.CON,
                                              sequence,
                                              packet_body))
             first_packet = False
@@ -204,6 +192,30 @@ class PdmMessage:
     def add_part(self, cmd_type, cmd_body):
         part_tuple = cmd_type, cmd_body, None
         self.parts.append(part_tuple)
+
+
+class PodMessage(BaseMessage):
+    def __init__(self):
+        super(PodMessage, self).__init__()
+        self.type = RadioPacketType.POD
+
+    def __str__(self):
+        s = "Pod Address: 0x%8X Sequence: %s Critical Follow-up: %s\n" % ( self.address,
+                                                                    self.sequence,
+                                                                    self.expect_critical_followup)
+
+        for r_type, r_body in self.parts:
+            s += "Response: %02x Body: %s\n" % (r_type, r_body.hex())
+        return s
+
+
+class PdmMessage(BaseMessage):
+    def __init__(self, cmd_type, cmd_body):
+        super(PdmMessage, self).__init__()
+        self.add_part(cmd_type, cmd_body)
+        self.message_str_prefix = "\n"
+        self.type = RadioPacketType.PDM
+
 
     def set_nonce(self, nonce):
         cmd_type, cmd_body, _ = self.parts[0]
