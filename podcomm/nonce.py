@@ -18,6 +18,7 @@ class Nonce:
 
     def getNext(self, seeking = False):
         if not seeking and self.nonce_runs > 15:
+            self.lastNonce = FAKE_NONCE
             return FAKE_NONCE
         nonce = self.table[self.ptr]
         self.table[self.ptr] = self._generate()

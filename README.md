@@ -1,12 +1,26 @@
-# Project status March 17th
+# Project status March 27th
 
-omnipy v1.1 released.
+## Good news everyone!
+*Omnipy v1.3 coming soon**
 
-Due to lack of testing resources, pod activation and basal rate settings could not make it into this release. There is however a significant number of improvements and fixes. See [release notes](https://github.com/winemug/omnipy/wiki/Release-Notes) on the wiki for more information.
+Development and testing is going forward now that we've pods for testing. Thanks to all our contributors on the [slack channel](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY) who have been sending pods, helping with coding and documentation, providing feedback and spreading the word.
 
-Also see [upgrading](https://github.com/winemug/omnipy/wiki/Upgrading-Software) if you are already running v1.0.
+![slackers](https://raw.githubusercontent.com/winemug/omnipy/master/img/slackers.png)
 
-Watch out on this page for release announcement and links. Join us in the [slack space](https://join.slack.com/t/omnicore-pdm/) for questions, updates and support via this [invite link](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY).
+Here's what to look forward to in this (last) feature update for omnipy:
+
+- All remaining PDM features: Pod activation, basal rate adjustments, 
+- Android APS: Messages, warnings, status updates from omnipy and a functional UI for PDM
+- Overall connection stability improvements in all areas: Pod, Rileylink and omnipy
+- An easier way to set up omnipy with raspberry pi and Android APS on your phone
+
+*Watch out on this page for release announcement and links. For questions, updates and support join us in the [omnicore-pdm slack via this invite link](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY).
+
+**March 17th - omnipy v1.2 released**
+
+This release fixes an issue with the AAPS client incorrectly registering failed commands as succeeded. For all changes, see [release notes](https://github.com/winemug/omnipy/wiki/Release-Notes) on the wiki for more information.
+
+Also see [upgrading](https://github.com/winemug/omnipy/wiki/Upgrading-Software) if you are running a previous version.
 
 # Wiki Links
 
@@ -34,7 +48,7 @@ You are welcome to test it and report issues, but be aware you are doing this on
 
 # What's next?
 
-This was intended to be a throw-away prototype and I ~~want~~try to keep it that way. The raspberry pi and android are redundant, as both have enough processing power to perform the operations. My focus on Omnipod related development will shift on to the [OmniCore](https://github.com/winemug/OmniCore) project, which will be ready for public testing by ~~mid~~late March 2019.
+This was intended to be a throw-away prototype and I ~~want~~try to keep it that way. The raspberry pi and android are redundant, as both have enough processing power to perform the operations. My focus on Omnipod related development will shift on to the [OmniCore](https://github.com/winemug/OmniCore) project, which will be ready for public testing by ~~mid~~ ~~late March~~ sometime after the final feature update of omnipy.
 
 In the mean time, please do report any issues you find so they can be addressed.
 

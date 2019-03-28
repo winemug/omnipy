@@ -303,19 +303,38 @@ class Pdm:
     def set_basal_schedule(self, schedule, hours=None, minutes=None, seconds=None):
         try:
             with PdmLock():
-                self.pod.var_basal_schedule = schedule
-                return
-                self._update_status()
-                self._assert_pod_address_assigned()
-                self._assert_can_generate_nonce()
-                self._assert_immediate_bolus_not_active()
-                self._assert_not_faulted()
-                self._assert_status_running()
+                # self._update_status()
+                # self._assert_pod_address_assigned()
+                # self._assert_can_generate_nonce()
+                # self._assert_immediate_bolus_not_active()
+                # self._assert_not_faulted()
+                # self._assert_status_running()
 
-                if self._is_temp_basal_active():
-                    raise PdmError("Cannot change basal schedule while a temp. basal is active")
+                # if self._is_temp_basal_active():
+                #     raise PdmError("Cannot change basal schedule while a temp. basal is active")
 
                 self._assert_basal_schedule_is_valid(schedule)
+
+                self._set_basal_schedule(schedule, hour=hours, minute=minutes, second=seconds)
+
+                if self.pod.state_basal != BasalState.Program:
+                    raise PdmError("Failed to set basal schedule")
+                else:
+                    self.pod.var_basal_schedule = schedule
+
+        except OmnipyError:
+            raise
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
+        finally:
+            self._savePod()
+
+    def set_basal_schedule_w_cancel(self, schedule, hours=None, minutes=None, seconds=None):
+        try:
+            with PdmLock():
+                self._assert_basal_schedule_is_valid(schedule)
+
+                self._cancelActivity(cancelBasal=True)
 
                 self._set_basal_schedule(schedule, hour=hours, minute=minutes, second=seconds)
 
@@ -745,7 +764,7 @@ class Pdm:
                 ii = indices.index(current_hh)
 
                 pulses_past_intervals = int(ii * 1800000000 / interval)
-                pulses_past_this_interval = int(seconds_past_hh * 1000000 / interval)
+                pulses_past_this_interval = int(seconds_past_hh * 1000000 / interval) + 1
                 remaining_pulses_this_interval = pulses10 - pulses_past_this_interval - pulses_past_intervals
                 microseconds_to_next_interval = interval - (seconds_past_hh * 1000000 % interval)
 
