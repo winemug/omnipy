@@ -2,6 +2,7 @@ from podcomm.exceptions import PdmError, ProtocolError
 from enum import IntEnum
 from podcomm.crc import crc8, crc16
 import struct
+from decimal import Decimal
 
 class PdmRequest(IntEnum):
     SetupPod = 0x03
@@ -218,53 +219,135 @@ class PdmMessage:
         return s
 
 
-def alert_configuration_message_body(alert_bit, activate, trigger_auto_off, duration_minutes, beep_repeat_type, beep_type,
-                     alert_after_minutes=None, alert_after_reservoir=None, trigger_reservoir=False):
-    if alert_after_minutes is None:
-        if alert_after_reservoir is None:
-            raise PdmError("Either alert_after_minutes or alert_after_reservoir must be set")
-        elif not trigger_reservoir:
-            raise PdmError("Trigger insulin_reservoir must be True if alert_after_reservoir is to be set")
+
+def getInsulinScheduleTableFromPulses(pulses):
+    iseTable = []
+    ptr = 0
+    while ptr < len(pulses):
+        if ptr == len(pulses) - 1:
+            iseTable.append(getIse(pulses[ptr], 0, False))
+            break
+
+        alternatingTable = pulses[ptr:]
+        for k in range(1, len(alternatingTable), 2):
+            alternatingTable[k] -= 1
+
+        pulse = alternatingTable[0]
+        others = alternatingTable[1:]
+        repeats = getRepeatCount(pulse, others)
+        if repeats > 15:
+            repeats = 15
+        if repeats > 0:
+            iseTable.append(getIse(pulse, repeats, True))
+        else:
+            pulse = pulses[ptr]
+            others = pulses[ptr + 1:]
+            repeats = getRepeatCount(pulse, others)
+            if repeats > 15:
+                repeats = 15
+            iseTable.append(getIse(pulse, repeats, False))
+        ptr += repeats + 1
+    return iseTable
+
+def getPulsesForHalfHours(halfHourUnits):
+    halfHourlyDeliverySubtotals = []
+    totalToDeliver = Decimal(0)
+    for hhunit in halfHourUnits:
+        totalToDeliver += hhunit
+        halfHourlyDeliverySubtotals.append(totalToDeliver)
+
+    pulses = []
+    totalDelivered = Decimal(0)
+    for subtotal in halfHourlyDeliverySubtotals:
+        toDeliver = subtotal - totalDelivered
+        pulseCount = int(toDeliver * Decimal(20))
+        totalDelivered += Decimal(pulseCount) / Decimal(20)
+        pulses.append(pulseCount)
+
+    return pulses
+
+
+
+
+def getIse(pulses, repeat, alternate):
+    ise = pulses & 0x03ff
+    ise |= repeat << 12
+    if alternate:
+        ise |= 0x0800
+    return ise
+
+def getRepeatCount(pulse, otherPulses):
+    repeatCount = 0
+    for other in otherPulses:
+        if pulse != other:
+            break
+        repeatCount += 1
+    return repeatCount
+
+
+def getStringBodyFromTable(table):
+    st = bytes()
+    for val in table:
+        st += struct.pack(">H", val)
+    return st
+
+
+def getChecksum(body):
+    checksum = 0
+    for c in body:
+        checksum += c
+    return checksum
+
+
+def getHalfHourPulseInterval(pulseCount):
+    if pulseCount == 0:
+        return 180000000
     else:
-        if alert_after_reservoir is not None:
-            raise PdmError("Only one of alert_after_minutes or alert_after_reservoir must be set")
-        elif trigger_reservoir:
-            raise PdmError("Trigger insulin_reservoir must be False if alert_after_minutes is to be set")
+        return int(180000000 / pulseCount)
 
-    if duration_minutes > 0x1FF:
-        raise PdmError("Alert duration in minutes cannot be more than %d" % 0x1ff)
-    elif duration_minutes < 0:
-        raise PdmError("Invalid alert duration value")
 
-    if alert_after_minutes is not None and alert_after_minutes > 4800:
-        raise PdmError("Alert cannot be set beyond 80 hours")
-    if alert_after_minutes is not None and alert_after_minutes < 0:
-        raise PdmError("Invalid value for alert_after_minutes")
+def getPulseIntervalEntries(halfHourUnits):
+    list1 = []
+    index = 0
+    for hhu in halfHourUnits:
+        pulses10 = hhu * Decimal("200")
+        interval = 1800000000
+        if hhu > 0:
+            interval = int(Decimal("9000000") / hhu)
 
-    if alert_after_reservoir is not None and alert_after_reservoir > 50:
-        raise PdmError("Alert cannot be set for more than 50 units")
-    if alert_after_reservoir is not None and alert_after_reservoir < 0:
-        raise PdmError("Invalid value for alert_after_reservoir")
+        if interval < 200000:
+            raise PdmError()
+        elif interval > 1800000000:
+            raise PdmError()
 
-    b0 = alert_bit << 4
-    if activate:
-        b0 |= 0x08
-    if trigger_reservoir:
-        b0 |= 0x04
-    if trigger_auto_off:
-        b0 |= 0x02
+        list1.append((int(pulses10), int(interval), index))
+        index += 1
 
-    b0 |= (duration_minutes >> 8) & 0x0001
-    b1 = duration_minutes & 0x00ff
+    list2 = []
+    lastPulseInterval = None
+    subTotalPulses = 0
+    hh_indices = []
 
-    if alert_after_reservoir is not None:
-        reservoir_limit = int(alert_after_reservoir * 10)
-        b2 = reservoir_limit >> 8
-        b3 = reservoir_limit & 0x00ff
-    elif alert_after_minutes is not None:
-        b2 = alert_after_minutes >> 8
-        b3 = alert_after_minutes & 0x00ff
+    for pulses, interval, index in list1:
+        if lastPulseInterval is None:
+            subTotalPulses = pulses
+            lastPulseInterval = interval
+            hh_indices.append(index)
+        elif lastPulseInterval == interval:
+            if subTotalPulses + pulses < 65536 and subTotalPulses > 0:
+                subTotalPulses += pulses
+                hh_indices.append(index)
+            else:
+                list2.append((subTotalPulses, lastPulseInterval, hh_indices))
+                subTotalPulses = pulses
+                hh_indices = [index]
+        else:
+            list2.append((subTotalPulses, lastPulseInterval, hh_indices))
+            subTotalPulses = pulses
+            lastPulseInterval = interval
+            hh_indices = [index]
     else:
-        raise PdmError("Incorrect alert configuration requested")
+        if lastPulseInterval >= 0:
+            list2.append((subTotalPulses, lastPulseInterval, hh_indices))
 
-    return bytes([b0, b1, b2, b3, beep_repeat_type, beep_type])
+    return list2

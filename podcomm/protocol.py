@@ -3,8 +3,12 @@ from podcomm.protocol_common import *
 from podcomm.definitions import *
 from enum import IntEnum
 import struct
+from decimal import Decimal
 from datetime import datetime, timedelta
 
+
+DECIMAL_0_05 = Decimal("0.05")
+DECIMAL_2_00 = Decimal("2")
 
 class StatusRequestType(IntEnum):
     Standard = 0
@@ -15,17 +19,9 @@ def request_assign_address(address):
     return PdmMessage(PdmRequest.AssignAddress, cmd_body)
 
 
-def request_setup_pod(lot, tid, address, utc_offset_minutes):
+def request_setup_pod(lot, tid, address, year, month, day, hour, minute):
     cmd_body = struct.pack(">I", address)
     cmd_body += bytes([0x14, 0x04])
-
-    pod_date = datetime.utcnow() + timedelta(minutes=utc_offset_minutes)
-
-    year = pod_date.year
-    month = pod_date.month
-    day = pod_date.day
-    hour = pod_date.hour
-    minute = pod_date.minute
 
     cmd_body += bytes([month, day, year - 2000, hour, minute])
 
@@ -35,9 +31,10 @@ def request_setup_pod(lot, tid, address, utc_offset_minutes):
 
 
 def request_set_low_reservoir_alert(iu_reservoir_level):
-    cmd_body = alert_configuration_message_body(PodAlertBit.LowReservoir,
+    cmd_body = _alert_configuration_message(PodAlertBit.LowReservoir,
                                                  activate=True,
                                                  trigger_auto_off=False,
+                                                 trigger_reservoir=True,
                                                  duration_minutes=60,
                                                  alert_after_reservoir=iu_reservoir_level,
                                                  beep_type=BeepType.BipBip,
@@ -50,9 +47,10 @@ def request_clear_low_reservoir_alert():
 
 
 def request_set_pod_expiry_alert(minutes_after_activation):
-    cmd_body = alert_configuration_message_body(PodAlertBit.LowReservoir,
+    cmd_body = _alert_configuration_message(PodAlertBit.LowReservoir,
                                                  activate=True,
                                                  trigger_auto_off=False,
+                                                 trigger_reservoir=False,
                                                  duration_minutes=60,
                                                  alert_after_minutes=minutes_after_activation,
                                                  beep_type=BeepType.BipBip,
@@ -65,7 +63,7 @@ def request_clear_pod_expiry_alert():
 
 
 def request_set_generic_alert(minutes_after_set, repeat_interval):
-    cmd_body = alert_configuration_message_body(PodAlertBit.TimerLimit,
+    cmd_body = _alert_configuration_message(PodAlertBit.TimerLimit,
                                                  activate=True,
                                                  trigger_auto_off=False,
                                                  duration_minutes=55,
@@ -79,9 +77,78 @@ def request_clear_generic_alert():
     pass
 
 
-def request_set_basal_schedule(basal_schedule):
-    pass
+def request_set_basal_schedule(schedule, hour, minute, second):
+    halved_schedule = []
 
+    for entry in schedule:
+        halved_schedule.append(entry / DECIMAL_2_00)
+
+    current_hh = hour * 2
+    if minute < 30:
+        seconds_past_hh = minute * 60
+    else:
+        seconds_past_hh = (minute - 30) * 60
+        current_hh += 1
+
+    seconds_past_hh += second
+    seconds_to_hh = 1800 - seconds_past_hh
+
+    pulse_list = getPulsesForHalfHours(halved_schedule)
+    ise_list = getInsulinScheduleTableFromPulses(pulse_list)
+    ise_body = getStringBodyFromTable(ise_list)
+    pulse_body = getStringBodyFromTable(pulse_list)
+
+    command_body = struct.pack(">I", 0)
+    command_body += b"\x00"
+
+    body_checksum = bytes([current_hh])
+
+    current_hh_pulse_count = pulse_list[current_hh]
+    remaining_pulse_count = int(current_hh_pulse_count * seconds_to_hh / 1800)
+
+    body_checksum += struct.pack(">H", seconds_to_hh * 8)
+    body_checksum += struct.pack(">H", remaining_pulse_count)
+
+    checksum = getChecksum(body_checksum + pulse_body)
+
+    command_body += struct.pack(">H", checksum)
+    command_body += body_checksum
+    command_body += ise_body
+
+    msg = PdmMessage(PdmRequest.InsulinSchedule, command_body)
+
+    reminders = 0
+    # if confidenceReminder:
+    #     reminders |= 0x40
+
+    command_body = bytes([reminders])
+
+    command_body += b"\x00"
+
+    pulse_entries = getPulseIntervalEntries(halved_schedule)
+    table_index = 0
+    for pulses10, interval, indices in pulse_entries:
+        if current_hh in indices:
+            command_body += bytes([table_index])
+            ii = indices.index(current_hh)
+
+            pulses_past_intervals = int(ii * 1800000000 / interval)
+            pulses_past_this_interval = int(seconds_past_hh * 1000000 / interval) + 1
+            remaining_pulses_this_interval = pulses10 - pulses_past_this_interval - pulses_past_intervals
+            microseconds_to_next_interval = interval - (seconds_past_hh * 1000000 % interval)
+
+            command_body += struct.pack(">H", remaining_pulses_this_interval)
+            command_body += struct.pack(">I", microseconds_to_next_interval)
+            break
+        else:
+            table_index += 1
+
+    for pulse_count, interval, _ in pulse_entries:
+        command_body += struct.pack(">H", pulse_count)
+        command_body += struct.pack(">I", interval)
+
+    msg.add_part(PdmRequest.BasalSchedule, command_body)
+    return msg
 
 def request_prime_cannula():
     pass
@@ -97,17 +164,17 @@ def request_status(status_request_type=0):
 
 
 def request_acknowledge_alerts(alert_mask):
-    cmd_body = bytes([alert_mask])
-    return PdmMessage(PdmRequest.AcknowledgeAlerts, cmd_body)
+    return PdmMessage(PdmRequest.AcknowledgeAlerts, bytes([alert_mask]))
 
 
 def request_purge_insulin(iu_to_purge):
-    pass
+    return _bolus_message(pulse_count=int(iu_to_purge / DECIMAL_0_05),
+                          pulse_speed=8,
+                          delivery_delay=1)
 
 
 def request_bolus(iu_bolus):
-    pass
-
+    return _bolus_message(pulse_count=int(iu_bolus / DECIMAL_0_05))
 
 def request_cancel_bolus():
     pass
@@ -235,3 +302,78 @@ def parse_version_response(response, pod):
     pod.id_lot = struct.unpack(">I", response[8:12])[0]
     pod.id_t = struct.unpack(">I", response[12:16])[0]
     pod.radio_address = struct.unpack(">I", response[16:20])[0]
+
+def _alert_configuration_message(alert_bit, activate, trigger_auto_off, duration_minutes, beep_repeat_type, beep_type,
+                     alert_after_minutes=None, alert_after_reservoir=None, trigger_reservoir=False):
+    if alert_after_minutes is None:
+        if alert_after_reservoir is None:
+            raise PdmError("Either alert_after_minutes or alert_after_reservoir must be set")
+        elif not trigger_reservoir:
+            raise PdmError("Trigger insulin_reservoir must be True if alert_after_reservoir is to be set")
+    else:
+        if alert_after_reservoir is not None:
+            raise PdmError("Only one of alert_after_minutes or alert_after_reservoir must be set")
+        elif trigger_reservoir:
+            raise PdmError("Trigger insulin_reservoir must be False if alert_after_minutes is to be set")
+
+    if duration_minutes > 0x1FF:
+        raise PdmError("Alert duration in minutes cannot be more than %d" % 0x1ff)
+    elif duration_minutes < 0:
+        raise PdmError("Invalid alert duration value")
+
+    if alert_after_minutes is not None and alert_after_minutes > 4800:
+        raise PdmError("Alert cannot be set beyond 80 hours")
+    if alert_after_minutes is not None and alert_after_minutes < 0:
+        raise PdmError("Invalid value for alert_after_minutes")
+
+    if alert_after_reservoir is not None and alert_after_reservoir > 50:
+        raise PdmError("Alert cannot be set for more than 50 units")
+    if alert_after_reservoir is not None and alert_after_reservoir < 0:
+        raise PdmError("Invalid value for alert_after_reservoir")
+
+    b0 = alert_bit << 4
+    if activate:
+        b0 |= 0x08
+    if trigger_reservoir:
+        b0 |= 0x04
+    if trigger_auto_off:
+        b0 |= 0x02
+
+    b0 |= (duration_minutes >> 8) & 0x0001
+    b1 = duration_minutes & 0x00ff
+
+    if alert_after_reservoir is not None:
+        reservoir_limit = int(alert_after_reservoir * 10)
+        b2 = reservoir_limit >> 8
+        b3 = reservoir_limit & 0x00ff
+    elif alert_after_minutes is not None:
+        b2 = alert_after_minutes >> 8
+        b3 = alert_after_minutes & 0x00ff
+    else:
+        raise PdmError("Incorrect alert configuration requested")
+
+    return bytes([b0, b1, b2, b3, beep_repeat_type, beep_type])
+
+def _bolus_message(pulse_count, pulse_speed=16, reminders=0, delivery_delay=2):
+    commandBody = struct.pack(">I", 0)
+    commandBody += b"\x02"
+
+    bodyForChecksum = b"\x01"
+    pulse_span = pulse_speed * pulse_count
+    bodyForChecksum += struct.pack(">H", pulse_span)
+    bodyForChecksum += struct.pack(">H", pulse_count)
+    bodyForChecksum += struct.pack(">H", pulse_count)
+    checksum = getChecksum(bodyForChecksum)
+
+    commandBody += struct.pack(">H", checksum)
+    commandBody += bodyForChecksum
+
+    msg = PdmMessage(PdmRequest.InsulinSchedule, commandBody)
+
+    commandBody = bytes([reminders])
+    commandBody += struct.pack(">H", pulse_count * 10)
+    commandBody += struct.pack(">I", delivery_delay * 100000)
+    commandBody += b"\x00\x00\x00\x00\x00\x00"
+    msg.add_part(PdmRequest.BolusSchedule, commandBody)
+
+    return msg
