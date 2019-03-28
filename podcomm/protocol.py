@@ -1,3 +1,4 @@
+from podcomm.pod import Pod
 from podcomm.protocol_common import *
 from podcomm.definitions import *
 from enum import IntEnum
@@ -129,4 +130,8 @@ def request_resume_basal_insulin():
 
 
 def request_deactivate():
+    pass
+
+
+def response_parse(response: PodMessage, pod: Pod):
     pass

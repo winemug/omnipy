@@ -23,6 +23,56 @@ class PodResponse(IntEnum):
     BadNonce = 0x06
     Status = 0x1d
 
+class RadioPacketType(IntEnum):
+    UN0 = 0b00000000,
+    UN1 = 0b00100000,
+    ACK = 0b01000000,
+    UN3 = 0b01100000,
+    CON = 0b10000000,
+    PDM = 0b10100000,
+    UN6 = 0b11000000,
+    POD = 0b11100000
+
+class RadioPacket:
+    def __init__(self, address, type, sequence, body):
+        self.address = address
+        self.type = type
+        self.sequence = sequence % 32
+        self.body = body
+
+    @staticmethod
+    def parse(data):
+        if len(data) < 5:
+            raise ProtocolError("Packet length too small")
+
+        crc = data[-1]
+        crc_computed = crc8(data[:-1])
+        if crc != crc_computed:
+            raise ProtocolError("Packet crc error")
+
+        address = struct.unpack(">I", data[0:4])[0]
+
+        type = RadioPacketType(data[4] & 0b11100000)
+        sequence = data[4] & 0b00011111
+
+        body = data[5:-1]
+        return RadioPacket(address, type, sequence, body)
+
+    def with_sequence(self, sequence):
+        self.sequence = sequence
+        return self
+
+    def get_data(self):
+        data = struct.pack(">I", self.address)
+        data += bytes([self.type | self.sequence ])
+        data += self.body
+        data +=  bytes([crc8(data)])
+        return data
+
+    def __str__(self):
+            return "Packet Addr: 0x%08x Type: %s Seq: 0x%02x Body: %s" % (self.address, self.type, self.sequence, self.body.hex())
+
+
 
 class PodMessage:
     def __init__(self):
@@ -31,33 +81,74 @@ class PodMessage:
         self.expect_critical_followup = False
         self.body_length = 0
         self.body = None
+        self.body_prefix = None
+        self.parts = []
 
-    def add_packet_data(self, data):
-        t = data[0] >> 5
-        if t == 7:
-            self.address = struct.unpack(">I", data[1:5])[0]
-            self.sequence = (data[6] >> 2) & 0x0f
-            self.expect_critical_followup = (data[6] & 0x80) > 0
-            self.body_length = ((data[6] & 0x03) << 8) | data[11]
-            self.body = data[8:]
-        elif t == 4:
-            self.body += data[1:]
+    def add_radio_packet(self, radio_packet):
+        if radio_packet.type == RadioPacketType.POD:
+            self.address = struct.unpack(">I", radio_packet.body[0:4])[0]
+            self.sequence = (radio_packet.body[4] >> 2) & 0x0f
+            self.expect_critical_followup = (radio_packet.body[4] & 0x80) > 0
+            self.body_length = ((radio_packet.body[4] & 0x03) << 8) | radio_packet.body[5]
+            self.body_prefix = radio_packet.body[:6]
+            self.body = radio_packet.body[6:]
+        elif radio_packet.type == RadioPacketType.CON:
+            self.body += radio_packet.body
         else:
             raise ProtocolError("Packet type invalid")
 
-        return self.body_length == len(self.body) + 2
+        if self.body_length == len(self.body) - 2:
+            crc = struct.unpack(">H", self.body[-2:])[0]
+            crc_calculated = crc16(self.body_prefix + self.body[:-2])
+            if crc == crc_calculated:
+                self.body = self.body[:-2]
+
+                bi = 0
+                while bi < len(self.body):
+                    response_type = self.body[bi]
+                    if response_type == 0x1d:
+                        response_len = len(self.body) - bi - 1
+                        bi += 1
+                    else:
+                        response_len = self.body[bi+1]
+                        bi += 2
+
+                    if bi+response_len > len(self.body):
+                        raise ProtocolError("Error in message format")
+
+                    response_body = self.body[bi:bi+response_len]
+                    self.parts.append((response_type, response_body))
+                    bi += response_len
+                return True
+            else:
+                raise ProtocolError("Message crc error")
+        else:
+            return False
+
+    def __str__(self):
+        s = "Pod Address: 0x%8X Sequence: %s Critical Follow-up: %s\n" % ( self.address,
+                                                                    self.sequence,
+                                                                    self.expect_critical_followup)
+
+        for r_type, r_body in self.parts:
+            s += "Response: %02x Body: %s\n" % (r_type, r_body.hex())
+        return s
+
 
 class PdmMessage:
     def __init__(self, cmd_type, cmd_body):
         self.parts = []
         self.add_part(cmd_type, cmd_body)
+        self.message_str_prefix = "\n"
 
-    def get_packets(self, message_address,
+    def get_radio_packets(self, message_address,
                     message_sequence,
                     packet_address,
                     first_packet_sequence,
                     expect_critical_follow_up=False):
 
+        self.message_str_prefix = "Pdm Address: 0x%08X Sequence: %s Critical Follow-up: %s\n" % (
+                                    message_address, message_sequence, expect_critical_follow_up)
         message_body_len = 0
         for _, cmd_body, nonce in self.parts:
             message_body_len += len(cmd_body) + 2
@@ -91,26 +182,20 @@ class PdmMessage:
         first_packet = True
         sequence = first_packet_sequence
         total_body_len = len(message_body)
-        packets = []
+        radio_packets = []
         while(index < total_body_len):
-            packet_data = struct.pack(">I", packet_address)
-            seq_byte = sequence
-
-            if first_packet:
-                first_packet = False
-                seq_byte |= 0xa0
-            else:
-                seq_byte |= 0x80
-
-            packet_data += bytes([seq_byte])
             to_write = min(31, total_body_len - index)
-            packet_data += message_body[index:index+to_write]
-            packet_data += bytes([crc8(packet_data)])
-            packets.append(packet_data)
+            packet_body = message_body[index:index+to_write]
+
+            radio_packets.append(RadioPacket(packet_address,
+                                             RadioPacketType.PDM if first_packet else RadioPacketType.CON,
+                                             sequence,
+                                             packet_body))
+            first_packet = False
             index += to_write
             sequence = (sequence + 2) % 32
 
-        return packets
+        return radio_packets
 
     def add_part(self, cmd_type, cmd_body):
         part_tuple = cmd_type, cmd_body, None
@@ -119,6 +204,15 @@ class PdmMessage:
     def set_nonce(self, nonce):
         cmd_type, cmd_body, _ = self.parts[0]
         self.parts[0] = cmd_type, cmd_body, nonce
+
+    def __str__(self):
+        s = self.message_str_prefix
+        for cmd_type, cmd_body, nonce in self.parts:
+            if nonce is None:
+                s += "Command: %02x Body: %s\n" % (cmd_type, cmd_body.hex())
+            else:
+                s += "Command: %02x Body: %s Nonce: %s\n" % (cmd_type, cmd_body.hex(), nonce.hex())
+        return s
 
 
 def alert_configuration_message_body(alert_bit, activate, trigger_auto_off, duration_minutes, beep_repeat_type, beep_type,
