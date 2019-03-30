@@ -2,8 +2,9 @@ from podcomm.pod import Pod
 from podcomm.protocol_common import *
 from podcomm.definitions import *
 from enum import IntEnum
-import struct
 from decimal import Decimal
+import struct
+import time
 from datetime import datetime, timedelta
 
 
@@ -203,11 +204,13 @@ def request_deactivate():
 def response_parse(response: PodMessage, pod: Pod):
     parts = response.get_parts()
     for response_type, response_body in parts:
-        if response_type == 0x01:
+        if response_type == PodResponse.VersionInfo:
             parse_version_response(response_body, pod)
-        elif response_type == 0x02:
+        elif response_type == PodResponse.DetailInfo:
             parse_information_response(response_body, pod)
-        elif response_type == 0x1d:
+        elif response_type == PodResponse.ResyncRequest:
+            parse_resync_response(response_body, pod)
+        elif response_type == PodResponse.Status:
             parse_status_response(response_body, pod)
 
 
@@ -215,9 +218,10 @@ def parse_information_response(response, pod):
         if response[0] == 0x01:
             pass
         elif response[0] == 0x02:
+            pod.state_last_updated = time.time()
             pod.state_faulted = True
             pod.state_progress = response[1]
-            pod.__parse_delivery_state(response[2])
+            parse_delivery_state(pod, response[2])
             pod.insulin_canceled = struct.unpack(">H", response[3:5])[0] * 0.05
             pod.radio_message_sequence = response[5]
             pod.insulin_delivered = struct.unpack(">H", response[6:8])[0] * 0.05
@@ -251,11 +255,19 @@ def parse_information_response(response, pod):
             raise ProtocolError("Failed to parse the information response of type 0x%2X with content: %s"
                                 % (response[0], response.hex()))
 
+def parse_resync_response(response, pod):
+    if response[0] == 0x14:
+        pod.nonce_syncword = struct.unpack(">H", response[1:])[0]
+    else:
+        raise ProtocolError("Unknown resync request 0x%2x from pod" % response[0])
+
+
 def parse_status_response(response, pod):
+    pod.state_last_updated = time.time()
     s = struct.unpack(">BII", response)
 
     parse_delivery_state(pod, s[0] >> 4)
-    pod.state_progress = PodProgress([0] & 0xF)
+    pod.state_progress = PodProgress(s[0] & 0xF)
 
     pod.radio_message_sequence = (s[1] & 0x00007800) >> 11
 
@@ -283,6 +295,7 @@ def parse_delivery_state(pod, delivery_state):
         pod.state_basal = BasalState.NotRunning
 
 def parse_version_response(response, pod):
+    pod.state_last_updated = time.time()
     if len(response) == 23:
         pod.id_version_unknown_7_bytes = response[0:7].hex()
         response = response[7:]

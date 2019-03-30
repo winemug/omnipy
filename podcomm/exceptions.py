@@ -14,6 +14,9 @@ class ProtocolError(OmnipyError):
     def __init__(self, message="Unknown protocol error"):
         OmnipyError.__init__(self, message)
 
+class TimeoutError(OmnipyError):
+    def __init__(self, message="Timeout error"):
+        OmnipyError.__init__(self, message)
 
 class PdmError(OmnipyError):
     def __init__(self, message="Unknown pdm error"):

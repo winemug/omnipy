@@ -21,7 +21,7 @@ class PdmRequest(IntEnum):
 class PodResponse(IntEnum):
     VersionInfo = 0x01
     DetailInfo = 0x02
-    BadNonce = 0x06
+    ResyncRequest = 0x06
     Status = 0x1d
 
 class RadioPacketType(IntEnum):
@@ -44,12 +44,14 @@ class RadioPacket:
     @staticmethod
     def parse(data):
         if len(data) < 5:
-            raise ProtocolError("Packet length too small")
+            #raise ProtocolError("Packet length too small")
+            return None
 
         crc = data[-1]
         crc_computed = crc8(data[:-1])
         if crc != crc_computed:
-            raise ProtocolError("Packet crc error")
+            #raise ProtocolError("Packet crc error")
+            return None
 
         address = struct.unpack(">I", data[0:4])[0]
 
@@ -71,7 +73,13 @@ class RadioPacket:
         return data
 
     def __str__(self):
-            return "Packet Addr: 0x%08x Type: %s Seq: 0x%02x Body: %s" % (self.address, self.type, self.sequence, self.body.hex())
+            #return "Packet Addr: 0x%08x Type: %s Seq: 0x%02x Body: %s" % (self.address, self.type, self.sequence, self.body.hex())
+            if self.type == RadioPacketType.CON:
+                return "%02x %s %08x %s" % (self.sequence, str(self.type)[-3:], self.address, self.body.hex())
+            else:
+                return "%02x %s %08x %s %s" % (self.sequence, str(self.type)[-3:], self.address,
+                                                       self.body[0:4].hex(),
+                                                       self.body[4:].hex())
 
 class BaseMessage:
     def __init__(self):
@@ -136,8 +144,13 @@ class BaseMessage:
                     first_packet_sequence,
                     expect_critical_follow_up=False):
 
-        self.message_str_prefix = "Pdm Address: 0x%08X Sequence: %s Critical Follow-up: %s\n" % (
+        self.message_str_prefix = "%08X %02X %s\n" % (
                                     message_address, message_sequence, expect_critical_follow_up)
+
+        self.sequence = message_sequence
+        self.expect_critical_followup = expect_critical_follow_up
+        self.address = message_address
+
         message_body_len = 0
         for _, cmd_body, nonce in self.parts:
             message_body_len += len(cmd_body) + 2
@@ -200,12 +213,10 @@ class PodMessage(BaseMessage):
         self.type = RadioPacketType.POD
 
     def __str__(self):
-        s = "Pod Address: 0x%8X Sequence: %s Critical Follow-up: %s\n" % ( self.address,
-                                                                    self.sequence,
-                                                                    self.expect_critical_followup)
+        s = "%08X %02X %s\n" % ( self.address,self.sequence,self.expect_critical_followup)
 
         for r_type, r_body in self.parts:
-            s += "Response: %02x Body: %s\n" % (r_type, r_body.hex())
+            s += "%02x %s\n" % (r_type, r_body.hex())
         return s
 
 
@@ -225,9 +236,9 @@ class PdmMessage(BaseMessage):
         s = self.message_str_prefix
         for cmd_type, cmd_body, nonce in self.parts:
             if nonce is None:
-                s += "Command: %02x Body: %s\n" % (cmd_type, cmd_body.hex())
+                s += "%02x %s\n" % (cmd_type, cmd_body.hex())
             else:
-                s += "Command: %02x Body: %s Nonce: %s\n" % (cmd_type, cmd_body.hex(), nonce.hex())
+                s += "%02x %08x %s\n" % (cmd_type, nonce, cmd_body.hex())
         return s
 
 

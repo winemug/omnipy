@@ -24,6 +24,7 @@ class Pod:
 
         self.nonce_last = None
         self.nonce_seed = 0
+        self.nonce_syncword = None
 
         self.state_last_updated = None
         self.state_progress = PodProgress.InitialState
@@ -126,6 +127,7 @@ class Pod:
 
             p.nonce_last = d["nonce_last"]
             p.nonce_seed = d["nonce_seed"]
+            p.nonce_syncword = d["nonce_syncword"]
 
             p.last_enacted_temp_basal_start = d["last_enacted_temp_basal_start"]
             p.last_enacted_temp_basal_duration = d["last_enacted_temp_basal_duration"]
@@ -251,12 +253,7 @@ class Pod:
 
         self.Save()
 
-### TODO: needs improving for nonetype crashes etc
-        self.log("%d\t%s\t%s\t%f\t%f\t%d\t%s\t%s\t%s\t%d\t%s\t%s\t%d\t%d\t0x%8X\n" % \
-                 (self.state_last_updated, ds, orq, self.insulin_delivered, self.insulin_canceled, self.state_active_minutes,
-                  PodProgress(self.state_progress).name,
-                  BolusState(self.state_bolus).name, BasalState(self.state_basal).name, self.insulin_reservoir, self.state_alert,
-                  self.state_faulted, self.id_lot, self.id_t, self.radio_address))
+        self.log()
 
     def __parse_delivery_state(self, delivery_state):
         if delivery_state & 8 > 0:
@@ -274,18 +271,12 @@ class Pod:
             self.state_basal = BasalState.NotRunning
 
     def __str__(self):
-        p = self
-        state = "Lot %d Tid %d Address 0x%8X Faulted: %s\n" % (p.id_lot, p.id_t, p.radio_address, p.state_faulted)
-        state += "Updated %s\nState: %s\nAlarm: %s\nBasal: %s\nBolus: %s\nReservoir: %dU\n" %\
-                 (p.state_last_updated, p.state_progress, p.state_alert, p.state_basal, p.state_bolus, p.insulin_reservoir)
-        state += "Insulin delivered: %fU canceled: %fU\nTime active: %s" %\
-                 (p.insulin_delivered, p.insulin_canceled, timedelta(minutes=p.state_active_minutes))
-        return state
+        return json.dumps(self.__dict__, indent=4, sort_keys=True)
 
     def log(self, log_message):
         try:
             with open(self.log_file_path, "a") as stream:
-                stream.write(log_message)
+                stream.write(json.dumps(self.__dict__, sort_keys=True))
         except Exception as e:
             getLogger().warning("Failed to write the following line to the pod log file %s:\n%s\nError: %s"
                             %(self.log_file_path, log_message, e))

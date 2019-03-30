@@ -8,8 +8,14 @@ LAST_ACTIVATED_FILE = "data/lastactivated"
 POD_FILE = "data/pod"
 POD_FILE_SUFFIX = ".json"
 POD_LOG_SUFFIX = ".log"
+LOG_PATH = "./data"
 OMNIPY_LOGGER = "OMNIPY"
 OMNIPY_LOGFILE = "data/omnipy.log"
+OMNIPY_PACKET_LOGGER = "OMNIPACKET"
+OMNIPY_PACKET_LOGFILE = "data/packet.log"
+OMNIPY_MESSAGE_LOGGER = "OMNIMESSAGE"
+OMNIPY_MESSAGE_LOGFILE = "data/message.log"
+
 
 API_VERSION_MAJOR = 1
 API_VERSION_MINOR = 3
@@ -40,12 +46,19 @@ REST_URL_CANCEL_TEMP_BASAL = "/pdm/canceltempbasal"
 REST_URL_SET_BASAL_SCHEDULE = "/pdm/setbasalschedule"
 
 logger = None
+packet_logger = None
+message_logger = None
+
+def ensure_log_dir():
+    if not os.path.isdir(LOG_PATH):
+        os.mkdir(LOG_PATH)
 
 
 def getLogger():
     global logger
 
     if logger is None:
+        ensure_log_dir()
         logger = logging.getLogger(OMNIPY_LOGGER)
         logger.setLevel(logging.DEBUG)
         formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -63,6 +76,42 @@ def getLogger():
         logger.addHandler(ch)
 
     return logger
+
+def get_packet_logger():
+    global packet_logger
+
+    if packet_logger is None:
+        ensure_log_dir()
+        packet_logger = logging.getLogger(OMNIPY_PACKET_LOGGER)
+        packet_logger.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s %(message)s')
+
+        fh = logging.FileHandler(OMNIPY_PACKET_LOGFILE)
+        fh.setLevel(logging.INFO)
+        fh.setFormatter(formatter)
+
+        mh = MemoryHandler(capacity=4*1024, target=fh)
+        packet_logger.addHandler(mh)
+
+    return packet_logger
+
+def get_message_logger():
+    global message_logger
+
+    if message_logger is None:
+        ensure_log_dir()
+        message_logger = logging.getLogger(OMNIPY_MESSAGE_LOGGER)
+        message_logger.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s %(message)s')
+
+        fh = logging.FileHandler(OMNIPY_MESSAGE_LOGFILE)
+        fh.setLevel(logging.INFO)
+        fh.setFormatter(formatter)
+
+        mh = MemoryHandler(capacity=4*1024, target=fh)
+        message_logger.addHandler(mh)
+
+    return message_logger
 
 
 def configureLogging():
