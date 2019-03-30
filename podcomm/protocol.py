@@ -44,7 +44,15 @@ def request_set_low_reservoir_alert(iu_reservoir_level):
 
 
 def request_clear_low_reservoir_alert():
-    pass
+    cmd_body = _alert_configuration_message(PodAlertBit.LowReservoir,
+                                                 activate=False,
+                                                 trigger_auto_off=False,
+                                                 trigger_reservoir=True,
+                                                 duration_minutes=0,
+                                                 alert_after_reservoir=0,
+                                                 beep_type=BeepType.NoSound,
+                                                 beep_repeat_type=BeepPattern.OnceEveryHour)
+    return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
 
 
 def request_set_pod_expiry_alert(minutes_after_activation):
@@ -60,22 +68,37 @@ def request_set_pod_expiry_alert(minutes_after_activation):
 
 
 def request_clear_pod_expiry_alert():
-    pass
+    cmd_body = _alert_configuration_message(PodAlertBit.LowReservoir,
+                                                 activate=False,
+                                                 trigger_auto_off=False,
+                                                 trigger_reservoir=False,
+                                                 duration_minutes=0,
+                                                 alert_after_minutes=0,
+                                                 beep_type=BeepType.NoSound,
+                                                 beep_repeat_type=BeepPattern.Once)
+    return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
 
 
 def request_set_generic_alert(minutes_after_set, repeat_interval):
     cmd_body = _alert_configuration_message(PodAlertBit.TimerLimit,
                                                  activate=True,
                                                  trigger_auto_off=False,
-                                                 duration_minutes=55,
-                                                 alert_after_minutes=5,
+                                                 duration_minutes=minutes_after_set,
+                                                 alert_after_minutes=repeat_interval,
                                                  beep_repeat_type=BeepPattern.OnceEveryMinuteForThreeMinutesAndRepeatEveryFifteenMinutes,
                                                  beep_type=BeepType.BipBipBipTwice)
     return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
 
 
 def request_clear_generic_alert():
-    pass
+    cmd_body = _alert_configuration_message(PodAlertBit.TimerLimit,
+                                                 activate=True,
+                                                 trigger_auto_off=False,
+                                                 duration_minutes=0,
+                                                 alert_after_minutes=0,
+                                                 beep_repeat_type=BeepPattern.Once,
+                                                 beep_type=BeepType.NoSound)
+    return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
 
 
 def request_set_basal_schedule(schedule, hour, minute, second):
@@ -152,11 +175,11 @@ def request_set_basal_schedule(schedule, hour, minute, second):
     return msg
 
 def request_prime_cannula():
-    pass
+    return _bolus_message(52, pulse_speed=8, delivery_delay=1)
 
 
 def request_insert_cannula():
-    pass
+    return _bolus_message(10, pulse_speed=8, delivery_delay=1)
 
 
 def request_status(status_request_type=0):
@@ -177,28 +200,67 @@ def request_purge_insulin(iu_to_purge):
 def request_bolus(iu_bolus):
     return _bolus_message(pulse_count=int(iu_bolus / DECIMAL_0_05))
 
+
 def request_cancel_bolus():
-    pass
+    return _cancel_activity_message(bolus=True)
 
 
 def request_temp_basal(basal_rate_iuhr, duration_hours):
-    pass
+    half_hour_count = int(duration_hours * DECIMAL_2_00)
+    hh_units = [basal_rate_iuhr / DECIMAL_2_00] * half_hour_count
+    pulseList = getPulsesForHalfHours(hh_units)
+    iseList = getInsulinScheduleTableFromPulses(pulseList)
+
+    iseBody = getStringBodyFromTable(iseList)
+    pulseBody = getStringBodyFromTable(pulseList)
+
+    cmd_body = bytes([0x01])
+
+    body_checksum = bytes([half_hour_count])
+    body_checksum += struct.pack(">H", 0x3840)
+    body_checksum += struct.pack(">H", pulseList[0])
+    checksum = getChecksum(body_checksum + pulseBody)
+
+    cmd_body += struct.pack(">H", checksum)
+    cmd_body += body_checksum
+    cmd_body += iseBody
+
+    msg = PdmMessage(PdmRequest.InsulinSchedule, cmd_body)
+
+    reminders = 0
+    # if confidenceReminder:
+    #     reminders |= 0x40
+
+    cmd_body = bytes([reminders, 0x00])
+    pulseEntries = getPulseIntervalEntries(hh_units)
+
+    firstPulseCount, firstInterval, _ = pulseEntries[0]
+    cmd_body += struct.pack(">H", firstPulseCount)
+    cmd_body += struct.pack(">I", firstInterval)
+
+    for pulseCount, interval, _ in pulseEntries:
+        cmd_body += struct.pack(">H", pulseCount)
+        cmd_body += struct.pack(">I", interval)
+
+    msg.add_part(PdmRequest.TempBasalSchedule, cmd_body)
+    return msg
 
 
 def request_cancel_temp_basal():
-    pass
+    return _cancel_activity_message(temp_basal=True)
 
 
 def request_stop_basal_insulin():
-    pass
-
-
-def request_resume_basal_insulin():
-    pass
+    return _cancel_activity_message(basal=True)
 
 
 def request_deactivate():
-    pass
+    return PdmMessage(PdmRequest.DeactivatePod, bytes())
+
+
+def request_delivery_flags(byte16, byte17):
+    cmd_body = bytes([byte16, byte17])
+    return PdmMessage(PdmRequest.SetDeliveryFlags, cmd_body)
 
 
 def response_parse(response: PodMessage, pod: Pod):
@@ -255,6 +317,7 @@ def parse_information_response(response, pod):
             raise ProtocolError("Failed to parse the information response of type 0x%2X with content: %s"
                                 % (response[0], response.hex()))
 
+
 def parse_resync_response(response, pod):
     if response[0] == 0x14:
         pod.nonce_syncword = struct.unpack(">H", response[1:])[0]
@@ -279,6 +342,7 @@ def parse_status_response(response, pod):
     pod.state_active_minutes = (s[2] & 0x007FFC00) >> 10
     pod.insulin_reservoir = (s[2] & 0x000003FF) * 0.05
 
+
 def parse_delivery_state(pod, delivery_state):
     if delivery_state & 8 > 0:
         pod.state_bolus = BolusState.Extended
@@ -293,6 +357,7 @@ def parse_delivery_state(pod, delivery_state):
         pod.state_basal = BasalState.Program
     else:
         pod.state_basal = BasalState.NotRunning
+
 
 def parse_version_response(response, pod):
     pod.state_last_updated = time.time()
@@ -318,6 +383,7 @@ def parse_version_response(response, pod):
         pod.radio_low_gain = response[17] >> 6
         pod.radio_rssi = response[17] & 0b00111111
         pod.radio_address = struct.unpack(">I", response[17:21])[0]
+
 
 def _alert_configuration_message(alert_bit, activate, trigger_auto_off, duration_minutes, beep_repeat_type, beep_type,
                      alert_after_minutes=None, alert_after_reservoir=None, trigger_reservoir=False):
@@ -370,6 +436,7 @@ def _alert_configuration_message(alert_bit, activate, trigger_auto_off, duration
 
     return bytes([b0, b1, b2, b3, beep_repeat_type, beep_type])
 
+
 def _bolus_message(pulse_count, pulse_speed=16, reminders=0, delivery_delay=2):
     commandBody = struct.pack(">I", 0)
     commandBody += b"\x02"
@@ -392,4 +459,20 @@ def _bolus_message(pulse_count, pulse_speed=16, reminders=0, delivery_delay=2):
     commandBody += b"\x00\x00\x00\x00\x00\x00"
     msg.add_part(PdmRequest.BolusSchedule, commandBody)
 
+    return msg
+
+
+def _cancel_activity_message(basal=False, bolus=False, temp_basal=False):
+    cmd_body = struct.pack(">I", 0)
+    c = 0
+
+    if bolus:
+        c = c | 0x04
+    if temp_basal:
+        c = c | 0x02
+    if basal:
+        c = c | 0x01
+    cmd_body += bytes([c])
+
+    msg = PdmMessage(PdmRequest.CancelDelivery, cmd_body)
     return msg

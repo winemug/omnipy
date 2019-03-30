@@ -7,6 +7,7 @@ from decimal import Decimal
 class PdmRequest(IntEnum):
     SetupPod = 0x03
     AssignAddress = 0x07
+    SetDeliveryFlags = 0x08
     Status = 0x0e
     AcknowledgeAlerts = 0x11
     BasalSchedule = 0x13
