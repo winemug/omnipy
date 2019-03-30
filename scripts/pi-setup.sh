@@ -7,7 +7,9 @@ echo Welcome to ${bold}omnipy${normal} installation script
 echo This script will aid you in configuring your raspberry pi to run omnipy
 echo
 
-if [[ -d /home/pi/omnipy ]]
+#if [[ -d /home/pi/omnipy ]]
+OmniServiceCheck=$( systemctl | grep omnipy )
+if [[ -n $OmniServiceCheck  ]]
 then
 
 echo
