@@ -52,7 +52,8 @@ class Pdm:
                 self.pod.radio_message_sequence = 0
                 self.pod.radio_packet_sequence = 0
 
-            self.radio = PdmRadio(msg_sequence=self.pod.radio_message_sequence,
+            self.radio = PdmRadio(self.pod.radio_address,
+                                  msg_sequence=self.pod.radio_message_sequence,
                                   pkt_sequence=self.pod.radio_packet_sequence)
 
         return self.radio
@@ -315,7 +316,7 @@ class Pdm:
                 self._assert_can_deactivate()
 
                 self.logger.debug("Deactivating pod")
-                request = self.deactivate_pod()
+                request = request_deactivate()
                 self.send_request(request, with_nonce=True)
         except OmnipyError:
             raise
