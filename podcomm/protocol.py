@@ -264,6 +264,7 @@ def request_delivery_flags(byte16, byte17):
 
 
 def response_parse(response: PodMessage, pod: Pod):
+    pod.nonce_syncword = None
     parts = response.get_parts()
     for response_type, response_body in parts:
         if response_type == PodResponse.VersionInfo:
@@ -274,6 +275,8 @@ def response_parse(response: PodMessage, pod: Pod):
             parse_resync_response(response_body, pod)
         elif response_type == PodResponse.Status:
             parse_status_response(response_body, pod)
+        else:
+            raise ProtocolError("Unknown response type %02X" % response_type)
 
 
 def parse_information_response(response, pod):

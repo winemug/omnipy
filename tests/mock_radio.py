@@ -84,9 +84,12 @@ class MockPacketRadio(PacketRadio):
                 return bytes([0xff, 0xff]) + p.get_data()
 
         if self.allow_listen:
-            packet = self.send_callback(packet)
-            if packet is None:
-                return None
+            if self.send_callback is not None:
+                packet = self.send_callback(send_packet)
+                if packet is None:
+                    return None
+                else:
+                    packet = packet.get_data()
             return self.radio.send_and_receive_packet(packet=packet,
                                                       repeat_count=repeat_count,
                                                       delay_ms=delay_ms,
@@ -98,9 +101,15 @@ class MockPacketRadio(PacketRadio):
 
     def send_packet(self, packet, repeat_count, delay_ms, preamble_extension_ms):
         if self.allow_listen:
-            packet = self.send_callback(packet)
-            if packet is None:
-                return None
+            send_packet = RadioPacket.parse(packet)
+            if send_packet is not None:
+                self.last_pdm_packet_sequence = send_packet.sequence
+                if self.send_callback is not None:
+                    packet = self.send_callback(send_packet)
+                    if packet is None:
+                        return None
+                    else:
+                        packet = packet.get_data()
             return self.radio.send_packet(packet=packet,
                                           repeat_count=repeat_count,
                                           delay_ms=delay_ms,
