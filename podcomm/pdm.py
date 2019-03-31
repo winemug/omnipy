@@ -60,25 +60,19 @@ class Pdm:
 
     def send_request(self, request, with_nonce=False, double_take=False):
 
+        nonce_obj = self.get_nonce()
         if with_nonce:
-            nonce_obj = self.get_nonce()
             nonce_val = nonce_obj.getNext()
             request.set_nonce(nonce_val)
-            self.pod.nonce_last = nonce_val
-            self.pod.nonce_seed = nonce_obj.seed
 
         response = self.get_radio().send_message_get_message(request, double_take=double_take)
         response_parse(response, self.pod)
 
         if with_nonce and self.pod.nonce_syncword is not None:
             self.logger.info("Nonce resync requested")
-            nonce_obj = self.get_nonce()
             nonce_obj.sync(self.pod.nonce_syncword, request.sequence)
-
             nonce_val = nonce_obj.getNext()
             request.set_nonce(nonce_val)
-            self.pod.nonce_last = nonce_val
-            self.pod.nonce_seed = nonce_obj.seed
             self.get_radio().message_sequence = request.sequence
             response = self.get_radio().send_message_get_message(request, double_take=double_take)
             response_parse(response, self.pod)
