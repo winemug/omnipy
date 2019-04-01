@@ -181,10 +181,10 @@ def _api_result(result_lambda, generic_err_message):
         return create_response(True,
                                response=result_lambda(), pod_status=get_pod())
     except RestApiException as rae:
-        return create_response(False, rae)
+        return create_response(False, response=rae, pod_status=get_pod())
     except Exception as e:
         logger.exception(generic_err_message)
-        return create_response(False, e)
+        return create_response(False, response=e, pod_status=get_pod())
 
 
 def ping():
@@ -436,7 +436,7 @@ def restart():
 
 @app.route(REST_URL_PING)
 def a00():
-    return _api_result(lambda: ping(), "Failure while getting version")
+    return _api_result(lambda: ping(), "Failure while pinging")
 
 @app.route(REST_URL_TOKEN)
 def a01():
