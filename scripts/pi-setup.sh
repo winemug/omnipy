@@ -80,6 +80,7 @@ sudo pip3 install simplejson || ((echo "Error: installing dependencies failed - 
 sudo pip3 install Flask || ((echo "Error: installing dependencies failed - aborting" && exit))
 sudo pip3 install cryptography || ((echo "Error: installing dependencies failed - aborting" && exit))
 sudo pip3 install requests || ((echo "Error: installing dependencies failed - aborting" && exit))
+sudo apt-get install jq || ((echo "Error: isntalling jq failed - aborting" && exit))
 
 echo
 echo ${bold}Step 5/11: ${normal}Configuring and installing bluepy
