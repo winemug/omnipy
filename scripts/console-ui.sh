@@ -352,7 +352,7 @@ OPTION=$(whiptail --title "Omnipy Menu" --menu "Choose the action you want to pe
 "4" "Update Omnipy" \
 "5" "Safe Reboot" \
 "6" "Safe Shutdown" \
-"7" "Exit to Shell" \
+"7" "Escape to Shell" \
 "8" "Advanced Settings" 3>&1 1>&2 2>&3)
 
 exitstatus=$?
@@ -410,8 +410,8 @@ case $OPTION in
 
 
 	7) 
-		echo "Exit to Shell"
-                if(whiptail --title "Log Out" --yesno "Do you want to log off your pi ?" 8 45)
+		echo "Escape to Shell"
+                if(whiptail --title "Escape to Shell" --yesno "Type exit to return to the menu" 8 45)
                         then
                                 bash
                         else
