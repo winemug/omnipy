@@ -5,7 +5,6 @@ from enum import IntEnum
 from decimal import Decimal
 import struct
 import time
-from datetime import datetime, timedelta
 
 
 DECIMAL_0_05 = Decimal("0.05")

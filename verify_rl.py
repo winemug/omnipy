@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 from podcomm.pr_rileylink import RileyLink
 from podcomm.definitions import *
-import os
 
 
 logger = getLogger()

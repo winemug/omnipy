@@ -1,7 +1,5 @@
-from .exceptions import ProtocolError, PacketRadioError
-from podcomm import crc
+from .exceptions import PacketRadioError, OmnipyTimeoutError
 from podcomm.protocol_common import *
-from .packet_radio import TxPower
 from .pr_rileylink import RileyLink
 from .definitions import *
 from threading import Thread, Event
@@ -10,7 +8,7 @@ import time
 
 def _ack_data(address1, address2, sequence):
     return RadioPacket(address1, RadioPacketType.ACK, sequence,
-                     struct.pack(">I", address2));
+                     struct.pack(">I", address2))
 
 class PdmRadio:
     pod_message: PodMessage
@@ -257,7 +255,7 @@ class PdmRadio:
                     raise
                 start_time = time.time()
         else:
-            raise TimeoutError("Exceeded timeout while send and receive")
+            raise OmnipyTimeoutError("Exceeded timeout while send and receive")
 
     def _send_packet(self, packet_to_send, timeout=25):
         start_time = None

@@ -1,9 +1,5 @@
-from .crc import crc8
-from .definitions import *
-from .exceptions import *
 from .packet_radio import PacketRadio
 from .manchester import ManchesterCodec
-from .packet import Packet
 
 # from rflib import (RfCat, ChipconUsbTimeoutException, MOD_2FSK, SYNCM_CARRIER_16_of_16, SYNCM_NONE,
 #                    MFMCFG1_NUM_PREAMBLE0, MFMCFG1_NUM_PREAMBLE_2, SYNCM_CARRIER)
