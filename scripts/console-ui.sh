@@ -335,15 +335,15 @@ do
 #check if Menu autostart is enabled
 ExitbuttonName="Back to Shell"
 
-OPTION=$(whiptail --title "Omnipy Menu" --menu "Choose the action you want to perform" --cancel-button "$ExitbuttonName" 20 50 7  \
+OPTION=$(whiptail --title "Omnipy Menu" --menu "Choose the action you want to perform" --cancel-button "$ExitbuttonName" 20 50 8  \
 "1" "Activate New Pod" \
 "2" "Deactivate Pod" \
 "3" "Configure Raspberry Pi" \
 "4" "Update Omnipy" \
 "5" "Safe Reboot" \
 "6" "Safe Shutdown" \
-"7" "Advanced Settings" \
-"8" "Log Out" 3>&1 1>&2 2>&3)
+"7" "Log Out" \
+"8" "Advanced Settings" 3>&1 1>&2 2>&3)
 
 exitstatus=$?
 if [ $exitstatus -ne 0 ]; then exit; fi;
@@ -398,12 +398,8 @@ case $OPTION in
                 fi
 	;;
 
-	7)
-        DeveloperMenu
-	
-	;;
 
-	8) 
+	7) 
 		echo "Log Out"
                 if(whiptail --title "Log Out" --yesno "Do you want to log off your pi ?" 8 45)
                         then
@@ -411,6 +407,13 @@ case $OPTION in
                         else
                                 echo "Shutdown cancelled"
                 fi
+	;;
+
+	8)
+        DeveloperMenu
+	
+	;;
+
 esac
 
 done
