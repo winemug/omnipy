@@ -287,8 +287,8 @@ function DeveloperMenu(){
 			;;
 
 			10)
-				Linetoadd="~/omnipy/scripts/console-ui.sh"
-                                Filetochange="~/.profile"
+				Linetoadd="ForceCommand ./omnipy/scripts/console-ui.sh"
+                                Filetochange="/etc/ssh/sshd_config"
 
 				if (whiptail --title "Menu autostart?" --yesno "Do you want menu to be loaded at logon ?" 10 60) then
 					#Check if the ForceCommand exists and if not, modify /etc/ssh/sshd_config file by adding ForceCommand ./Scripts/console-ui.sh
@@ -300,8 +300,8 @@ function DeveloperMenu(){
 						else
 							# code if not found
 							echo "Line added"
-							sh -c "echo $Linetoadd >> $Filetochange"
-							
+							sudo sh -c "echo $Linetoadd >> $Filetochange"
+							sudo systemctl restart ssh
 					fi
 				else
 					#check if ForceCommand .$OMNIPY_HOME/scripts/console-ui.sh exits in /etc/ssh/sshd_config and it yes, remove it
@@ -310,9 +310,8 @@ function DeveloperMenu(){
                                                 then
                                                         # code if found
                                                         echo "Delete the line"
-							sed -i "\#$Linetoadd#d" "$Filetochange"
-							
-
+							sudo sed -i "\#$Linetoadd#d" "$Filetochange"
+							sudo systemctl restart ssh
                                                 else
                                                         # code if not found
                                                         echo "Already deactivated"
@@ -334,6 +333,17 @@ do
 
 #check if Menu autostart is enabled
 ExitbuttonName="Back to Shell"
+AutoMenuCommand="ForceCommand ./Scripts/console-ui.sh"
+sshdpath="/etc/ssh/sshd_config"
+
+if grep -Fxq "$AutoMenuCommand" $sshdpath
+	then
+        	# code if found
+                ExitbuttonName="Exit"
+        else
+                # code if not found
+        	ExitbuttonName="Back to Shell"
+fi
 
 OPTION=$(whiptail --title "Omnipy Menu" --menu "Choose the action you want to perform" --cancel-button "$ExitbuttonName" 20 50 8  \
 "1" "Activate New Pod" \
@@ -342,7 +352,7 @@ OPTION=$(whiptail --title "Omnipy Menu" --menu "Choose the action you want to pe
 "4" "Update Omnipy" \
 "5" "Safe Reboot" \
 "6" "Safe Shutdown" \
-"7" "Log Out" \
+"7" "Exit to Shell" \
 "8" "Advanced Settings" 3>&1 1>&2 2>&3)
 
 exitstatus=$?
@@ -400,10 +410,10 @@ case $OPTION in
 
 
 	7) 
-		echo "Log Out"
+		echo "Exit to Shell"
                 if(whiptail --title "Log Out" --yesno "Do you want to log off your pi ?" 8 45)
                         then
-                                logout
+                                bash
                         else
                                 echo "Shutdown cancelled"
                 fi
