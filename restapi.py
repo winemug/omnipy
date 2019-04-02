@@ -11,7 +11,6 @@ from flask import Flask, request, send_from_directory
 from datetime import datetime
 import time
 from podcomm.crc import crc8
-from podcomm.packet import Packet
 from podcomm.pdm import Pdm
 from podcomm.pod import Pod
 from podcomm.pr_rileylink import RileyLink
@@ -42,7 +41,13 @@ def get_pod() -> Pod:
     global g_pod
     try:
         if g_pod is None:
-            g_pod = Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
+            if os.path.exists(POD_FILE + POD_FILE_SUFFIX):
+                g_pod = Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
+            else:
+                g_pod = Pod()
+                g_pod.path = POD_FILE + POD_FILE_SUFFIX
+                g_pod.log_file_path = POD_FILE + POD_LOG_SUFFIX
+                g_pod.Save()
         return g_pod
     except:
         logger.exception("Error while loading pod")
@@ -349,7 +354,7 @@ def get_status():
         req_type = 0
 
     pdm = get_pdm()
-    pdm.updatePodStatus(req_type)
+    pdm.update_status(req_type)
 
 def deactivate_pod():
     verify_auth(request)
@@ -368,7 +373,7 @@ def cancel_bolus():
     verify_auth(request)
 
     pdm = get_pdm()
-    pdm.cancelBolus()
+    pdm.cancel_bolus()
 
 def set_temp_basal():
     verify_auth(request)
@@ -376,13 +381,13 @@ def set_temp_basal():
     pdm = get_pdm()
     amount = Decimal(request.args.get('amount'))
     hours = Decimal(request.args.get('hours'))
-    pdm.setTempBasal(amount, hours, False)
+    pdm.set_temp_basal(amount, hours, False)
 
 def cancel_temp_basal():
     verify_auth(request)
 
     pdm = get_pdm()
-    pdm.cancelTempBasal()
+    pdm.cancel_temp_basal()
 
 def set_basal_schedule():
     verify_auth(request)
