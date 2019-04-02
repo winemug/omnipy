@@ -303,38 +303,19 @@ class Pdm:
     def set_basal_schedule(self, schedule, hours=None, minutes=None, seconds=None):
         try:
             with PdmLock():
-                # self._update_status()
-                # self._assert_pod_address_assigned()
-                # self._assert_can_generate_nonce()
-                # self._assert_immediate_bolus_not_active()
-                # self._assert_not_faulted()
-                # self._assert_status_running()
+                self._update_status()
+                self._assert_pod_address_assigned()
+                self._assert_can_generate_nonce()
+                self._assert_immediate_bolus_not_active()
+                self._assert_not_faulted()
+                self._assert_status_running()
 
-                # if self._is_temp_basal_active():
-                #     raise PdmError("Cannot change basal schedule while a temp. basal is active")
+                if self._is_temp_basal_active():
+                    raise PdmError("Cannot change basal schedule while a temp. basal is active")
 
                 self._assert_basal_schedule_is_valid(schedule)
 
-                self._set_basal_schedule(schedule, hour=hours, minute=minutes, second=seconds)
-
-                if self.pod.state_basal != BasalState.Program:
-                    raise PdmError("Failed to set basal schedule")
-                else:
-                    self.pod.var_basal_schedule = schedule
-
-        except OmnipyError:
-            raise
-        except Exception as e:
-            raise PdmError("Unexpected error") from e
-        finally:
-            self._savePod()
-
-    def set_basal_schedule_w_cancel(self, schedule, hours=None, minutes=None, seconds=None):
-        try:
-            with PdmLock():
-                self._assert_basal_schedule_is_valid(schedule)
-
-                self._cancelActivity(cancelBasal=True)
+                #self._cancelActivity(cancelBasal=True)
 
                 self._set_basal_schedule(schedule, hour=hours, minute=minutes, second=seconds)
 
@@ -703,7 +684,10 @@ class Pdm:
         if self.pod.var_utc_offset is None:
             self.pod.var_utc_offset = 0
 
-        utc_offset = timedelta(minutes=self.pod.var_utc_offset)
+        if self.pod.var_utc_offset is None:
+            utc_offset = timedelta(minutes=0)
+        else:
+            utc_offset = timedelta(minutes=self.pod.var_utc_offset)
         pod_date = datetime.utcnow() + utc_offset
 
         if hour is None:
