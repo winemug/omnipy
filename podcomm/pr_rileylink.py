@@ -100,6 +100,7 @@ class RileyLink(PacketRadio):
         self.pa_level_index = PA_LEVELS.index(0x84)
         self.data_handle = None
         self.logger = getLogger()
+        self.packet_logger = get_packet_logger()
         self.address = g_rl_address
         self.service = None
         self.response_handle = None
