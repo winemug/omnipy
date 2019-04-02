@@ -1,10 +1,6 @@
-from .exceptions import ProtocolError
 from .definitions import *
 import simplejson as json
-import struct
-from datetime import datetime, timedelta
-import binascii
-import time
+from datetime import datetime
 
 
 class Pod:
@@ -90,62 +86,62 @@ class Pod:
             p.path = path
             p.log_file_path = log_file_path
 
-            p.id_lot = d["id_lot"]
-            p.id_t = d["id_t"]
-            p.id_version_pm = d["id_version_pm"]
-            p.id_version_pi = d["id_version_pi"]
-            p.id_version_unknown_byte = d["id_version_unknown_byte"]
-            p.id_version_unknown_7_bytes = d["id_version_unknown_7_bytes"]
+            p.id_lot = d.get("id_lot", None)
+            p.id_t = d.get("id_t", None)
+            p.id_version_pm = d.get("id_version_pm", None)
+            p.id_version_pi = d.get("id_version_pi", None)
+            p.id_version_unknown_byte = d.get("id_version_unknown_byte", None)
+            p.id_version_unknown_7_bytes = d.get("id_version_unknown_7_bytes", None)
 
-            p.radio_address = d["radio_address"]
-            p.radio_packet_sequence = d["radio_packet_sequence"]
-            p.radio_message_sequence = d["radio_message_sequence"]
-            p.radio_low_gain = d["radio_low_gain"]
-            p.radio_rssi = d["radio_rssi"]
+            p.radio_address = d.get("radio_address", None)
+            p.radio_packet_sequence = d.get("radio_packet_sequence", None)
+            p.radio_message_sequence = d.get("radio_message_sequence", None)
+            p.radio_low_gain = d.get("radio_low_gain", None)
+            p.radio_rssi = d.get("radio_rssi", None)
 
-            p.state_last_updated = d["state_last_updated"]
-            p.state_progress = d["state_progress"]
-            p.state_basal = d["state_basal"]
-            p.state_bolus = d["state_bolus"]
-            p.state_alert = d["state_alert"]
-            p.state_active_minutes = d["state_active_minutes"]
-            p.state_faulted = d["state_faulted"]
+            p.state_last_updated = d.get("state_last_updated", None)
+            p.state_progress = d.get("state_progress", None)
+            p.state_basal = d.get("state_basal", None)
+            p.state_bolus = d.get("state_bolus", None)
+            p.state_alert = d.get("state_alert", None)
+            p.state_active_minutes = d.get("state_active_minutes", None)
+            p.state_faulted = d.get("state_faulted", None)
 
-            p.fault_event = d["fault_event"]
-            p.fault_event_rel_time = d["fault_event_rel_time"]
-            p.fault_table_access = d["fault_table_access"]
-            p.fault_insulin_state_table_corruption = d["fault_insulin_state_table_corruption"]
-            p.fault_internal_variables = d["fault_internal_variables"]
-            p.fault_immediate_bolus_in_progress = d["fault_immediate_bolus_in_progress"]
-            p.fault_progress_before = d["fault_progress_before"]
-            p.fault_progress_before_2 = d["fault_progress_before_2"]
-            p.fault_information_type2_last_word = d["fault_information_type2_last_word"]
+            p.fault_event = d.get("fault_event", None)
+            p.fault_event_rel_time = d.get("fault_event_rel_time", None)
+            p.fault_table_access = d.get("fault_table_access", None)
+            p.fault_insulin_state_table_corruption = d.get("fault_insulin_state_table_corruption", None)
+            p.fault_internal_variables = d.get("fault_internal_variables", None)
+            p.fault_immediate_bolus_in_progress = d.get("fault_immediate_bolus_in_progress", None)
+            p.fault_progress_before = d.get("fault_progress_before", None)
+            p.fault_progress_before_2 = d.get("fault_progress_before_2", None)
+            p.fault_information_type2_last_word = d.get("fault_information_type2_last_word", None)
 
-            p.insulin_delivered = d["insulin_delivered"]
-            p.insulin_canceled = d["insulin_canceled"]
-            p.insulin_reservoir = d["insulin_reservoir"]
+            p.insulin_delivered = d.get("insulin_delivered", None)
+            p.insulin_canceled = d.get("insulin_canceled", None)
+            p.insulin_reservoir = d.get("insulin_reservoir", None)
 
-            p.nonce_last = d["nonce_last"]
-            p.nonce_seed = d["nonce_seed"]
-            p.nonce_syncword = d["nonce_syncword"]
+            p.nonce_last = d.get("nonce_last", None)
+            p.nonce_seed = d.get("nonce_seed", None)
+            p.nonce_syncword = d.get("nonce_syncword", None)
 
-            p.last_enacted_temp_basal_start = d["last_enacted_temp_basal_start"]
-            p.last_enacted_temp_basal_duration = d["last_enacted_temp_basal_duration"]
-            p.last_enacted_temp_basal_amount = d["last_enacted_temp_basal_amount"]
-            p.last_enacted_bolus_start = d["last_enacted_bolus_start"]
-            p.last_enacted_bolus_amount = d["last_enacted_bolus_amount"]
+            p.last_enacted_temp_basal_start = d.get("last_enacted_temp_basal_start", None)
+            p.last_enacted_temp_basal_duration = d.get("last_enacted_temp_basal_duration", None)
+            p.last_enacted_temp_basal_amount = d.get("last_enacted_temp_basal_amount", None)
+            p.last_enacted_bolus_start = d.get("last_enacted_bolus_start", None)
+            p.last_enacted_bolus_amount = d.get("last_enacted_bolus_amount", None)
 
-            p.var_utc_offset = d["var_utc_offset"]
-            p.var_basal_schedule = d["var_basal_schedule"]
-            p.var_maximum_bolus = d["var_maximum_bolus"]
-            p.var_maximum_temp_basal_rate = d["var_maximum_temp_basal_rate"]
-            p.var_alert_low_reservoir = d["var_alert_low_reservoir"]
-            p.var_alert_replace_pod = d["var_alert_replace_pod"]
-            p.var_notify_bolus_start = d["var_notify_bolus_start"]
-            p.var_notify_bolus_cancel = d["var_notify_bolus_cancel"]
-            p.var_notify_temp_basal_set = d["var_notify_temp_basal_set"]
-            p.var_notify_temp_basal_cancel = d["var_notify_temp_basal_cancel"]
-            p.var_notify_basal_schedule_change = d["var_notify_basal_schedule_change"]
+            p.var_utc_offset = d.get("var_utc_offset", None)
+            p.var_basal_schedule = d.get("var_basal_schedule", None)
+            p.var_maximum_bolus = d.get("var_maximum_bolus", None)
+            p.var_maximum_temp_basal_rate = d.get("var_maximum_temp_basal_rate", None)
+            p.var_alert_low_reservoir = d.get("var_alert_low_reservoir", None)
+            p.var_alert_replace_pod = d.get("var_alert_replace_pod", None)
+            p.var_notify_bolus_start = d.get("var_notify_bolus_start", None)
+            p.var_notify_bolus_cancel = d.get("var_notify_bolus_cancel", None)
+            p.var_notify_temp_basal_set = d.get("var_notify_temp_basal_set", None)
+            p.var_notify_temp_basal_cancel = d.get("var_notify_temp_basal_cancel", None)
+            p.var_notify_basal_schedule_change = d.get("var_notify_basal_schedule_change", None)
 
         return p
 
