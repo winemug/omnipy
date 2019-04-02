@@ -43,10 +43,11 @@ def read_pdm_address(args, pa):
 def new_pod(args, pa):
     pa["id_lot"] = args.id_lot
     pa["id_t"] = args.id_t
-    if str(args.radio_address).lower().startswith("0x"):
-        pa["radio_address"] = int(args.radio_address[2:], 16)
-    else:
-        pa["radio_address"] = int(args.radio_address)
+    if args.radio_address is not None:
+        if str(args.radio_address).lower().startswith("0x"):
+            pa["radio_address"] = int(args.radio_address[2:], 16)
+        else:
+            pa["radio_address"] = int(args.radio_address)
     call_api(args.url, REST_URL_NEW_POD, pa)
 
 
@@ -110,7 +111,7 @@ def main():
     subparser = subparsers.add_parser("newpod", help="newpod -h")
     subparser.add_argument("id_lot", type=int, help="Lot number of the pod")
     subparser.add_argument("id_t", type=int, help="Serial number of the pod")
-    subparser.add_argument("radio_address", help="Radio radio_address of the pod")
+    subparser.add_argument("radio_address", help="Radio radio_address of the pod", default=None, nargs="?")
     subparser.set_defaults(func=new_pod)
 
     subparser = subparsers.add_parser("status", help="status -h")

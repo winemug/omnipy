@@ -243,6 +243,22 @@ def new_pod():
         pod.id_t = int(request.args.get('id_t'))
     if request.args.get('radio_address') is not None:
         pod.radio_address = int(request.args.get('radio_address'))
+    else:
+        while True:
+            r = RileyLink()
+            data = r.get_packet(45000)
+            if data is None:
+                p = None
+                break
+
+            if data is not None and len(data) > 2:
+                calc = crc8(data[2:-1])
+                if data[-1] == calc:
+                    p = Packet.from_data(data[2:-1])
+                    break
+        if p is None:
+            raise RestApiException("No pdm packet detected")
+        pod.radio_address = p.address
 
     archive_pod()
     pod.Save(POD_FILE + POD_FILE_SUFFIX)
