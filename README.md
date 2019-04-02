@@ -3,7 +3,7 @@
 ## Good news everyone!
 *Omnipy v1.3 coming soon**
 
-Development and testing is going forward now that we've pods for testing. Thanks to all our contributors on the [slack channel](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY) who have been sending pods, helping with coding and documentation, providing feedback and spreading the word.
+Development and testing is going forward now that we've pods for testing. Thanks to all our contributors on the [slack channel](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTk2MzYxOTAwNDUyLWNkZTBlYjk0ZWU1YTA1ZjA4OGVlOWQ3YWZkNmNkNzk0YjdhMWM0NmQ3ZTRiM2I3ZDVkNGYyYWJiYTM5Yjc2YjM) who have been sending pods, helping with coding and documentation, providing feedback and spreading the word.
 
 ![slackers](https://raw.githubusercontent.com/winemug/omnipy/master/img/slackers.png)
 
@@ -14,7 +14,7 @@ Here's what to look forward to in this (last) feature update for omnipy:
 - Overall connection stability improvements in all areas: Pod, Rileylink and omnipy
 - An easier way to set up omnipy with raspberry pi and Android APS on your phone
 
-*Watch out on this page for release announcement and links. For questions, updates and support join us in the [omnicore-pdm slack via this invite link](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY).
+*Watch out on this page for release announcement and links. For questions, updates and support join us in the omnicore-pdm slack via [this (updated) invite link](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTk2MzYxOTAwNDUyLWNkZTBlYjk0ZWU1YTA1ZjA4OGVlOWQ3YWZkNmNkNzk0YjdhMWM0NmQ3ZTRiM2I3ZDVkNGYyYWJiYTM5Yjc2YjM).
 
 **March 17th - omnipy v1.2 released**
 
