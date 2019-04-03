@@ -145,7 +145,7 @@ class BaseMessage:
                     first_packet_sequence,
                     expect_critical_follow_up=False):
 
-        self.message_str_prefix = "%08X %02X %s\n" % (
+        self.message_str_prefix = "%08X %02X %s " % (
                                     message_address, message_sequence, expect_critical_follow_up)
 
         self.sequence = message_sequence
@@ -214,10 +214,10 @@ class PodMessage(BaseMessage):
         self.type = RadioPacketType.POD
 
     def __str__(self):
-        s = "%08X %02X %s\n" % ( self.address,self.sequence,self.expect_critical_followup)
+        s = "%08X %02X %s " % ( self.address,self.sequence,self.expect_critical_followup)
 
         for r_type, r_body in self.parts:
-            s += "%02x %s\n" % (r_type, r_body.hex())
+            s += "%02x %s " % (r_type, r_body.hex())
         return s
 
 
@@ -237,9 +237,9 @@ class PdmMessage(BaseMessage):
         s = self.message_str_prefix
         for cmd_type, cmd_body, nonce in self.parts:
             if nonce is None:
-                s += "%02x %s\n" % (cmd_type, cmd_body.hex())
+                s += "%02x %s " % (cmd_type, cmd_body.hex())
             else:
-                s += "%02x %08x %s\n" % (cmd_type, nonce, cmd_body.hex())
+                s += "%02x %08x %s " % (cmd_type, nonce, cmd_body.hex())
         return s
 
 

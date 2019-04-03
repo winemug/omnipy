@@ -80,7 +80,7 @@ class Pdm:
                 self.get_nonce().reset()
                 raise PdmError("Nonce sync failed")
 
-    def update_status_internal(self, update_type=0):
+    def _internal_update_status(self, update_type=0):
         self._assert_pod_address_assigned()
         self.send_request(request_status(update_type))
 
@@ -88,7 +88,7 @@ class Pdm:
         try:
             with PdmLock():
                 self.logger.info("Updating pod status, request type %d" % update_type)
-                self.update_status_internal(update_type)
+                self._internal_update_status(update_type)
         except OmnipyError:
             raise
         except Exception as e:
@@ -100,7 +100,7 @@ class Pdm:
         try:
             with PdmLock():
                 self._assert_pod_address_assigned()
-                self.update_status_internal()
+                self._internal_update_status()
                 self._assert_can_acknowledge_alerts()
 
                 if self.pod.state_alert | alert_mask != self.pod.state_alert:
@@ -121,8 +121,7 @@ class Pdm:
     def is_busy(self):
         try:
             with PdmLock(0):
-                self.update_status_internal()
-                return self.pod.state_bolus == BolusState.Immediate
+                return self._is_bolus_running()
         except PdmBusyError:
             return True
         except OmnipyError:
@@ -134,7 +133,7 @@ class Pdm:
         try:
             with PdmLock():
                 self._assert_pod_address_assigned()
-                self.update_status_internal()
+                self._internal_update_status()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
                 self._assert_not_faulted()
@@ -201,7 +200,7 @@ class Pdm:
         try:
             with PdmLock():
                 self._assert_pod_address_assigned()
-                self.update_status_internal()
+                self._internal_update_status()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
                 self._assert_not_faulted()
@@ -231,7 +230,7 @@ class Pdm:
         try:
             with PdmLock():
                 self._assert_pod_address_assigned()
-                self.update_status_internal()
+                self._internal_update_status()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
                 self._assert_not_faulted()
@@ -274,7 +273,7 @@ class Pdm:
         try:
             with PdmLock():
                 self._assert_pod_address_assigned()
-                self.update_status_internal()
+                self._internal_update_status()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
                 self._assert_not_faulted()
@@ -306,7 +305,7 @@ class Pdm:
     def deactivate_pod(self):
         try:
             with PdmLock():
-                self.update_status_internal()
+                self._internal_update_status()
                 self._assert_can_deactivate()
 
                 self.logger.debug("Deactivating pod")
@@ -376,13 +375,13 @@ class Pdm:
 
                 while self.pod.state_progress == PodProgress.Purging:
                     time.sleep(5)
-                    self.update_status_internal()
+                    self._internal_update_status()
 
                 if self.pod.var_alert_replace_pod is not None:
                     request = request_set_pod_expiry_alert(self.pod.var_alert_replace_pod - self.pod.state_active_minutes)
                     self.send_request(request, with_nonce=True)
                 else:
-                    self.update_status_internal()
+                    self._internal_update_status()
 
                 if self.pod.state_progress != PodProgress.ReadyForInjection:
                     raise PdmError("Pod did not reach ready for injection stage")
@@ -427,7 +426,7 @@ class Pdm:
 
                 while self.pod.state_progress == PodProgress.Inserting:
                     time.sleep(5)
-                    self.update_status_internal()
+                    self._internal_update_status()
 
                 if self.pod.state_progress != PodProgress.Running:
                     raise PdmError("Pod did not get to running state")
@@ -441,7 +440,6 @@ class Pdm:
 
     def _savePod(self):
         try:
-            self.logger.debug("Saving pod status")
             radio = self.get_radio()
             if radio is not None:
                 self.pod.radio_message_sequence = radio.message_sequence
@@ -475,14 +473,14 @@ class Pdm:
             elif now < bolus_end_earliest:
                 return True
 
-        self.update_status_internal()
+        self._internal_update_status()
         return self.pod.state_bolus == BolusState.Immediate
 
     def _is_basal_schedule_active(self):
         if self.pod.state_last_updated is not None and self.pod.state_basal == BasalState.NotRunning:
             return False
 
-        self.update_status_internal()
+        self._internal_update_status()
         return self.pod.state_basal == BasalState.Program
 
     def _is_temp_basal_active(self):
@@ -503,7 +501,7 @@ class Pdm:
             elif now < temp_basal_end_earliest:
                 return True
 
-        self.update_status_internal()
+        self._internal_update_status()
         return self.pod.state_basal == BasalState.TempBasal
 
     def _assert_pod_activate_can_start(self):

@@ -20,7 +20,6 @@ class PdmRadio:
         self.last_received_packet = None
         self.logger = getLogger()
         self.packet_logger = get_packet_logger()
-        self.message_logger = get_message_logger()
 
         if packet_radio is None:
             self.packet_radio = RileyLink()
@@ -38,6 +37,10 @@ class PdmRadio:
         self.tx_power = None
         self.pod_message = None
         self.response_exception = None
+        self.radio_thread = None
+        self.start()
+
+    def start(self):
         self.radio_thread = Thread(target=self._radio_loop)
         self.radio_thread.setDaemon(True)
         self.radio_thread.start()
@@ -48,6 +51,7 @@ class PdmRadio:
         self.request_shutdown.set()
         self.request_arrived.set()
         self.radio_thread.join()
+        self.request_shutdown.clear()
 
     def send_message_get_message(self, message: PdmMessage,
                                  message_address=None,
@@ -74,6 +78,11 @@ class PdmRadio:
             raise self.response_exception
         return self.pod_message
 
+    def get_packet(self, timeout=30000):
+        received = self.packet_radio.get_packet(timeout=timeout)
+        p, rssi = self._get_packet(received)
+        return p
+
     def disconnect(self):
         try:
             self.packet_radio.disconnect(ignore_errors=True)
@@ -93,6 +102,7 @@ class PdmRadio:
             self.request_arrived.clear()
 
             if self.request_shutdown.wait(0):
+                self.disconnect()
                 break
 
             try:
@@ -159,31 +169,132 @@ class PdmRadio:
                                                 packet_address=self.radio_address,
                                                 first_packet_sequence=self.packet_sequence)
 
-        self.message_logger.info("SEND %s" % pdm_message)
         received = None
+        packet_count = len(packets)
 
-        if len(packets) > 1:
-            if double_take:
-                received = self._exchange_packets(packets[0].with_sequence(self.packet_sequence), RadioPacketType.ACK)
-                self.packet_sequence = (received.sequence + 1) % 32
+        for part in range(0, packet_count):
+            packet = packets[part]
+            repeat_count = -1
+            timeout = 10
+            while True:
+                repeat_count += 1
+                if repeat_count > 0:
+                    self.logger.debug("Sending PDM message part %d/%d" % (part + 1, packet_count))
+                else:
+                    self.logger.debug("Sending PDM message part %d/%d (Repeat: %d)" %
+                                      (part + 1, packet_count, repeat_count))
 
-            received = self._exchange_packets(packets[0].with_sequence(self.packet_sequence), RadioPacketType.ACK)
+                if part == packet_count - 1:
+                    expected_type = RadioPacketType.POD
+                else:
+                    expected_type = RadioPacketType.ACK
+
+                try:
+                    received = self._exchange_packets(packet.with_sequence(self.packet_sequence),
+                                                      expected_type=expected_type,
+                                                      timeout=timeout)
+                except OmnipyTimeoutError:
+                    self.logger.debug("Trying to recover from timeout error")
+                    if part == 0:
+                        if repeat_count == 0:
+                            timeout = 15
+                            continue
+                        elif repeat_count == 1:
+                            self._reset_sequences()
+                            timeout = 10
+                            time.sleep(2)
+                            continue
+                        elif repeat_count == 2:
+                            self._reset_sequences()
+                            self._radio_init()
+                            timeout = 15
+                            continue
+                        else:
+                            self.logger.debug("Failed recovery")
+                            if packet_count == 1:
+                                self.logger.debug("Calming pod down in case of reception problem on our end")
+                                ack_packet = self._final_ack(self.ack_address_override, 1)
+                                try:
+                                    self.packet_radio.set_tx_power(TxPower.Highest)
+                                    self._send_packet(ack_packet)
+                                except Exception as e:
+                                    self.logger.exception("Ignored.")
+                            self._reset_sequences()
+                            raise
+                    elif part < packet_count - 1:
+                        if repeat_count < 2:
+                            timeout = 20
+                            continue
+                        else:
+                            raise
+                    else:
+                        if repeat_count < 10:
+                            timeout = 20
+                            continue
+                        else:
+                            raise
+                except PacketRadioError:
+                    self.logger.debug("Trying to recover from radio error")
+                    if part == 0:
+                        if repeat_count < 2:
+                            self._radio_init()
+                            continue
+                        elif repeat_count < 4:
+                            self.disconnect()
+                            self._kill_btle_subprocess()
+                            timeout = 10
+                            time.sleep(2)
+                            continue
+                        else:
+                            self.logger.debug("Failed recovery")
+                            self._reset_sequences()
+                            raise
+                    elif part < packet_count - 1:
+                        if repeat_count < 6:
+                            self.disconnect()
+                            self._kill_btle_subprocess()
+                            timeout = 10
+                            time.sleep(2)
+                            continue
+                        else:
+                            self.logger.debug("Failed recovery")
+                            self._reset_sequences()
+                            raise
+                    else:
+                        if repeat_count < 10:
+                            self.disconnect()
+                            self._kill_btle_subprocess()
+                            timeout = 10
+                            time.sleep(2)
+                            continue
+                        else:
+                            self.logger.debug("Failed recovery")
+                            self._reset_sequences()
+                            raise
+                except ProtocolError:
+                    if part == 0 and repeat_count == 0:
+                        self.logger.debug("Trying to recover from protocol error")
+                        continue
+                    else:
+                        raise
+
+            part += 1
             self.packet_sequence = (received.sequence + 1) % 32
 
-            if len(packets) > 2:
-                for packet in packets[1:-1]:
-                    received = self._exchange_packets(packet, RadioPacketType.ACK)
-                    self.packet_sequence = (received.sequence + 1) % 32
 
-        received = self._exchange_packets(packets[-1].with_sequence(self.packet_sequence), RadioPacketType.POD)
-        self.packet_sequence = (received.sequence + 1) % 32
-
+        self.packet_logger.info("SENT MSG %s" % pdm_message)
+        if received.type == RadioPacketType.POD:
+            part_count = 1
+            self.logger.debug("Received POD message part %d." % part_count)
         pod_response = PodMessage()
         while not pod_response.add_radio_packet(received):
             ack_packet = self._interim_ack(ack_address_override, (received.sequence + 1) % 32)
             received = self._exchange_packets(ack_packet, RadioPacketType.CON)
+            part_count += 1
+            self.logger.debug("Received POD message part %d." % part_count)
 
-        self.message_logger.info("RECV %s" % pod_response)
+        self.packet_logger.info("RCVD MSG %s" % pod_response)
+        self.logger.debug("Send and receive completed.")
         self.message_sequence = (pod_response.sequence + 1) % 16
         return pod_response
 
@@ -199,23 +310,23 @@ class PdmRadio:
                 if start_time is None:
                     start_time = time.time()
 
-                self.packet_logger.info("SEND %s" % packet_to_send)
+            self.packet_logger.info("SEND PKT %s" % packet_to_send)
 
-                if received is None:
-                    self.packet_logger.debug("Received nothing")
-                    self.packet_radio.tx_up()
-                    continue
-                p, rssi = self._get_packet(received)
-                if p is None:
-                    self.packet_logger.debug("RECEIVED BAD DATA: %s" % received.hex())
-                    self.packet_radio.tx_down()
-                    continue
+            if received is None:
+                self.packet_logger.debug("RECV PKT None")
+                self.packet_radio.tx_up()
+                continue
+            p, rssi = self._get_packet(received)
+            if p is None:
+                self.packet_logger.debug("RECV PKT BAD DATA: %s" % received.hex())
+                self.packet_radio.tx_down()
+                continue
 
-                self.packet_logger.info("RECV %s" % p)
-                if p.address != self.radio_address:
-                    self.packet_logger.debug("Received packet for another address (more than one pod active?)")
-                    self.packet_radio.tx_down()
-                    continue
+            self.packet_logger.info("RECV PKT %s" % p)
+            if p.address != self.radio_address:
+                self.packet_logger.debug("RECV PKT ADDR MISMATCH")
+                self.packet_radio.tx_down()
+                continue
 
                 self.last_packet_timestamp = time.time()
 

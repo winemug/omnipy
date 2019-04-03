@@ -13,8 +13,6 @@ OMNIPY_LOGGER = "OMNIPY"
 OMNIPY_LOGFILE = "data/omnipy.log"
 OMNIPY_PACKET_LOGGER = "OMNIPACKET"
 OMNIPY_PACKET_LOGFILE = "data/packet.log"
-OMNIPY_MESSAGE_LOGGER = "OMNIMESSAGE"
-OMNIPY_MESSAGE_LOGFILE = "data/message.log"
 
 OMNIPY_LOGFILE_PREFIX = "data/omnipy"
 OMNIPY_LOGFILE_SUFFIX = ".log"
@@ -50,7 +48,6 @@ REST_URL_SET_BASAL_SCHEDULE = "/pdm/setbasalschedule"
 
 logger = None
 packet_logger = None
-message_logger = None
 
 def ensure_log_dir():
     if not os.path.isdir(LOG_PATH):
@@ -97,25 +94,6 @@ def get_packet_logger():
         packet_logger.addHandler(mh)
 
     return packet_logger
-
-def get_message_logger():
-    global message_logger
-
-    if message_logger is None:
-        ensure_log_dir()
-        message_logger = logging.getLogger(OMNIPY_MESSAGE_LOGGER)
-        message_logger.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s %(message)s')
-
-        fh = logging.FileHandler(OMNIPY_MESSAGE_LOGFILE)
-        fh.setLevel(logging.INFO)
-        fh.setFormatter(formatter)
-
-        mh = MemoryHandler(capacity=4*1024, target=fh)
-        message_logger.addHandler(mh)
-
-    return message_logger
-
 
 def configureLogging():
     pass

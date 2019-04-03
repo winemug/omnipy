@@ -11,7 +11,7 @@ from flask import Flask, request, send_from_directory
 from datetime import datetime
 import time
 from podcomm.crc import crc8
-from podcomm.pdm import Pdm
+from podcomm.pdm import Pdm, PdmLock
 from podcomm.pod import Pod
 from podcomm.pr_rileylink import RileyLink
 from podcomm.definitions import *
@@ -209,33 +209,34 @@ def check_password():
 
 
 def get_pdm_address():
-    r = RileyLink()
-    try:
-        verify_auth(request)
-        while True:
-            timeout = 30000
-            if request.args.get('timeout') is not None:
-                timeout = int(request.args.get('timeout')) * 1000
-                if timeout > 30000:
-                    raise RestApiException("Timeout cannot be more than 30 seconds")
+    verify_auth(request)
 
-            data = r.get_packet(timeout)
-            if data is None:
-                p = None
-                break
+    timeout = 30000
+    if request.args.get('timeout') is not None:
+        timeout = int(request.args.get('timeout')) * 1000
+        if timeout > 30000:
+            raise RestApiException("Timeout cannot be more than 30 seconds")
 
-            if data is not None and len(data) > 2:
-                calc = crc8(data[2:-1])
-                if data[-1] == calc:
-                    p = Packet.from_data(data[2:-1])
-                    break
-        if p is None:
-            raise RestApiException("No pdm packet detected")
+    pdm = get_pdm()
 
-        return {"radio_address": p.address, "radio_address_hex": "%8X" % p.address}
-    finally:
-        r.disconnect(ignore_errors=True)
+    if pdm.is_busy():
+        raise RestApiException("Pdm is busy")
 
+    packet = None
+    with PdmLock():
+        radio = get_pdm().get_radio()
+        radio.stop()
+
+        try:
+                packet = radio.get_packet(timeout)
+        finally:
+            radio.disconnect()
+            radio.start()
+
+    if packet is None:
+        raise RestApiException("No packet received")
+
+    return {"radio_address": packet.address, "radio_address_hex": "%8X" % packet.address}
 
 def new_pod():
     verify_auth(request)
@@ -531,7 +532,7 @@ def exit_with_grace():
         g_deny = True
         pdm = get_pdm()
         while pdm.is_busy():
-            time.sleep(1)
+            time.sleep(5)
     except:
         logger.exception("error during graceful shutdown")
 
