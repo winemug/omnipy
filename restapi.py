@@ -15,7 +15,7 @@ from podcomm.pdm import Pdm, PdmLock
 from podcomm.pod import Pod
 from podcomm.pr_rileylink import RileyLink
 from podcomm.definitions import *
-
+from podcomm.protocol_common import RadioPacket
 
 g_key = None
 g_pod = None
@@ -249,6 +249,23 @@ def new_pod():
         pod.id_t = int(request.args.get('id_t'))
     if request.args.get('radio_address') is not None:
         pod.radio_address = int(request.args.get('radio_address'))
+    else:
+        while True:
+            g_deny = True
+            r = RileyLink()
+            data = r.get_packet(45)
+            if data is None:
+                p = None
+                break
+
+            if data is not None and len(data) > 2:
+                calc = crc8(data[2:-1])
+                if data[-1] == calc:
+                    p = RadioPacket.parse(data[2:-1])
+                    break
+        if p is None:
+            raise RestApiException("No pdm packet detected")
+        pod.radio_address = p.address
 
     archive_pod()
     pod.Save(POD_FILE + POD_FILE_SUFFIX)
