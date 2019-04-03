@@ -33,7 +33,7 @@ class Nonce:
     def sync(self, syncWord, msgSequence):
         w_sum = (self.lastNonce & 0xFFFF) + (crc16_table[msgSequence] & 0xFFFF) \
               + (self.lot & 0xFFFF) + (self.tid & 0xFFFF)
-        self.seed = ((w_sum & 0xFFFF) ^ syncWord) & 0xff
+        self.seed = (w_sum & 0xFFFF) ^ syncWord
         self.lastNonce = None
         self.nonce_runs = 0
         self._initialize()

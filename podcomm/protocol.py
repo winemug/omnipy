@@ -362,7 +362,7 @@ def parse_delivery_state(pod, delivery_state):
 
 def parse_version_response(response, pod):
     pod.state_last_updated = time.time()
-    if len(response) == 23:
+    if len(response) == 27:
         pod.id_version_unknown_7_bytes = response[0:7].hex()
         response = response[7:]
 
@@ -380,10 +380,12 @@ def parse_version_response(response, pod):
     pod.state_progress = response[7] & 0x0F
     pod.id_lot = struct.unpack(">I", response[8:12])[0]
     pod.id_t = struct.unpack(">I", response[12:16])[0]
-    if len(response) > 16:
+    if len(response) == 21:
         pod.radio_low_gain = response[17] >> 6
         pod.radio_rssi = response[17] & 0b00111111
         pod.radio_address = struct.unpack(">I", response[17:21])[0]
+    else:
+        pod.radio_address = struct.unpack(">I", response[16:20])[0]
 
 
 def _alert_configuration_message(alert_bit, activate, trigger_auto_off, duration_minutes, beep_repeat_type, beep_type,
