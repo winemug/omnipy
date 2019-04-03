@@ -121,8 +121,7 @@ def request_set_basal_schedule(schedule, hour, minute, second):
     ise_body = getStringBodyFromTable(ise_list)
     pulse_body = getStringBodyFromTable(pulse_list)
 
-    command_body = struct.pack(">I", 0)
-    command_body += b"\x00"
+    command_body = bytes([0])
 
     body_checksum = bytes([current_hh])
 
@@ -440,8 +439,7 @@ def _alert_configuration_message(alert_bit, activate, trigger_auto_off, duration
 
 
 def _bolus_message(pulse_count, pulse_speed=16, reminders=0, delivery_delay=2):
-    commandBody = struct.pack(">I", 0)
-    commandBody += b"\x02"
+    commandBody = bytes(0x02)
 
     bodyForChecksum = b"\x01"
     pulse_span = pulse_speed * pulse_count
@@ -465,7 +463,6 @@ def _bolus_message(pulse_count, pulse_speed=16, reminders=0, delivery_delay=2):
 
 
 def _cancel_activity_message(basal=False, bolus=False, temp_basal=False):
-    cmd_body = struct.pack(">I", 0)
     c = 0
 
     if bolus:
@@ -474,7 +471,7 @@ def _cancel_activity_message(basal=False, bolus=False, temp_basal=False):
         c = c | 0x02
     if basal:
         c = c | 0x01
-    cmd_body += bytes([c])
+    cmd_body = bytes([c])
 
     msg = PdmMessage(PdmRequest.CancelDelivery, cmd_body)
     return msg
