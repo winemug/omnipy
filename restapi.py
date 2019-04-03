@@ -207,6 +207,24 @@ def check_password():
     verify_auth(request)
     return None
 
+def _get_pdm_address(timeout):
+    pdm = get_pdm()
+
+    packet = None
+    with PdmLock():
+        radio = get_pdm().get_radio()
+        radio.stop()
+
+        try:
+            packet = radio.get_packet(timeout)
+        finally:
+            radio.disconnect()
+            radio.start()
+
+    if packet is None:
+        raise RestApiException("No packet received")
+
+    return packet.address
 
 def get_pdm_address():
     verify_auth(request)
@@ -217,26 +235,9 @@ def get_pdm_address():
         if timeout > 30000:
             raise RestApiException("Timeout cannot be more than 30 seconds")
 
-    pdm = get_pdm()
+    address = _get_pdm_address(timeout)
 
-    if pdm.is_busy():
-        raise RestApiException("Pdm is busy")
-
-    packet = None
-    with PdmLock():
-        radio = get_pdm().get_radio()
-        radio.stop()
-
-        try:
-                packet = radio.get_packet(timeout)
-        finally:
-            radio.disconnect()
-            radio.start()
-
-    if packet is None:
-        raise RestApiException("No packet received")
-
-    return {"radio_address": packet.address, "radio_address_hex": "%8X" % packet.address}
+    return {"radio_address": address, "radio_address_hex": "%8X" % address}
 
 def new_pod():
     verify_auth(request)
@@ -250,22 +251,7 @@ def new_pod():
     if request.args.get('radio_address') is not None:
         pod.radio_address = int(request.args.get('radio_address'))
     else:
-        while True:
-            g_deny = True
-            r = RileyLink()
-            data = r.get_packet(45)
-            if data is None:
-                p = None
-                break
-
-            if data is not None and len(data) > 2:
-                calc = crc8(data[2:-1])
-                if data[-1] == calc:
-                    p = RadioPacket.parse(data[2:-1])
-                    break
-        if p is None:
-            raise RestApiException("No pdm packet detected")
-        pod.radio_address = p.address
+        pod.radio_address = _get_pdm_address(45000)
 
     archive_pod()
     pod.Save(POD_FILE + POD_FILE_SUFFIX)
