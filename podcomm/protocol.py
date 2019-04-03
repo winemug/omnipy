@@ -441,7 +441,7 @@ def _alert_configuration_message(alert_bit, activate, trigger_auto_off, duration
 
 
 def _bolus_message(pulse_count, pulse_speed=16, reminders=0, delivery_delay=2):
-    commandBody = bytes(0x02)
+    commandBody = bytes([0x02])
 
     bodyForChecksum = b"\x01"
     pulse_span = pulse_speed * pulse_count
