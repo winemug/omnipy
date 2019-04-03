@@ -145,8 +145,6 @@ def request_set_basal_schedule(schedule, hour, minute, second):
 
     command_body = bytes([reminders])
 
-    command_body += b"\x00"
-
     pulse_entries = getPulseIntervalEntries(halved_schedule)
     table_index = 0
     for pulses10, interval, indices in pulse_entries:
