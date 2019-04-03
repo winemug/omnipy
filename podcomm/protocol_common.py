@@ -1,3 +1,5 @@
+from typing import List
+
 from podcomm.exceptions import PdmError, ProtocolError
 from enum import IntEnum
 from podcomm.crc import crc8, crc16
@@ -143,7 +145,8 @@ class BaseMessage:
                     message_sequence,
                     packet_address,
                     first_packet_sequence,
-                    expect_critical_follow_up=False):
+                    expect_critical_follow_up=False,
+                    double_take=False):
 
         self.message_str_prefix = "%08X %02X %s " % (
                                     message_address, message_sequence, expect_critical_follow_up)
@@ -201,7 +204,10 @@ class BaseMessage:
             index += to_write
             sequence = (sequence + 2) % 32
 
-        return radio_packets
+        if double_take:
+            return [radio_packets[0]] + radio_packets
+        else:
+            return radio_packets
 
     def add_part(self, cmd_type, cmd_body):
         part_tuple = cmd_type, cmd_body, None

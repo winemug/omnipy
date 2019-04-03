@@ -142,10 +142,12 @@ class RileyLink(PacketRadio):
                 self.init_radio(force_initialize)
             else:
                 self.init_radio(True)
-        except BTLEException:
+        except BTLEException as be:
             if self.peripheral is not None:
                 self.disconnect()
-            raise
+            raise PacketRadioError("Error while connecting") from be
+        except Exception as e:
+            raise PacketRadioError("Error while connecting") from e
 
     def disconnect(self, ignore_errors=True):
         try:
@@ -157,19 +159,21 @@ class RileyLink(PacketRadio):
                 response_notify_handle = self.response_handle + 1
                 notify_setup = b"\x00\x00"
                 self.peripheral.writeCharacteristic(response_notify_handle, notify_setup)
-        except BTLEException:
+        except Exception as e:
             if not ignore_errors:
-                raise
+                raise PacketRadioError("Error while disconnecting") from e
         finally:
             try:
                 if self.peripheral is not None:
                     self.peripheral.disconnect()
                     self.peripheral = None
-            except BTLEException:
+            except BTLEException as be:
                 if ignore_errors:
                     self.logger.exception("Ignoring btle exception during disconnect")
                 else:
-                    raise
+                    raise PacketRadioError("Error while disconnecting") from be
+            except Exception as e:
+                raise PacketRadioError("Error while disconnecting") from e
 
     def get_info(self):
         try:
@@ -182,8 +186,8 @@ class RileyLink(PacketRadio):
             version, v_major, v_minor = self._read_version()
             return { "battery_level": battery_value, "mac_address": self.address,
                     "version_string": version, "version_major": v_major, "version_minor": v_minor }
-        except BTLEException as btlee:
-            raise PacketRadioError("Error communicating with RileyLink") from btlee
+        except Exception as e:
+            raise PacketRadioError("Error communicating with RileyLink") from e
         finally:
             self.disconnect()
 
@@ -219,6 +223,8 @@ class RileyLink(PacketRadio):
 
         except PacketRadioError:
             raise
+        except Exception as e:
+            raise PacketRadioError("Error while reading version") from e
 
     def init_radio(self, force_init=False):
         try:
@@ -305,42 +311,49 @@ class RileyLink(PacketRadio):
 
             self.initialized = True
 
-        except PacketRadioError as rle:
-            self.logger.error("Error while initializing rileylink radio: %s", rle)
-            raise
+        except Exception as e:
+            raise PacketRadioError("Error while initializing rileylink radio: %s", e)
 
     def tx_up(self):
-        if self.pa_level_index < len(PA_LEVELS) - 1:
-            self.pa_level_index += 1
-            self._set_amp(self.pa_level_index)
+        try:
+            if self.pa_level_index < len(PA_LEVELS) - 1:
+                self.pa_level_index += 1
+                self._set_amp(self.pa_level_index)
+        except Exception as e:
+            raise PacketRadioError("Error while setting tx up") from e
 
     def tx_down(self):
-        if self.pa_level_index > 0:
-            self.pa_level_index -= 1
-            self._set_amp(self.pa_level_index)
+        try:
+            if self.pa_level_index > 0:
+                self.pa_level_index -= 1
+                self._set_amp(self.pa_level_index)
+        except Exception as e:
+            raise PacketRadioError("Error while setting tx down") from e
 
     def set_tx_power(self, tx_power):
-        if tx_power is None:
-            return
-        elif tx_power == TxPower.Lowest:
-            self._set_amp(0)
-        elif tx_power == TxPower.Low:
-            self._set_amp(PA_LEVELS.index(0x12))
-        elif tx_power == TxPower.Normal:
-            self._set_amp(PA_LEVELS.index(0x60))
-        elif tx_power == TxPower.High:
-            self._set_amp(PA_LEVELS.index(0xC8))
-        elif tx_power == TxPower.Highest:
-            self._set_amp(PA_LEVELS.index(0xC0))
+        try:
+            if tx_power is None:
+                return
+            elif tx_power == TxPower.Lowest:
+                self._set_amp(0)
+            elif tx_power == TxPower.Low:
+                self._set_amp(PA_LEVELS.index(0x12))
+            elif tx_power == TxPower.Normal:
+                self._set_amp(PA_LEVELS.index(0x60))
+            elif tx_power == TxPower.High:
+                self._set_amp(PA_LEVELS.index(0xC8))
+            elif tx_power == TxPower.Highest:
+                self._set_amp(PA_LEVELS.index(0xC0))
+        except Exception as e:
+            raise PacketRadioError("Error while setting tx level") from e
 
     def get_packet(self, timeout=5.0):
         try:
             self.connect()
             return self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)),
                                  timeout=float(timeout)+0.5)
-        except PacketRadioError as rle:
-            self.logger.error("Error while receiving data: %s", rle)
-            raise
+        except Exception as e:
+            raise PacketRadioError("Error while getting radio packet") from e
 
     def send_and_receive_packet(self, packet, repeat_count, delay_ms, timeout_ms, retry_count, preamble_ext_ms):
 
@@ -357,9 +370,8 @@ class RileyLink(PacketRadio):
                                               preamble_ext_ms)
                                               + packet,
                                   timeout=30)
-        except PacketRadioError as rle:
-            self.logger.error("Error while sending and receiving data: %s", rle)
-            raise
+        except Exception as e:
+            raise PacketRadioError("Error while sending and receiving data") from e
 
     def send_packet(self, packet, repeat_count, delay_ms, preamble_extension_ms):
         try:
@@ -368,9 +380,8 @@ class RileyLink(PacketRadio):
                                                                    preamble_extension_ms) + packet,
                                   timeout=30)
             return result
-        except PacketRadioError as rle:
-            self.logger.error("Error while sending data: %s", rle)
-            raise
+        except Exception as e:
+            raise PacketRadioError("Error while sending data") from e
 
     def _set_amp(self, index=None):
         try:
@@ -455,5 +466,7 @@ class RileyLink(PacketRadio):
                 else:
                     raise PacketRadioError("RileyLink returned error code: %02X. Additional response data: %s"
                                          % (response[0], response[1:]), response[0])
+        except PacketRadioError:
+            raise
         except Exception as e:
             raise PacketRadioError("Error executing command") from e

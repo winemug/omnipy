@@ -271,6 +271,7 @@ class Pdm:
 
     def set_basal_schedule(self, schedule, hours=None, minutes=None, seconds=None):
         try:
+            return
             with PdmLock():
                 self._assert_pod_address_assigned()
                 self._internal_update_status()
