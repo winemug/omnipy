@@ -130,7 +130,6 @@ class PdmRadio:
 
                 try:
                     self._send_packet(ack_packet)
-                    self.logger.debug("Conversation ended")
                 except Exception as e:
                     self.logger.exception("Error during ending conversation, ignored.")
             else:
@@ -206,7 +205,7 @@ class PdmRadio:
             timeout = 10
             while True:
                 repeat_count += 1
-                if repeat_count > 0:
+                if repeat_count == 0:
                     self.logger.debug("Sending PDM message part %d/%d" % (part + 1, packet_count))
                 else:
                     self.logger.debug("Sending PDM message part %d/%d (Repeat: %d)" %
@@ -221,6 +220,7 @@ class PdmRadio:
                     received = self._exchange_packets(packet.with_sequence(self.packet_sequence),
                                                       expected_type=expected_type,
                                                       timeout=timeout)
+                    break
                 except OmnipyTimeoutError:
                     self.logger.debug("Trying to recover from timeout error")
                     if part == 0:
@@ -373,6 +373,7 @@ class PdmRadio:
                 self.packet_logger.debug("RECV PKT unexpected sequence %s" % p)
                 self.last_packet_received = p
                 raise ProtocolError("Incorrect packet sequence received")
+
             return p
         raise OmnipyTimeoutError("Exceeded timeout while send and receive")
 
