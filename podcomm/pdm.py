@@ -284,9 +284,6 @@ class Pdm:
 
                 self._assert_basal_schedule_is_valid(schedule)
 
-                # request = request_stop_basal_insulin()
-                # self.send_request(request, with_nonce=True)
-
                 request = request_set_basal_schedule(schedule, hour=hours, minute=minutes, second=seconds)
                 self.send_request(request, with_nonce=True, double_take=True)
 
