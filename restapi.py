@@ -403,10 +403,7 @@ def set_basal_schedule():
         rate = Decimal(request.args.get("h"+str(i)))
         schedule.append(rate)
 
-    hours = int(request.args.get("hours"))
-    minutes = int(request.args.get("minutes"))
-    seconds = int(request.args.get("seconds"))
-    pdm.set_basal_schedule(schedule, hours, minutes, seconds)
+    pdm.set_basal_schedule(schedule)
 
 def is_pdm_busy():
     pdm = get_pdm()

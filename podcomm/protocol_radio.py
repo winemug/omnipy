@@ -38,6 +38,7 @@ class PdmRadio:
         self.request_message = None
         self.double_take = False
         self.tx_power = None
+        self.expect_critical_follow_up = False
         self.pod_message = None
         self.response_exception = None
         self.radio_thread = None
@@ -59,8 +60,9 @@ class PdmRadio:
     def send_message_get_message(self, message: PdmMessage,
                                  message_address=None,
                                  ack_address_override=None,
-                                 tx_power=None, double_take=False):
-        if not self.radio_ready.wait(10):
+                                 tx_power=None, double_take=False,
+                                 expect_critical_follow_up=False):
+        if not self.radio_ready.wait(30):
             if self.radio_busy:
                 raise PacketRadioError("Radio is busy")
             else:
@@ -77,6 +79,7 @@ class PdmRadio:
         self.pod_message = None
         self.double_take = double_take
         self.tx_power = tx_power
+        self.expect_critical_follow_up = expect_critical_follow_up
 
         self.request_arrived.set()
 
@@ -117,7 +120,8 @@ class PdmRadio:
             try:
                 self.pod_message = self._send_and_get(self.pdm_message, self.pdm_message_address,
                                                       self.ack_address_override,
-                                                      tx_power=self.tx_power, double_take=self.double_take)
+                                                      tx_power=self.tx_power, double_take=self.double_take,
+                                                      expect_critical_follow_up=self.expect_critical_follow_up)
                 self.response_exception = None
             except Exception as e:
                 self.pod_message = None
@@ -180,13 +184,14 @@ class PdmRadio:
         self.message_sequence = 0
 
     def _send_and_get(self, pdm_message: PdmMessage, pdm_message_address, ack_address_override=None,
-                      tx_power=None, double_take=False):
+                      tx_power=None, double_take=False, expect_critical_follow_up=False):
 
         packets = pdm_message.get_radio_packets(message_address=pdm_message_address,
                                                 message_sequence=self.message_sequence,
                                                 packet_address=self.radio_address,
                                                 first_packet_sequence=self.packet_sequence,
-                                                double_take=double_take)
+                                                double_take=double_take,
+                                                expect_critical_follow_up=expect_critical_follow_up)
 
         try:
             if tx_power is not None:

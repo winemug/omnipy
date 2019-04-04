@@ -56,6 +56,7 @@ class Pod:
         self.insulin_canceled = 0
 
         self.var_utc_offset=None
+        self.var_activation_date=None
         self.path = None
         self.log_file_path = None
 
@@ -132,6 +133,7 @@ class Pod:
             p.last_enacted_bolus_amount = d.get("last_enacted_bolus_amount", None)
 
             p.var_utc_offset = d.get("var_utc_offset", None)
+            p.var_activation_date = d.get("var_activation_date", None)
             p.var_basal_schedule = d.get("var_basal_schedule", None)
             p.var_maximum_bolus = d.get("var_maximum_bolus", None)
             p.var_maximum_temp_basal_rate = d.get("var_maximum_temp_basal_rate", None)
@@ -157,7 +159,7 @@ class Pod:
             orq = original_request
 
         self.Save()
-        self.log()
+        self.log(original_request)
 
     def __str__(self):
         return json.dumps(self.__dict__, indent=4, sort_keys=True)

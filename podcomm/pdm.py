@@ -46,7 +46,11 @@ class Pdm:
                 self.nonce = Nonce(self.pod.id_lot, self.pod.id_t, self.pod.nonce_last, self.pod.nonce_seed)
         return self.nonce
 
-    def get_radio(self):
+    def get_radio(self, new=False):
+        if self.radio is not None and new:
+            self.radio.stop()
+            self.radio = None
+
         if self.radio is None:
             if self.pod.radio_message_sequence is None or self.pod.radio_packet_sequence is None:
                 self.pod.radio_message_sequence = 0
@@ -58,14 +62,15 @@ class Pdm:
 
         return self.radio
 
-    def send_request(self, request, with_nonce=False, double_take=False):
+    def send_request(self, request, with_nonce=False, double_take=False, expect_critical_follow_up=False):
 
         nonce_obj = self.get_nonce()
         if with_nonce:
             nonce_val = nonce_obj.getNext()
             request.set_nonce(nonce_val)
 
-        response = self.get_radio().send_message_get_message(request, double_take=double_take)
+        response = self.get_radio().send_message_get_message(request, double_take=double_take,
+                                                             expect_critical_follow_up=expect_critical_follow_up)
         response_parse(response, self.pod)
 
         if with_nonce and self.pod.nonce_syncword is not None:
@@ -73,8 +78,10 @@ class Pdm:
             nonce_obj.sync(self.pod.nonce_syncword, request.sequence)
             nonce_val = nonce_obj.getNext()
             request.set_nonce(nonce_val)
+            self.pod.nonce_syncword = None
             self.get_radio().message_sequence = request.sequence
-            response = self.get_radio().send_message_get_message(request, double_take=double_take)
+            response = self.get_radio().send_message_get_message(request, double_take=double_take,
+                                                                 expect_critical_follow_up=expect_critical_follow_up)
             response_parse(response, self.pod)
             if self.pod.nonce_syncword is not None:
                 self.get_nonce().reset()
@@ -269,7 +276,7 @@ class Pdm:
         finally:
             self._savePod()
 
-    def set_basal_schedule(self, schedule, hours=None, minutes=None, seconds=None):
+    def set_basal_schedule(self, schedule):
         try:
             with PdmLock():
                 self._assert_pod_address_assigned()
@@ -283,6 +290,12 @@ class Pdm:
                     raise PdmError("Cannot change basal schedule while a temp. basal is active")
 
                 self._assert_basal_schedule_is_valid(schedule)
+
+                pod_date = datetime.utcnow() + timedelta(minutes=self.pod.var_utc_offset)
+
+                hours = pod_date.hour
+                minutes = pod_date.minute
+                seconds = pod_date.second
 
                 request = request_set_basal_schedule(schedule, hour=hours, minute=minutes, second=seconds)
                 self.send_request(request, with_nonce=True, double_take=True)
@@ -315,12 +328,16 @@ class Pdm:
         finally:
             self._savePod()
 
-    def activate_pod(self, candidate_address):
+    def activate_pod(self, candidate_address, utc_offset):
         try:
             with PdmLock():
+                self.pod.radio_address = 0xffffffff
+                self.pod.var_utc_offset = utc_offset
+
                 self._assert_pod_activate_can_start()
 
-                radio = self.get_radio()
+
+                radio = self.get_radio(new=True)
 
                 radio.radio_address = 0xffffffff
 
@@ -332,8 +349,9 @@ class Pdm:
 
                 self._assert_pod_can_activate()
 
-                utc_offset = timedelta(minutes=self.pod.var_utc_offset)
-                pod_date = datetime.utcnow() + utc_offset
+                self.pod.var_activation_date = time.time()
+                pod_date = datetime.utcfromtimestamp(self.pod.var_activation_date) \
+                           + timedelta(minutes=self.pod.var_utc_offset)
 
                 year = pod_date.year
                 month = pod_date.month
@@ -341,6 +359,7 @@ class Pdm:
                 hour = pod_date.hour
                 minute = pod_date.minute
 
+                radio.message_sequence = 1
                 request = request_setup_pod(self.pod.id_lot, self.pod.id_t, candidate_address,
                                             year, month, day, hour, minute)
                 response = self.get_radio().send_message_get_message(request, message_address=0xffffffff,
@@ -350,10 +369,15 @@ class Pdm:
 
                 self._assert_pod_paired()
 
+                pkt_seq_saved = radio.packet_sequence
+                radio = self.get_radio(new=True)
+                radio.radio_address = candidate_address
+                radio.message_sequence = 2
+                radio.packet_sequence = pkt_seq_saved
+
                 self.pod.nonce_seed = 0
                 self.pod.nonce_last = None
 
-                self.pod.radio_address = candidate_address
 
                 if self.pod.var_alert_low_reservoir is not None:
                     request = request_set_low_reservoir_alert(self.pod.var_alert_low_reservoir)
@@ -370,9 +394,9 @@ class Pdm:
 
                 time.sleep(55)
 
-                while self.pod.state_progress == PodProgress.Purging:
-                    time.sleep(5)
-                    self._internal_update_status()
+                # while self.pod.state_progress == PodProgress.Purging:
+                #     time.sleep(5)
+                #     self._internal_update_status()
 
                 if self.pod.var_alert_replace_pod is not None:
                     request = request_set_pod_expiry_alert(self.pod.var_alert_replace_pod - self.pod.state_active_minutes)
@@ -398,32 +422,31 @@ class Pdm:
 
                 self._assert_basal_schedule_is_valid(basal_schedule)
 
-                utc_offset = timedelta(minutes=self.pod.var_utc_offset)
-                pod_date = datetime.utcnow() + utc_offset
+                pod_date = datetime.utcnow() + timedelta(minutes=self.pod.var_utc_offset)
 
                 hour = pod_date.hour
                 minute = pod_date.minute
                 second = pod_date.second
 
                 request = request_set_basal_schedule(basal_schedule, hour, minute, second)
-                self.send_request(request)
+                self.send_request(request, with_nonce=True, double_take=True, expect_critical_follow_up=True)
 
                 if self.pod.state_progress != PodProgress.BasalScheduleSet:
                     raise PdmError("Pod did not acknowledge basal schedule")
 
+                request = request_set_initial_alerts(self.pod.var_activation_date)
+                self.send_request(request, with_nonce=True, expect_critical_follow_up=True)
 
 
                 request = request_insert_cannula()
-                self.send_request(request)
+                self.send_request(request, with_nonce=True)
 
                 if self.pod.state_progress != PodProgress.Inserting:
                     raise PdmError("Pod did not acknowledge cannula insertion start")
 
-                time.sleep(10)
+                time.sleep(12)
 
-                while self.pod.state_progress == PodProgress.Inserting:
-                    time.sleep(5)
-                    self._internal_update_status()
+                self._internal_update_status()
 
                 if self.pod.state_progress != PodProgress.Running:
                     raise PdmError("Pod did not get to running state")

@@ -99,6 +99,37 @@ def request_clear_generic_alert():
                                                  beep_type=BeepType.NoSound)
     return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
 
+def request_set_initial_alerts(activation_date):
+
+    minutes_past_activation = int(time.time() - activation_date) + 1
+    minutes_to_72hours = (72*60) - minutes_past_activation
+    minutes_to_80hours = (80*60) - minutes_past_activation
+
+    cmd_body = _alert_configuration_message(PodAlertBit.TimerLimit,
+                                            activate=True,
+                                            trigger_auto_off=False,
+                                            alert_after_minutes=minutes_to_72hours,
+                                            duration_minutes=7*60,
+                                            beep_repeat_type=BeepPattern.OnceEveryHour,
+                                            beep_type=BeepType.BipBeepFourTimes)
+
+    cmd_body += _alert_configuration_message(PodAlertBit.EndOfService,
+                                            activate=True,
+                                            trigger_auto_off=False,
+                                            alert_after_minutes=minutes_to_80hours,
+                                            duration_minutes=15,
+                                            beep_repeat_type=BeepPattern.OnceEveryHour,
+                                            beep_type=BeepType.BipBeepFourTimes)
+
+    cmd_body += _alert_configuration_message(PodAlertBit.AutoOff,
+                                            activate=False,
+                                            trigger_auto_off=False,
+                                            alert_after_minutes=0,
+                                            duration_minutes=0,
+                                            beep_repeat_type=BeepPattern.Once,
+                                            beep_type=BeepType.NoSound)
+
+    return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
 
 def request_set_basal_schedule(schedule, hour, minute, second):
     halved_schedule = []
