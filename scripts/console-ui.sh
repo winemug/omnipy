@@ -34,36 +34,91 @@ function UpdateOmnipy(){
 }
 
 function NewPODActivation(){
+
+	if (whiptail --title "Activate new POD" --yesno "Have you already activated the pod with the PDM ?\nIf not, activate the pod normally first before pressing YES." 15 80)
+	then
+ 
 		cd $OMNIPY_HOME
-		echo "cd $OMNIPY_HOME"
-		echo "./omni.py readpdm"
-		whiptail --title "Activate new POD" --msgbox "The pi will enter in waiting after pressing the OK button.\nPress Status on your PDM within the next 10s to retreive the radio address." 15 80
-		READPDM=$(./omni.py readpdm)
-		#READPDM=$(cat readpdm.json)
-		echo $READPDM
-		STATUS=$(echo $READPDM | jq .success)
-		echo $STATUS
+	        echo "cd $OMNIPY_HOME"
+                echo "./omni.py readpdm"
+                whiptail --title "Activate new POD" --msgbox "The pi will enter in waiting after pressing the OK button.\nPress Status on your PDM within the next 10s to retreive the radio address." 15 80
+                READPDM=$(./omni.py readpdm)
+                echo $READPDM
+                STATUS=$(echo $READPDM | jq .success)
+                echo $STATUS
+
+	#test purpose
+        #STATUS="true"
+	#end of test purpose
+
 
 		if [ $STATUS != "true" ]
-		then 
-			whiptail --title "POD Activation" --msgbox "A problem occured - Radio frequency cannot be retreived.\nNew pod activation aborted" 10 80
-	 		MainMenu
-		else		
-			RadioAddress=$(echo $READPDM | jq .response.radio_address)
-			whiptail --title "POD Activation" --msgbox "The radio address is $RadioAddress." 10 60
-	
-			LotID=$(whiptail --title "Input" --inputbox "What is the LOT Number ?" 10 60 3>&1 1>&2 2>&3)
-	 		exitstatus=$?
-			if [ $exitstatus -ne 0 ]; then MainMenu; fi;
-	
-			SerialID=$(whiptail --title "Input" --inputbox "What is the Serial Number ?" 10 60 3>&1 1>&2 2>&3)
-	                exitstatus=$?
-	                if [ $exitstatus -ne 0 ]; then MainMenu; fi;
-	
-	
-			./omni.py newpod $LotID $SerialID $RadioAddress
+                then
+                        whiptail --title "POD Activation" --msgbox "A problem occured - Radio frequency cannot be retreived.\nNew pod activation aborted" 10 80
+                        MainMenu
+                else
+                        RadioAddress=$(echo $READPDM | jq .response.radio_address)
 
+	#test purpose
+        #RadioAddress="12345678"
+        #end of test purpose
+
+                        whiptail --title "POD Activation" --msgbox "The radio address is $RadioAddress." 10 60
 		fi
+
+
+		whiptail --title "Activate new POD" --msgbox "To retrieve the Serial Number and the LOT Number, press the ? button of your PDM and note the Serial and Lot numbers.\n\nPress OK once these numbers are written down..." 15 80
+		exitstatus=$?
+                if [ $exitstatus -ne 0 ]; then MainMenu; fi;
+
+
+	#LotID block
+                LotID1=$(whiptail --title "Input" --inputbox "What is the LOT Number ?" 10 60 3>&1 1>&2 2>&3)
+                exitstatus=$?
+                if [ $exitstatus -ne 0 ]; then MainMenu; fi;
+
+
+		LotID2=$(whiptail --title "Input" --inputbox "Please confirm the LOT Number..." 10 60 3>&1 1>&2 2>&3)
+                exitstatus=$?
+        	if [ $exitstatus -ne 0 ]; then MainMenu; fi;
+
+
+		if [ $LotID1 != $LotID2 ]
+		then
+			whiptail --title "POD Activation" --msgbox "The LOT Numbers you've entered are different: $LotID1 and $LotID2.\nRestart the procedure from beginning." 10 60
+			MainMenu
+		fi
+
+	#SerialID Block
+
+		SerialID1=$(whiptail --title "Input" --inputbox "What is the Serial Number ?" 10 60 3>&1 1>&2 2>&3)
+	        exitstatus=$?
+	        if [ $exitstatus -ne 0 ]; then MainMenu; fi;
+
+		SerialID2=$(whiptail --title "Input" --inputbox "Please confirm the Serial Number..." 10 60 3>&1 1>&2 2>&3)
+                exitstatus=$?
+                if [ $exitstatus -ne 0 ]; then MainMenu; fi;
+
+		if [ $SerialID1 != $SerialID2 ]
+                then
+                	whiptail --title "POD Activation" --msgbox "The Serial Numbers you've entered are different: $SerialID1 and $SerialID2.\nRestart the procedure from beginning." 10 60
+                        MainMenu
+                fi
+
+	#Activation !
+		if (whiptail --title "POD Activation" --yesno "Do you confirm the following pod numbers ?\n\nRadio Address: $RadioAddress\nLot Number: $LotID1\nSerial Number: $SerialID1\n\nAfter pressing YES, the activation within Omnipy will be launched..." 20 80)
+		then
+	                ./omni.py newpod $LotID1 $SerialID1 $RadioAddress
+			whiptail --title "Activate new POD" --msgbox "POD activated in Omnipy.\n\nIMPORTANT: Turn the PDM off until you want to deactivate the pod !" 15 80
+		else
+			whiptail --title "Activate new POD" --msgbox "POD activation aborted !" 15 80
+			MainMenu
+		fi
+
+	else
+		whiptail --title "POD Activation" --msgbox "Activation aborted !" 10 60
+		MainMenu
+	fi
 
 }
 
