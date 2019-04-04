@@ -251,6 +251,9 @@ def new_pod():
     if request.args.get('radio_address') is not None:
         pod.radio_address = int(request.args.get('radio_address'))
     else:
+        pod.radio_address = 0
+
+    if pod.radio_address == 0:
         pod.radio_address = _get_pdm_address(45000)
 
     archive_pod()
@@ -402,6 +405,9 @@ def set_basal_schedule():
     for i in range(0,48):
         rate = Decimal(request.args.get("h"+str(i)))
         schedule.append(rate)
+
+    utc_offset = int(request.args.get("utc"))
+    pdm.pod.var_utc_offset = utc_offset
 
     pdm.set_basal_schedule(schedule)
 
