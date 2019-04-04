@@ -3,10 +3,30 @@
 
 OMNIPY_HOME="/home/pi/omnipy"
 
-function UpdateOmnipy(){
+
+
+function DoBackup(){
+
 	cd $OMNIPY_HOME/../
-	backupfilename="omnipy_backup_"$(date +%d-%m-%y-%H%M%S)".tar.gz omnipy"
-	tar -cvzf $backupfilename
+        backupfilename="omnipy_backup_"$(date +%d-%m-%y-%H%M%S)".tar.gz omnipy"
+	whiptail --title "Backup Omnipy setup" --inputbox "What backup file name do you want ?" 10 60 $backupfilename 3>&1 1>&2 2>&3
+ 	exitstatus=$?
+	if [ $exitstatus = 0 ]; then
+		tar -cvzf $backupfilename
+		echo "Backup done"
+	else
+		echo "No Backup requested"
+	fi
+}
+
+function UpdateOmnipy(){
+
+
+	if(whiptail --title "Update Omnipy" --yesno "Do you want to backup the current Omnipy setup on your pi ?" 8 45)
+        then
+        	DoBackup
+        fi
+
 	cd $OMNIPY_HOME
 	git stash
 	git pull -f
@@ -136,7 +156,7 @@ function ConfigureBT(){
 
 function DeveloperMenu(){
 		echo "Developer Menu"
-		SUBOPTION=$(whiptail --title "Advanced Settings" --menu "Choose the action you want to perform" --cancel-button "Back" 20 50 10 \
+		SUBOPTION=$(whiptail --title "Advanced Settings" --menu "Choose the action you want to perform" --cancel-button "Back" 20 80 11 \
 			"1" "Rig status" \
 			"2" "View POD.log" \
 			"3" "View omnipy.log" \
@@ -145,8 +165,9 @@ function DeveloperMenu(){
 			"6" "Check RileyLink" \
 			"7" "Configure Bluetooth" \
 			"8" "Reset REST-API password" \
-			"9" "Restore Omnipy backup" \
-			"10" "Enable/Disable menu at SSH login"  3>&1 1>&2 2>&3)
+			"9" "Backup current Omnipy config" \
+			"10" "Restore Omnipy backup" \
+			"11" "Enable/Disable menu at SSH login"  3>&1 1>&2 2>&3)
 
 		exitstatus=$?
 		if [ $exitstatus -ne 0 ]; then MainMenu; fi;
@@ -262,7 +283,14 @@ function DeveloperMenu(){
 
 			;;
 
+
 			9)
+				DoBackup
+
+			;;
+
+
+			10)
 				echo "Restore Omnipy backup - to be done"
 				cd ~
 				ListofBackups=`for x in $(ls -1 *.gz); do echo $x "-"; done`
@@ -286,7 +314,7 @@ function DeveloperMenu(){
 				fi
 			;;
 
-			10)
+			11)
 				Linetoadd="ForceCommand ./omnipy/scripts/console-ui.sh"
                                 Filetochange="/etc/ssh/sshd_config"
 
@@ -415,7 +443,7 @@ case $OPTION in
                         then
                                 bash
                         else
-                                echo "Shutdown cancelled"
+                                MainMenu
                 fi
 	;;
 
