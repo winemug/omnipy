@@ -37,7 +37,7 @@ class RestApiException(Exception):
         return self.error_message
 
 
-def get_pod() -> Pod:
+def get_pod():
     global g_pod
     try:
         if g_pod is None:
@@ -54,7 +54,7 @@ def get_pod() -> Pod:
         return None
 
 
-def get_pdm() -> Pdm:
+def get_pdm():
     global g_pdm
     try:
         if g_pdm is None:
