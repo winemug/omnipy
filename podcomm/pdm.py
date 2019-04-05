@@ -451,6 +451,8 @@ class Pdm:
                 if self.pod.state_progress != PodProgress.Running:
                     raise PdmError("Pod did not get to running state")
 
+                self.pod.var_insertion_date = time.time()
+
         except OmnipyError:
             raise
         except Exception as e:

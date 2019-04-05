@@ -55,8 +55,10 @@ class Pod:
         self.insulin_delivered = 0
         self.insulin_canceled = 0
 
-        self.var_utc_offset=None
-        self.var_activation_date=None
+        self.var_utc_offset = None
+        self.var_activation_date = None
+        self.var_insertion_date = None
+
         self.path = None
         self.log_file_path = None
 
@@ -134,6 +136,7 @@ class Pod:
 
             p.var_utc_offset = d.get("var_utc_offset", None)
             p.var_activation_date = d.get("var_activation_date", None)
+            p.var_insertion_date = d.get("var_insertion_date", None)
             p.var_basal_schedule = d.get("var_basal_schedule", None)
             p.var_maximum_bolus = d.get("var_maximum_bolus", None)
             p.var_maximum_temp_basal_rate = d.get("var_maximum_temp_basal_rate", None)
