@@ -8,7 +8,7 @@ from podcomm.pod import Pod
 
 import time
 
-def skip_ack(packet : RadioPacket):
+def skip_ack(packet):
     if packet.type == RadioPacketType.ACK:
         return None
     else:

@@ -13,8 +13,6 @@ def _ack_data(address1, address2, sequence):
                      struct.pack(">I", address2))
 
 class PdmRadio:
-    pod_message: PodMessage
-
     def __init__(self, radio_address, msg_sequence=0, pkt_sequence=0, packet_radio=None):
         self.radio_address = radio_address
         self.message_sequence = msg_sequence
@@ -57,8 +55,8 @@ class PdmRadio:
         self.radio_thread.join()
         self.request_shutdown.clear()
 
-    def send_message_get_message(self, message: PdmMessage,
-                                 message_address=None,
+    def send_message_get_message(self, message,
+                                 message_address = None,
                                  ack_address_override=None,
                                  tx_power=None, double_take=False,
                                  expect_critical_follow_up=False):
@@ -183,7 +181,7 @@ class PdmRadio:
         self.packet_sequence = 0
         self.message_sequence = 0
 
-    def _send_and_get(self, pdm_message: PdmMessage, pdm_message_address, ack_address_override=None,
+    def _send_and_get(self, pdm_message, pdm_message_address, ack_address_override=None,
                       tx_power=None, double_take=False, expect_critical_follow_up=False):
 
         packets = pdm_message.get_radio_packets(message_address=pdm_message_address,

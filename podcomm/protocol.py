@@ -290,7 +290,7 @@ def request_delivery_flags(byte16, byte17):
     return PdmMessage(PdmRequest.SetDeliveryFlags, cmd_body)
 
 
-def response_parse(response: PodMessage, pod: Pod):
+def response_parse(response, pod):
     pod.nonce_syncword = None
     parts = response.get_parts()
     for response_type, response_body in parts:
