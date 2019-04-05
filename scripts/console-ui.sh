@@ -109,8 +109,15 @@ function NewPODActivation(){
 		if (whiptail --title "POD Activation" --yesno "Do you confirm the following pod numbers ?\n\nRadio Address: $RadioAddress\nLot Number: $LotID1\nSerial Number: $SerialID1\n\nAfter pressing YES, the activation within Omnipy will be launched..." 20 80)
 		then
 			whiptail --title "Activate new POD" --msgbox "IMPORTANT: TURN YOUR PDM OFF UNTIL YOU NEED IT TO DEACTIVATE THE POD !!!\n\nThis will prevent from extra communication with the pod that could lead to a screaming pod..." 15 80
-	                ./omni.py newpod $LotID1 $SerialID1 $RadioAddress
-			whiptail --title "Activate new POD" --msgbox "POD activated in Omnipy !!!" 15 80
+			NEWPOD=$(./omni.py newpod $LotID1 $SerialID1 $RadioAddress)
+			echo $NEWPOD
+			STATUS=$(echo $NEWPOD | jq .success)
+			if [ $STATUS == "true" ]
+			then
+				whiptail --title "Activate new POD" --msgbox "POD activated in Omnipy !!!" 15 80
+			else
+				whiptail --title "Activate new POD" --msgbox "POD Activation Failed !!!" 15 80
+			fi
 		else
 			whiptail --title "Activate new POD" --msgbox "POD activation aborted !" 15 80
 			MainMenu
@@ -128,10 +135,17 @@ function PODDeactivation(){
 
 	if (whiptail --title "POD Deactivation?" --yesno "Are you sure you want to deactivate your POD ?" 10 60) then
 	        whiptail --title "POD Deactivation" --msgbox "Don't forget to deactivate the POD on the PDM too !!!" 10 60
-		cd ~
-		cd omnipy
+		cd $OMNIPY_HOME
 		echo "POD deactivation"
-		./omni.py deactivate
+		DEACTIVATE=$(./omni.py deactivate)
+		echo $DEACTIVATE
+		STATUS=$(echo $DEACTIVATE | jq .success)
+		if [ $STATUS == "true" ]
+		then
+			whiptail --title "POD Deactivation" --msgbox "POD Deactivation Succeeded" 15 80
+		else
+			whiptail --title "POD Deactivation" --msgbox "Deactivation Failed" 15 80
+		fi
         else
 		whiptail --title "POD Deactivation" --msgbox "POD deactivation cancelled" 10 60
                 echo "Deactivation cancelled"
