@@ -3,7 +3,7 @@ from podcomm.packet_radio import TxPower
 from podcomm.protocol_common import *
 from .pr_rileylink import RileyLink
 from .definitions import *
-from threading import Thread, Event
+from threading import Thread, Event, RLock
 import binascii
 import time
 import subprocess
@@ -28,8 +28,7 @@ class PdmRadio:
 
         self.last_packet_received = None
         self.last_packet_timestamp = None
-        self.radio_ready = Event()
-        self.radio_busy = False
+
         self.request_arrived = Event()
         self.response_received = Event()
         self.request_shutdown = Event()
@@ -40,81 +39,80 @@ class PdmRadio:
         self.pod_message = None
         self.response_exception = None
         self.radio_thread = None
+
+        self.radio_lock = RLock()
         self.start()
 
     def start(self):
-        self.radio_thread = Thread(target=self._radio_loop)
-        self.radio_thread.setDaemon(True)
-        self.radio_thread.start()
+        with self.radio_lock:
+            self.radio_thread = Thread(target=self._radio_loop)
+            self.radio_thread.setDaemon(True)
+            self._radio_init()
+            self.radio_thread.start()
 
     def stop(self):
-        self.radio_ready.wait()
-        self.radio_ready.clear()
-        self.request_shutdown.set()
-        self.request_arrived.set()
-        self.radio_thread.join()
-        self.request_shutdown.clear()
+        with self.radio_lock:
+            self.request_shutdown.set()
+            self.request_arrived.set()
+            self.radio_thread.join()
+            self.radio_thread = None
+            self.request_shutdown.clear()
 
     def send_message_get_message(self, message,
                                  message_address = None,
                                  ack_address_override=None,
                                  tx_power=None, double_take=False,
                                  expect_critical_follow_up=False):
-        if not self.radio_ready.wait(30):
-            if self.radio_busy:
-                raise PacketRadioError("Radio is busy")
+        with self.radio_lock:
+            if self.radio_thread is None:
+                raise PacketRadioError("Radio is stopped")
+
+            self.pdm_message = message
+            if message_address is None:
+                self.pdm_message_address = self.radio_address
             else:
-                raise PacketRadioError("Radio is not ready")
+                self.pdm_message_address = message_address
+            self.ack_address_override = ack_address_override
+            self.pod_message = None
+            self.double_take = double_take
+            self.tx_power = tx_power
+            self.expect_critical_follow_up = expect_critical_follow_up
 
-        self.radio_ready.clear()
+            self.request_arrived.set()
 
-        self.pdm_message = message
-        if message_address is None:
-            self.pdm_message_address = self.radio_address
-        else:
-            self.pdm_message_address = message_address
-        self.ack_address_override = ack_address_override
-        self.pod_message = None
-        self.double_take = double_take
-        self.tx_power = tx_power
-        self.expect_critical_follow_up = expect_critical_follow_up
-
-        self.request_arrived.set()
-
-        self.response_received.wait()
-        self.response_received.clear()
-        if self.pod_message is None:
-            raise self.response_exception
-        return self.pod_message
+            self.response_received.wait()
+            self.response_received.clear()
+            if self.pod_message is None:
+                raise self.response_exception
+            return self.pod_message
 
     def get_packet(self, timeout=30000):
-        received = self.packet_radio.get_packet(timeout=timeout)
-        p, rssi = self._get_packet(received)
-        return p
+        with self.radio_lock:
+            received = self.packet_radio.get_packet(timeout=timeout)
+            p, rssi = self._get_packet(received)
+            return p
 
     def disconnect(self):
+        with self.radio_lock:
+            self._disconnect()
+
+    def _disconnect(self):
         try:
             self.packet_radio.disconnect(ignore_errors=True)
         except Exception:
             self.logger.exception("Error while disconnecting")
 
     def _radio_loop(self):
-        while not self._radio_init():
-            self.logger.warning("Failed to initialize radio, retrying")
-            time.sleep(5)
-
-        self.radio_ready.set()
         while True:
             if not self.request_arrived.wait(timeout=5.0):
-                self.disconnect()
+                self._disconnect()
             self.request_arrived.wait()
             self.request_arrived.clear()
 
             if self.request_shutdown.wait(0):
-                self.disconnect()
+                self._disconnect()
                 break
 
-            self.radio_busy = True
             try:
                 self.pod_message = self._send_and_get(self.pdm_message, self.pdm_message_address,
                                                       self.ack_address_override,
@@ -125,20 +123,17 @@ class PdmRadio:
                 self.pod_message = None
                 self.response_exception = e
 
+
             if self.response_exception is None:
                 ack_packet = self._final_ack(self.ack_address_override, self.packet_sequence)
-                self.packet_sequence = (self.packet_sequence + 1) % 32
                 self.response_received.set()
-
                 try:
-                    self._send_packet(ack_packet)
+                    self._send_packet(ack_packet, allow_premature_exit_after=3.5)
                 except Exception as e:
                     self.logger.exception("Error during ending conversation, ignored.")
+
             else:
                 self.response_received.set()
-
-            self.radio_ready.set()
-            self.radio_busy = False
 
     def _interim_ack(self, ack_address_override, sequence):
         if ack_address_override is None:
@@ -156,11 +151,12 @@ class PdmRadio:
         retry = 0
         while retry < retries:
             try:
-                self.disconnect()
+                self.packet_radio.disconnect()
                 self.packet_radio.connect(force_initialize=True)
                 return True
             except:
                 self.logger.exception("Error during radio initialization")
+                self._kill_btle_subprocess()
                 time.sleep(2)
                 retry += 1
         return False
@@ -271,7 +267,7 @@ class PdmRadio:
                             self._radio_init()
                             continue
                         elif repeat_count < 4:
-                            self.disconnect()
+                            self._disconnect()
                             self._kill_btle_subprocess()
                             timeout = 10
                             time.sleep(2)
@@ -282,7 +278,7 @@ class PdmRadio:
                             raise
                     elif part < packet_count - 1:
                         if repeat_count < 6:
-                            self.disconnect()
+                            self._disconnect()
                             self._kill_btle_subprocess()
                             timeout = 10
                             time.sleep(2)
@@ -293,7 +289,7 @@ class PdmRadio:
                             raise
                     else:
                         if repeat_count < 10:
-                            self.disconnect()
+                            self._disconnect()
                             self._kill_btle_subprocess()
                             timeout = 10
                             time.sleep(2)
@@ -380,7 +376,7 @@ class PdmRadio:
             return p
         raise OmnipyTimeoutError("Exceeded timeout while send and receive")
 
-    def _send_packet(self, packet_to_send, timeout=25):
+    def _send_packet(self, packet_to_send, timeout=25, allow_premature_exit_after=None):
         start_time = None
         while start_time is None or time.time() - start_time < timeout:
             try:
@@ -390,11 +386,14 @@ class PdmRadio:
                 if start_time is None:
                     start_time = time.time()
 
-                # if self.request_arrived.wait(timeout=0):
-                #     self.logger.debug("Prematurely exiting final phase to process next request")
-                #     return
+                if allow_premature_exit_after is not None and \
+                        time.time() - start_time >= allow_premature_exit_after:
+                    if self.request_arrived.wait(timeout=0):
+                        self.logger.debug("Prematurely exiting final phase to process next request")
+                        self.packet_sequence = (self.packet_sequence + 2) % 32
+                        return
                 if received is None:
-                    received = self.packet_radio.get_packet(1.0)
+                    received = self.packet_radio.get_packet(0.6)
                     if received is None:
                         self.packet_logger.debug("Silence")
                         break
@@ -418,7 +417,7 @@ class PdmRadio:
 
                 self.packet_logger.info("RECV PKT %s" % p)
                 self.packet_logger.debug("RECEIVED unexpected packet: %s" % p)
-                self.last_packet_received = p
+                self.last_packet_received = pget_packet
                 self.packet_sequence = (p.sequence + 1) % 32
                 packet_to_send.with_sequence(self.packet_sequence)
                 continue

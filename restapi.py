@@ -102,7 +102,7 @@ def get_next_pod_address():
                 addr = (addr & 0xfffffff0) | (blast & 0x0000000f)
         else:
             mac = get_mac()
-            b0 = (mac >> 20) & 0xff
+            b0 = 0x34
             b1 = (mac >> 12) & 0xff
             b2 = (mac >> 4) & 0xff
             b3 = (mac << 4) & 0xf0
@@ -280,8 +280,10 @@ def activate_pod():
 
     pdm = get_pdm()
 
-    pdm.activate_pod(get_next_pod_address())
-    save_activated_pod_address(pod.radio_address)
+    req_address = get_next_pod_address()
+    utc_offset = int(request.args.get('utc'))
+    pdm.activate_pod(req_address, utc_offset=utc_offset)
+    save_activated_pod_address(req_address)
 
 def start_pod():
     verify_auth(request)
@@ -294,11 +296,7 @@ def start_pod():
         rate = Decimal(request.args.get("h"+str(i)))
         schedule.append(rate)
 
-    hours = int(request.args.get("hours"))
-    minutes = int(request.args.get("minutes"))
-    seconds = int(request.args.get("seconds"))
-
-    pdm.inject_and_start(schedule, hours, minutes, seconds)
+    pdm.inject_and_start(schedule)
 
 def _int_parameter(obj, parameter):
     if request.args.get(parameter) is not None:

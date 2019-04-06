@@ -39,7 +39,7 @@ class Pdm:
     def get_nonce(self):
         if self.nonce is None:
             if self.pod.id_lot is None or self.pod.id_t is None:
-                raise PdmError("Cannot generate nonce without pod lot and id")
+                return None
             if self.pod.nonce_last is None or self.pod.nonce_seed is None:
                 self.nonce = Nonce(self.pod.id_lot, self.pod.id_t)
             else:
@@ -128,7 +128,7 @@ class Pdm:
     def is_busy(self):
         try:
             with PdmLock(0):
-                return self._is_bolus_running()
+                return self._is_bolus_running(no_live_check=True)
         except PdmBusyError:
             return True
         except OmnipyError:
@@ -369,6 +369,7 @@ class Pdm:
 
                 self._assert_pod_paired()
 
+
                 pkt_seq_saved = radio.packet_sequence
                 radio = self.get_radio(new=True)
                 radio.radio_address = candidate_address
@@ -477,7 +478,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Pod status was not saved") from e
 
-    def _is_bolus_running(self):
+    def _is_bolus_running(self, no_live_check=False):
         if self.pod.state_last_updated is not None and self.pod.state_bolus != BolusState.Immediate:
             return False
 
@@ -494,6 +495,9 @@ class Pdm:
                 return False
             elif now < bolus_end_earliest:
                 return True
+
+        if no_live_check:
+            return False
 
         self._internal_update_status()
         return self.pod.state_bolus == BolusState.Immediate

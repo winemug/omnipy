@@ -79,6 +79,7 @@ def deactivate(args, pa):
 
 
 def activate(args, pa):
+    pa["utc"] = args.utcoffset
     call_api(args.url, REST_URL_ACTIVATE_POD, pa)
 
 
@@ -86,9 +87,6 @@ def start(args, pa):
     for i in range(0,48):
         pa["h" + str(i)] = args.basalrate
 
-    pa["hours"] = 0
-    pa["minutes"] = 0
-    pa["seconds"] = 0
     call_api(args.url, REST_URL_START_POD, pa)
 
 def shutdown(args, pa):
@@ -133,6 +131,7 @@ def main():
     subparser.set_defaults(func=cancel_bolus)
 
     subparser = subparsers.add_parser("activate", help="activate -h")
+    subparser.add_argument("utcoffset", type=int, help="utc offset for pod time in minutes")
     subparser.set_defaults(func=activate)
 
     subparser = subparsers.add_parser("start", help="start -h")
