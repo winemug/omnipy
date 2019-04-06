@@ -77,7 +77,10 @@ def archive_pod():
         if os.path.isfile(POD_FILE + POD_LOG_SUFFIX):
             os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
         if os.path.isfile(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX):
-            os.rename(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX, OMNIPY_LOGFILE_PREFIX + archive_suffix + OMNIPY_LOGFILE_SUFFIX)    
+            os.rename(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX, OMNIPY_LOGFILE_PREFIX + archive_suffix + OMNIPY_LOGFILE_SUFFIX)
+        if os.path.isfile(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX):
+            mh.flush()
+            os.rename(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX, OMNIPY_LOGFILE_PREFIX + archive_suffix + OMNIPY_LOGFILE_SUFFIX)
     except:
         logger.exception("Error while archiving existing pod")
 
