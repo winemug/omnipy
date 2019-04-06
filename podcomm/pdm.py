@@ -331,82 +331,87 @@ class Pdm:
     def activate_pod(self, candidate_address, utc_offset):
         try:
             with PdmLock():
-                self.pod.radio_address = 0xffffffff
+                if self.pod.state_progress > PodProgress.ReadyForInjection:
+                    raise PdmError("Pod is already activated")
+
                 self.pod.var_utc_offset = utc_offset
 
-                self._assert_pod_activate_can_start()
+                if self.pod.state_progress is None or \
+                                self.pod.state_progress < PodProgress.TankFillCompleted:
 
+                    self.pod.radio_address = 0xffffffff
 
-                radio = self.get_radio(new=True)
+                    radio = self.get_radio(new=True)
+                    radio.radio_address = 0xffffffff
 
-                radio.radio_address = 0xffffffff
+                    request = request_assign_address(candidate_address)
+                    response = self.get_radio().send_message_get_message(request, message_address=0xffffffff,
+                                                                         ack_address_override=candidate_address,
+                                                                         tx_power=TxPower.Lowest)
+                    response_parse(response, self.pod)
 
-                request = request_assign_address(candidate_address)
-                response = self.get_radio().send_message_get_message(request, message_address=0xffffffff,
-                                                                     ack_address_override=candidate_address,
-                                                                     tx_power=TxPower.Lowest)
-                response_parse(response, self.pod)
+                    self._assert_pod_can_activate()
 
-                self._assert_pod_can_activate()
+                if self.pod.state_progress == PodProgress.TankFillCompleted:
 
-                self.pod.var_activation_date = time.time()
-                pod_date = datetime.utcfromtimestamp(self.pod.var_activation_date) \
-                           + timedelta(minutes=self.pod.var_utc_offset)
+                    self.pod.var_activation_date = time.time()
+                    pod_date = datetime.utcfromtimestamp(self.pod.var_activation_date) \
+                               + timedelta(minutes=self.pod.var_utc_offset)
 
-                year = pod_date.year
-                month = pod_date.month
-                day = pod_date.day
-                hour = pod_date.hour
-                minute = pod_date.minute
+                    year = pod_date.year
+                    month = pod_date.month
+                    day = pod_date.day
+                    hour = pod_date.hour
+                    minute = pod_date.minute
 
-                radio.message_sequence = 1
-                request = request_setup_pod(self.pod.id_lot, self.pod.id_t, candidate_address,
-                                            year, month, day, hour, minute)
-                response = self.get_radio().send_message_get_message(request, message_address=0xffffffff,
-                                                                     ack_address_override=candidate_address,
-                                                                     tx_power=TxPower.Lowest)
-                response_parse(response, self.pod)
+                    if radio is None:
+                        radio = self.get_radio(new=True)
+                        radio.radio_address = 0xffffffff
 
-                self._assert_pod_paired()
+                    radio.message_sequence = 1
 
+                    request = request_setup_pod(self.pod.id_lot, self.pod.id_t, candidate_address,
+                                                year, month, day, hour, minute)
+                    response = self.get_radio().send_message_get_message(request, message_address=0xffffffff,
+                                                                         ack_address_override=candidate_address,
+                                                                         tx_power=TxPower.Lowest)
+                    response_parse(response, self.pod)
+                    self._assert_pod_paired()
 
-                pkt_seq_saved = radio.packet_sequence
-                radio = self.get_radio(new=True)
-                radio.radio_address = candidate_address
-                radio.message_sequence = 2
-                radio.packet_sequence = pkt_seq_saved
+                if self.pod.state_progress == PodProgress.PairingSuccess:
+                    if radio is not None:
+                        self.pod.radio_packet_sequence = radio.packet_sequence
 
-                self.pod.nonce_seed = 0
-                self.pod.nonce_last = None
+                    radio = self.get_radio(new=True)
+                    radio.radio_address = candidate_address
+                    radio.message_sequence = 2
 
+                    self.pod.nonce_seed = 0
+                    self.pod.nonce_last = None
 
-                if self.pod.var_alert_low_reservoir is not None:
-                    request = request_set_low_reservoir_alert(self.pod.var_alert_low_reservoir)
+                    if self.pod.var_alert_low_reservoir is not None:
+                        request = request_set_low_reservoir_alert(self.pod.var_alert_low_reservoir)
+                        self.send_request(request, with_nonce=True)
+
+                    request = request_set_generic_alert(5, 55)
                     self.send_request(request, with_nonce=True)
 
-                request = request_set_generic_alert(5, 55)
-                self.send_request(request, with_nonce=True)
+                    # request = request_delivery_flags(0, 0)
+                    # self.send_request(request, with_nonce=True)
 
-                request = request_delivery_flags(0, 0)
-                self.send_request(request, with_nonce=True)
-
-                request = request_prime_cannula()
-                self.send_request(request, with_nonce=True)
-
-                time.sleep(55)
-
-                # while self.pod.state_progress == PodProgress.Purging:
-                #     time.sleep(5)
-                #     self._internal_update_status()
-
-                if self.pod.var_alert_replace_pod is not None:
-                    request = request_set_pod_expiry_alert(self.pod.var_alert_replace_pod - self.pod.state_active_minutes)
+                    request = request_prime_cannula()
                     self.send_request(request, with_nonce=True)
-                else:
+
+                    time.sleep(50)
+
+                while self.pod.state_progress == PodProgress.Purging:
+                    time.sleep(5)
                     self._internal_update_status()
 
-                if self.pod.state_progress != PodProgress.ReadyForInjection:
-                    raise PdmError("Pod did not reach ready for injection stage")
+                if self.pod.state_progress == PodProgress.ReadyForInjection:
+                    if self.pod.var_alert_replace_pod is not None:
+                        request = request_set_pod_expiry_alert(self.pod.var_alert_replace_pod - self.pod.state_active_minutes)
+                        self.send_request(request, with_nonce=True)
 
         except OmnipyError:
             raise
@@ -418,41 +423,41 @@ class Pdm:
     def inject_and_start(self, basal_schedule):
         try:
             with PdmLock():
-                if self.pod.state_progress != PodProgress.ReadyForInjection:
-                    raise PdmError("Pod is not at the injection stage")
 
-                self._assert_basal_schedule_is_valid(basal_schedule)
+                if self.pod.state_progress >= PodProgress.Running:
+                    raise PdmError("Pod is passed the injection stage")
 
-                pod_date = datetime.utcnow() + timedelta(minutes=self.pod.var_utc_offset)
+                if self.pod.state_progress == PodProgress.ReadyForInjection:
+                    self._assert_basal_schedule_is_valid(basal_schedule)
 
-                hour = pod_date.hour
-                minute = pod_date.minute
-                second = pod_date.second
+                    pod_date = datetime.utcnow() + timedelta(minutes=self.pod.var_utc_offset)
 
-                request = request_set_basal_schedule(basal_schedule, hour, minute, second)
-                self.send_request(request, with_nonce=True, double_take=True, expect_critical_follow_up=True)
+                    hour = pod_date.hour
+                    minute = pod_date.minute
+                    second = pod_date.second
 
-                if self.pod.state_progress != PodProgress.BasalScheduleSet:
-                    raise PdmError("Pod did not acknowledge basal schedule")
+                    request = request_set_basal_schedule(basal_schedule, hour, minute, second)
+                    self.send_request(request, with_nonce=True, double_take=True, expect_critical_follow_up=True)
 
-                request = request_set_initial_alerts(self.pod.var_activation_date)
-                self.send_request(request, with_nonce=True, expect_critical_follow_up=True)
+                    if self.pod.state_progress != PodProgress.BasalScheduleSet:
+                        raise PdmError("Pod did not acknowledge basal schedule")
 
+                if self.pod.state_progress == PodProgress.BasalScheduleSet:
+                    request = request_set_initial_alerts(self.pod.var_activation_date)
+                    self.send_request(request, with_nonce=True, expect_critical_follow_up=True)
 
-                request = request_insert_cannula()
-                self.send_request(request, with_nonce=True)
+                    request = request_insert_cannula()
+                    self.send_request(request, with_nonce=True)
 
-                if self.pod.state_progress != PodProgress.Inserting:
-                    raise PdmError("Pod did not acknowledge cannula insertion start")
+                    if self.pod.state_progress != PodProgress.Inserting:
+                        raise PdmError("Pod did not acknowledge cannula insertion start")
 
-                time.sleep(12)
-
-                self._internal_update_status()
-
-                if self.pod.state_progress != PodProgress.Running:
-                    raise PdmError("Pod did not get to running state")
-
-                self.pod.var_insertion_date = time.time()
+                if self.pod.state_progress == PodProgress.Inserting:
+                    time.sleep(12)
+                    self._internal_update_status()
+                    if self.pod.state_progress != PodProgress.Running:
+                        raise PdmError("Pod did not get to running state")
+                    self.pod.var_insertion_date = time.time()
 
         except OmnipyError:
             raise
