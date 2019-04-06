@@ -10,12 +10,10 @@ import simplejson as json
 from flask import Flask, request, send_from_directory
 from datetime import datetime
 import time
-from podcomm.crc import crc8
 from podcomm.pdm import Pdm, PdmLock
 from podcomm.pod import Pod
 from podcomm.pr_rileylink import RileyLink
 from podcomm.definitions import *
-from podcomm.protocol_common import RadioPacket
 
 g_key = None
 g_pod = None
@@ -65,6 +63,12 @@ def get_pdm():
         return None
 
 
+def flush_memory_handler(logger):
+    for handler in getLogger().handlers:
+        if isinstance(handler, MemoryHandler):
+            handler.flush()
+
+
 def archive_pod():
     global g_pod
     global g_pdm
@@ -76,10 +80,13 @@ def archive_pod():
             os.rename(POD_FILE + POD_FILE_SUFFIX, POD_FILE + archive_suffix + POD_FILE_SUFFIX)
         if os.path.isfile(POD_FILE + POD_LOG_SUFFIX):
             os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
+
+        flush_memory_handler(getLogger())
+        flush_memory_handler(get_packet_logger())
+
+        if os.path.isfile(OMNIPY_PACKET_LOGFILE + OMNIPY_LOGFILE_SUFFIX):
+            os.rename(OMNIPY_PACKET_LOGFILE + OMNIPY_LOGFILE_SUFFIX, OMNIPY_PACKET_LOGFILE + archive_suffix + OMNIPY_LOGFILE_SUFFIX)
         if os.path.isfile(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX):
-            os.rename(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX, OMNIPY_LOGFILE_PREFIX + archive_suffix + OMNIPY_LOGFILE_SUFFIX)
-        if os.path.isfile(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX):
-            mh.flush()
             os.rename(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX, OMNIPY_LOGFILE_PREFIX + archive_suffix + OMNIPY_LOGFILE_SUFFIX)
     except:
         logger.exception("Error while archiving existing pod")
