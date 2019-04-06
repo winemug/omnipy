@@ -107,13 +107,27 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
 sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
 echo
-echo ${bold}Step 7/11: ${normal}Safe shutdown
+echo ${bold}Step 7(a)/11: ${normal}Safe shutdown (LipoShim)
 echo
-read -p "Are you using/planning a LipoShim to safely power down the pi if you get a low battery? Press y if so to install the relevant service, or n if you are using a USB power pack (y/n) " -r
+read -p "Are you using/planning a LipoShim to safely power down the pi if you get a low battery? Press y if so to install the relevant service. " -r
 echo
 if [[ $REPLY =~ ^[Yy]$ ]]
 then
     curl https://raw.githubusercontent.com/dexdan/clean-shutdown/master/zerolipo_omnipy | bash
+fi
+
+echo
+echo ${bold}Step 7(b)/11: ${normal}Safe shutdown (JuiceBox Zero)
+echo
+read -p "Are you using/planning a JuiceBox Zero to safely power down the pi if you get a low battery? Press y if so to install the relevant crontab. " -r
+echo
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+    cd /home/pi
+    git clone https://github.com/dexdan/LowBatteryShutdown.git 
+    cd /home/pi/LowBatteryShutdown
+    sudo python setup.py install
+    (sudo crontab -l 2>/dev/null; echo "@reboot python /home/pi/LowBatteryShutdown/LowBatteryShutdown.py &") | sudo crontab -
 fi
 
 echo
