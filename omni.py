@@ -41,8 +41,11 @@ def read_pdm_address(args, pa):
 
 
 def new_pod(args, pa):
-    pa["id_lot"] = args.id_lot
-    pa["id_t"] = args.id_t
+
+    if args.id_lot is not None:
+        pa["id_lot"] = args.id_lot
+    if args.id_t is not None:
+        pa["id_t"] = args.id_t
     if args.radio_address is not None:
         if str(args.radio_address).lower().startswith("0x"):
             pa["radio_address"] = int(args.radio_address[2:], 16)
@@ -83,6 +86,10 @@ def activate(args, pa):
     call_api(args.url, REST_URL_ACTIVATE_POD, pa)
 
 
+def archive(args, pa):
+    call_api(args.url, REST_URL_ARCHIVE_POD, pa)
+
+
 def start(args, pa):
     for i in range(0,48):
         pa["h" + str(i)] = args.basalrate
@@ -107,8 +114,8 @@ def main():
     subparser.set_defaults(func=read_pdm_address)
 
     subparser = subparsers.add_parser("newpod", help="newpod -h")
-    subparser.add_argument("id_lot", type=int, help="Lot number of the pod")
-    subparser.add_argument("id_t", type=int, help="Serial number of the pod")
+    subparser.add_argument("id_lot", type=int, help="Lot number of the pod", default=None, nargs="?")
+    subparser.add_argument("id_t", type=int, help="Serial number of the pod", default=None, nargs="?")
     subparser.add_argument("radio_address", help="Radio radio_address of the pod", default=None, nargs="?")
     subparser.set_defaults(func=new_pod)
 
@@ -146,6 +153,9 @@ def main():
 
     subparser = subparsers.add_parser("restart", help="restart -h")
     subparser.set_defaults(func=restart)
+
+    subparser = subparsers.add_parser("archive", help="archive -h")
+    subparser.set_defaults(func=archive)
 
     args = parser.parse_args()
     pa = get_auth_params()

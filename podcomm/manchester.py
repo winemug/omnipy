@@ -4,17 +4,19 @@ import random
 def encodeSingleByte(d):
     e = 0
     for i in range(0, 8):
-        e = e << 2
+
+        e = e >> 2
         if d & 0x01 == 0:
-            e |= 2
+            e |= 0x8000
         else:
-            e |= 1
+            e |= 0x4000
         d = d >> 1
     return bytes([(e >> 8), e & 0xff])
 
 class ManchesterCodec:
     def __init__(self):
-        self.preamble = bytes([0x66,0x65]) * 200 + bytes([0xa5, 0x5a])
+        #self.preamble = bytes([0x65,0x66]) * 20 + bytes([0xa5, 0x5a])
+        self.preamble = bytes()
         self.decode_dict = dict()
         self.encode_dict = dict()
         for i in range(0, 256):
@@ -27,7 +29,7 @@ class ManchesterCodec:
         self.noiseLines = []
         for x in range(0, 32):
             noiseLine = "f"
-            for i in range(0, 159):
+            for i in range(0, 79):
                 noiseLine += random.choice(noiseNibbles)
             self.noiseLines.append(bytearray.fromhex(noiseLine))
 
@@ -48,13 +50,5 @@ class ManchesterCodec:
         encoded += self.noiseLines[self.noiseSeq]
         self.noiseSeq += 1
         self.noiseSeq %= 32
-
-        minPreamble = 4
-        minNoise = 2
-        available = 512 - len(data) - minPreamble - minNoise
-        dataIndex = len(self.preamble)
-        portion = int(available / 2)
-        preambleIncluded = minPreamble + portion
-        noiseIncluded = minNoise + available - portion
-        return encoded[dataIndex - preambleIncluded: dataIndex + noiseIncluded]
+        return encoded[0:80]
 

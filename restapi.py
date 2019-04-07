@@ -35,7 +35,7 @@ class RestApiException(Exception):
         return self.error_message
 
 
-def get_pod():
+def _get_pod():
     global g_pod
     try:
         if g_pod is None:
@@ -52,47 +52,50 @@ def get_pod():
         return None
 
 
-def get_pdm():
+def _get_pdm():
     global g_pdm
     try:
         if g_pdm is None:
-            g_pdm = Pdm(get_pod())
+            g_pdm = Pdm(_get_pod())
         return g_pdm
     except:
         logger.exception("Error while creating pdm instance")
         return None
 
 
-def flush_memory_handler(logger):
+def _flush_memory_handler(logger):
     for handler in getLogger().handlers:
         if isinstance(handler, MemoryHandler):
             handler.flush()
 
 
-def archive_pod():
+def _archive_pod():
     global g_pod
     global g_pdm
     try:
         g_pod = None
         g_pdm = None
+        archive_name = None
         archive_suffix = datetime.utcnow().strftime("_%Y%m%d_%H%M%S")
         if os.path.isfile(POD_FILE + POD_FILE_SUFFIX):
-            os.rename(POD_FILE + POD_FILE_SUFFIX, POD_FILE + archive_suffix + POD_FILE_SUFFIX)
+            archive_name = os.rename(POD_FILE + POD_FILE_SUFFIX, POD_FILE + archive_suffix + POD_FILE_SUFFIX)
         if os.path.isfile(POD_FILE + POD_LOG_SUFFIX):
             os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
 
-        flush_memory_handler(getLogger())
-        flush_memory_handler(get_packet_logger())
+        _flush_memory_handler(getLogger())
+        _flush_memory_handler(get_packet_logger())
 
         if os.path.isfile(OMNIPY_PACKET_LOGFILE + OMNIPY_LOGFILE_SUFFIX):
             os.rename(OMNIPY_PACKET_LOGFILE + OMNIPY_LOGFILE_SUFFIX, OMNIPY_PACKET_LOGFILE + archive_suffix + OMNIPY_LOGFILE_SUFFIX)
         if os.path.isfile(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX):
             os.rename(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX, OMNIPY_LOGFILE_PREFIX + archive_suffix + OMNIPY_LOGFILE_SUFFIX)
+
+        return archive_name
     except:
         logger.exception("Error while archiving existing pod")
 
 
-def get_next_pod_address():
+def _get_next_pod_address():
     try:
         if os.path.isfile(LAST_ACTIVATED_FILE):
             with open(LAST_ACTIVATED_FILE, "rb") as lastfile:
@@ -108,12 +111,12 @@ def get_next_pod_address():
             b3 = (mac << 4) & 0xf0
             addr = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
 
-        return addr
+        return int(addr)
     except:
         logger.exception("Error while getting next radio address")
 
 
-def save_activated_pod_address(addr):
+def _save_activated_pod_address(addr):
     try:
         with open(LAST_ACTIVATED_FILE, "w+b") as lastfile:
             b0 = (addr >> 24) & 0xff
@@ -124,7 +127,7 @@ def save_activated_pod_address(addr):
     except:
         logger.exception("Error while storing activated radio address")
 
-def create_response(success, response, pod_status=None):
+def _create_response(success, response, pod_status=None):
 
     if pod_status is None:
         pod_status = {}
@@ -144,7 +147,7 @@ def create_response(success, response, pod_status=None):
                        }, indent=4, sort_keys=True)
 
 
-def verify_auth(request_obj):
+def _verify_auth(request_obj):
     global g_deny
     try:
         if g_deny:
@@ -174,57 +177,26 @@ def verify_auth(request_obj):
         raise
 
 
-@app.route("/")
-def main_page():
-    try:
-        return app.send_static_file("omnipy.html")
-    except:
-        logger.exception("Error while serving root file")
-
-
-@app.route('/content/<path:path>')
-def send_content(path):
-    try:
-        return send_from_directory("static", path)
-    except:
-        logger.exception("Error while serving static file from %s" % path)
-
-
 def _api_result(result_lambda, generic_err_message):
     try:
         if g_deny:
             raise RestApiException("Pdm is shutting down")
 
-        return create_response(True,
-                               response=result_lambda(), pod_status=get_pod())
+        return _create_response(True,
+                               response=result_lambda(), pod_status=_get_pod())
     except RestApiException as rae:
-        return create_response(False, response=rae, pod_status=get_pod())
+        return _create_response(False, response=rae, pod_status=_get_pod())
     except Exception as e:
         logger.exception(generic_err_message)
-        return create_response(False, response=e, pod_status=get_pod())
+        return _create_response(False, response=e, pod_status=_get_pod())
 
-
-def ping():
-    return {"pong": None}
-
-
-def create_token():
-    token = bytes(os.urandom(16))
-    with g_token_lock:
-        g_tokens.append(token)
-    return {"token": base64.b64encode(token)}
-
-
-def check_password():
-    verify_auth(request)
-    return None
 
 def _get_pdm_address(timeout):
-    pdm = get_pdm()
+    pdm = _get_pdm()
 
     packet = None
     with PdmLock():
-        radio = get_pdm().get_radio()
+        radio = _get_pdm().get_radio()
         radio.stop()
 
         try:
@@ -238,8 +210,29 @@ def _get_pdm_address(timeout):
 
     return packet.address
 
+
+def archive_pod():
+    _verify_auth(request)
+    pod = Pod()
+    _archive_pod()
+    pod.Save(POD_FILE + POD_FILE_SUFFIX)
+
+def ping():
+    return {"pong": None}
+
+
+def create_token():
+    token = bytes(os.urandom(16))
+    with g_token_lock:
+        g_tokens.append(token)
+    return {"token": base64.b64encode(token)}
+
+
+def check_password():
+    _verify_auth(request)
+
 def get_pdm_address():
-    verify_auth(request)
+    _verify_auth(request)
 
     timeout = 30000
     if request.args.get('timeout') is not None:
@@ -252,7 +245,7 @@ def get_pdm_address():
     return {"radio_address": address, "radio_address_hex": "%8X" % address}
 
 def new_pod():
-    verify_auth(request)
+    _verify_auth(request)
 
     pod = Pod()
 
@@ -268,27 +261,29 @@ def new_pod():
     if pod.radio_address == 0:
         pod.radio_address = _get_pdm_address(45000)
 
-    archive_pod()
+    _archive_pod()
     pod.Save(POD_FILE + POD_FILE_SUFFIX)
 
 def activate_pod():
-    verify_auth(request)
+    _verify_auth(request)
 
-    pod = Pod()
-    archive_pod()
-    pod.Save(POD_FILE + POD_FILE_SUFFIX)
+    pod = _get_pod()
+    if pod.state_progress >= PodProgress.Running:
+        pod = Pod()
+        _archive_pod()
+        pod.Save(POD_FILE + POD_FILE_SUFFIX)
 
-    pdm = get_pdm()
+    pdm = _get_pdm()
 
-    req_address = get_next_pod_address()
+    req_address = _get_next_pod_address()
     utc_offset = int(request.args.get('utc'))
     pdm.activate_pod(req_address, utc_offset=utc_offset)
-    save_activated_pod_address(req_address)
+    _save_activated_pod_address(req_address)
 
 def start_pod():
-    verify_auth(request)
+    _verify_auth(request)
 
-    pdm = get_pdm()
+    pdm = _get_pdm()
 
     schedule=[]
 
@@ -323,9 +318,9 @@ def _bool_parameter(obj, parameter):
 
 
 def set_pod_parameters():
-    verify_auth(request)
+    _verify_auth(request)
 
-    pod = get_pod()
+    pod = _get_pod()
     try:
         reset_nonce = False
         if _int_parameter(pod, "id_lot"):
@@ -358,57 +353,57 @@ def set_pod_parameters():
 
 
 def get_rl_info():
-    verify_auth(request)
+    _verify_auth(request)
     r = RileyLink()
     return r.get_info()
 
 def get_status():
-    verify_auth(request)
+    _verify_auth(request)
     t = request.args.get('type')
     if t is not None:
         req_type = int(t)
     else:
         req_type = 0
 
-    pdm = get_pdm()
+    pdm = _get_pdm()
     pdm.update_status(req_type)
 
 def deactivate_pod():
-    verify_auth(request)
-    pdm = get_pdm()
+    _verify_auth(request)
+    pdm = _get_pdm()
     pdm.deactivate_pod()
-    archive_pod()
+    _archive_pod()
 
 def bolus():
-    verify_auth(request)
+    _verify_auth(request)
 
-    pdm = get_pdm()
+    pdm = _get_pdm()
     amount = Decimal(request.args.get('amount'))
     pdm.bolus(amount)
 
 def cancel_bolus():
-    verify_auth(request)
+    _verify_auth(request)
 
-    pdm = get_pdm()
+    pdm = _get_pdm()
     pdm.cancel_bolus()
 
 def set_temp_basal():
-    verify_auth(request)
+    _verify_auth(request)
 
-    pdm = get_pdm()
+    pdm = _get_pdm()
     amount = Decimal(request.args.get('amount'))
     hours = Decimal(request.args.get('hours'))
     pdm.set_temp_basal(amount, hours, False)
 
 def cancel_temp_basal():
-    verify_auth(request)
+    _verify_auth(request)
 
-    pdm = get_pdm()
+    pdm = _get_pdm()
     pdm.cancel_temp_basal()
 
 def set_basal_schedule():
-    verify_auth(request)
-    pdm = get_pdm()
+    _verify_auth(request)
+    pdm = _get_pdm()
 
     schedule=[]
 
@@ -422,23 +417,23 @@ def set_basal_schedule():
     pdm.set_basal_schedule(schedule)
 
 def is_pdm_busy():
-    pdm = get_pdm()
+    pdm = _get_pdm()
     return {"busy": pdm.is_busy()}
 
 def acknowledge_alerts():
-    verify_auth(request)
+    _verify_auth(request)
 
     mask = Decimal(request.args.get('alertmask'))
-    pdm = get_pdm()
+    pdm = _get_pdm()
     pdm.acknowledge_alerts(mask)
 
 def shutdown():
     global g_deny
-    verify_auth(request)
+    _verify_auth(request)
 
     g_deny = True
 
-    pdm = get_pdm()
+    pdm = _get_pdm()
     while pdm.is_busy():
         time.sleep(1)
     os.system("sudo shutdown -h")
@@ -446,15 +441,30 @@ def shutdown():
 
 def restart():
     global g_deny
-    verify_auth(request)
+    _verify_auth(request)
 
     g_deny = True
 
-    pdm = get_pdm()
+    pdm = _get_pdm()
     while pdm.is_busy():
         time.sleep(1)
     os.system("sudo shutdown -r")
     return {"restart": time.time()}
+
+@app.route("/")
+def main_page():
+    try:
+        return app.send_static_file("omnipy.html")
+    except:
+        logger.exception("Error while serving root file")
+
+
+@app.route('/content/<path:path>')
+def send_content(path):
+    try:
+        return send_from_directory("static", path)
+    except:
+        logger.exception("Error while serving static file from %s" % path)
 
 @app.route(REST_URL_PING)
 def a00():
@@ -536,17 +546,21 @@ def a18():
 def a19():
     return _api_result(lambda: set_basal_schedule(), "Failure while setting a basal schedule")
 
-def run_flask():
+@app.route(REST_URL_ARCHIVE_POD)
+def a20():
+    return _api_result(lambda: archive_pod(), "Failure while archiving pod")
+
+def _run_flask():
     try:
         app.run(host='0.0.0.0', port=4444, debug=True, use_reloader=False)
     except:
         logger.exception("Error while running rest api, exiting")
 
-def exit_with_grace():
+def _exit_with_grace():
     try:
         global g_deny
         g_deny = True
-        pdm = get_pdm()
+        pdm = _get_pdm()
         while pdm.is_busy():
             time.sleep(5)
     except:
@@ -569,9 +583,9 @@ if __name__ == '__main__':
     except:
         logger.exception("Error while reloading timesync daemon")
 
-    signal.signal(signal.SIGTERM, exit_with_grace)
+    signal.signal(signal.SIGTERM, _exit_with_grace)
 
-    t = Thread(target=run_flask)
+    t = Thread(target=_run_flask)
     t.setDaemon(True)
     t.start()
 
@@ -580,5 +594,5 @@ if __name__ == '__main__':
             time.sleep(1)
 
     except KeyboardInterrupt:
-        exit_with_grace()
+        _exit_with_grace()
 

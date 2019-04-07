@@ -329,7 +329,10 @@ class PdmRadio:
     def _exchange_packets(self, packet_to_send, expected_type, timeout=10):
         start_time = None
         while start_time is None or time.time() - start_time < timeout:
-            received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 0, 0, 100, 1, 130)
+            if self.last_packet_timestamp is None or time.time() - self.last_packet_timestamp > 4:
+                received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 0, 0, 300, 1, 300)
+            else:
+                received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 0, 0, 120, 0, 40)
             if start_time is None:
                 start_time = time.time()
 
@@ -382,7 +385,7 @@ class PdmRadio:
             try:
                 self.packet_logger.info("SEND PKT %s" % packet_to_send)
 
-                received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 5, 55, 300, 2, 40)
+                received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 0, 0, 300, 0, 40)
                 if start_time is None:
                     start_time = time.time()
 
@@ -442,4 +445,5 @@ class PdmRadio:
         return None, rssi
 
     def _awaken(self):
-        self.packet_radio.send_packet(bytes(), 0, 0, 250)
+        #self.packet_radio.send_packet(bytes(), 0, 0, 250)
+        pass

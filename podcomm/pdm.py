@@ -62,15 +62,19 @@ class Pdm:
 
         return self.radio
 
-    def send_request(self, request, with_nonce=False, double_take=False, expect_critical_follow_up=False):
+    def send_request(self, request, with_nonce=False, double_take=False,
+                        expect_critical_follow_up=False,
+                        tx_power=TxPower.Normal):
 
         nonce_obj = self.get_nonce()
         if with_nonce:
             nonce_val = nonce_obj.getNext()
             request.set_nonce(nonce_val)
+            self.pod.nonce_syncword = None
 
         response = self.get_radio().send_message_get_message(request, double_take=double_take,
-                                                             expect_critical_follow_up=expect_critical_follow_up)
+                                                             expect_critical_follow_up=expect_critical_follow_up,
+                                                             tx_power=tx_power)
         response_parse(response, self.pod)
 
         if with_nonce and self.pod.nonce_syncword is not None:
@@ -95,7 +99,9 @@ class Pdm:
         try:
             with PdmLock():
                 self.logger.info("Updating pod status, request type %d" % update_type)
+                self.pod.last_command = { "command": "STATUS", "type": update_type, "success": False }
                 self._internal_update_status(update_type)
+                self.pod.last_command["success"] = True
         except OmnipyError:
             raise
         except Exception as e:
@@ -106,6 +112,8 @@ class Pdm:
     def acknowledge_alerts(self, alert_mask):
         try:
             with PdmLock():
+                self.logger.info("Acknowledging alerts with bitmask %d" % alert_mask)
+                self.pod.last_command = {"command": "ACK_ALERTS", "mask": alert_mask, "success": False}
                 self._assert_pod_address_assigned()
                 self._internal_update_status()
                 self._assert_can_acknowledge_alerts()
@@ -113,11 +121,11 @@ class Pdm:
                 if self.pod.state_alert | alert_mask != self.pod.state_alert:
                     raise PdmError("Bitmask invalid for current alert state")
 
-                self.logger.info("Acknowledging alerts with bitmask %d" % alert_mask)
                 request = request_acknowledge_alerts(alert_mask)
                 self.send_request(request, with_nonce=True)
                 if self.pod.state_alert & alert_mask != 0:
                     raise PdmError("Failed to acknowledge one or more alerts")
+                self.pod.last_command["success"] = True
         except OmnipyError:
             raise
         except Exception as e:
@@ -139,6 +147,8 @@ class Pdm:
     def bolus(self, bolus_amount):
         try:
             with PdmLock():
+                self.pod.last_command = {"command": "BOLUS", "units": bolus_amount, "success": False}
+
                 self._assert_pod_address_assigned()
                 self._internal_update_status()
                 self._assert_can_generate_nonce()
@@ -167,7 +177,7 @@ class Pdm:
 
                 self.pod.last_enacted_bolus_start = time.time()
                 self.pod.last_enacted_bolus_amount = float(bolus_amount)
-
+                self.pod.last_command["success"] = True
         except OmnipyError:
             raise
         except Exception as e:
@@ -179,13 +189,14 @@ class Pdm:
     def cancel_bolus(self):
         try:
             with PdmLock():
+                self.logger.debug("Canceling bolus")
+                self.pod.last_command = {"command": "BOLUS_CANCEL", "canceled": 0, "success": False}
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
                 self._assert_not_faulted()
                 self._assert_status_running()
 
                 if self._is_bolus_running():
-                    self.logger.debug("Canceling running bolus")
                     request = request_cancel_bolus()
                     self.send_request(request, with_nonce=True)
                     if self.pod.state_bolus == BolusState.Immediate:
@@ -193,6 +204,8 @@ class Pdm:
                     else:
                         self.pod.last_enacted_bolus_amount = float(-1)
                         self.pod.last_enacted_bolus_start = time.time()
+                        self.pod.last_command["success"] = True
+                        self.pod.last_command["canceled"] = self.pod.insulin_canceled
                 else:
                     raise PdmError("Bolus is not running")
 
@@ -206,6 +219,8 @@ class Pdm:
     def cancel_temp_basal(self):
         try:
             with PdmLock():
+                self.logger.debug("Canceling temp basal")
+                self.pod.last_command = {"command": "TEMPBASAL_CANCEL", "success": False}
                 self._assert_pod_address_assigned()
                 self._internal_update_status()
                 self._assert_can_generate_nonce()
@@ -214,7 +229,6 @@ class Pdm:
                 self._assert_status_running()
 
                 if self._is_temp_basal_active():
-                    self.logger.debug("Canceling temp basal")
                     request = request_cancel_temp_basal()
                     self.send_request(request, with_nonce=True)
                     if self.pod.state_basal == BasalState.TempBasal:
@@ -223,6 +237,7 @@ class Pdm:
                         self.pod.last_enacted_temp_basal_duration = float(-1)
                         self.pod.last_enacted_temp_basal_start = time.time()
                         self.pod.last_enacted_temp_basal_amount = float(-1)
+                        self.pod.last_command["success"] = True
                 else:
                     self.logger.warning("Cancel temp basal received, while temp basal was not active. Ignoring.")
 
@@ -236,6 +251,11 @@ class Pdm:
     def set_temp_basal(self, basalRate, hours, confidenceReminder=False):
         try:
             with PdmLock():
+                self.logger.debug("Setting temp basal %02.2fU/h for %02.1fh"% (float(basalRate), float(hours)))
+                self.pod.last_command = {"command": "TEMPBASAL",
+                                         "duration_hours": hours,
+                                         "hourly_rate": basalRate,
+                                         "success": False}
                 self._assert_pod_address_assigned()
                 self._internal_update_status()
                 self._assert_can_generate_nonce()
@@ -258,7 +278,6 @@ class Pdm:
                     self.send_request(request, with_nonce=True)
                     if self.pod.state_basal == BasalState.TempBasal:
                         raise PdmError("Failed to cancel running temp basal")
-                self.logger.debug("Setting temp basal %02.2fU/h for %02.1fh"% (float(basalRate), float(hours)))
                 request = request_temp_basal(basalRate, hours)
                 self.send_request(request, with_nonce=True)
 
@@ -268,6 +287,7 @@ class Pdm:
                     self.pod.last_enacted_temp_basal_duration = float(hours)
                     self.pod.last_enacted_temp_basal_start = time.time()
                     self.pod.last_enacted_temp_basal_amount = float(basalRate)
+                    self.pod.last_command["success"] = True
 
         except OmnipyError:
             raise
@@ -279,6 +299,10 @@ class Pdm:
     def set_basal_schedule(self, schedule):
         try:
             with PdmLock():
+                self.logger.debug("Setting basal schedule: %s"% schedule)
+                self.pod.last_command = {"command": "BASALSCHEDULE",
+                                         "hourly_rates": schedule,
+                                         "success": False}
                 self._assert_pod_address_assigned()
                 self._internal_update_status()
                 self._assert_can_generate_nonce()
@@ -304,6 +328,7 @@ class Pdm:
                     raise PdmError("Failed to set basal schedule")
                 else:
                     self.pod.var_basal_schedule = schedule
+                    self.pod.last_command["success"] = True
 
         except OmnipyError:
             raise
@@ -315,12 +340,17 @@ class Pdm:
     def deactivate_pod(self):
         try:
             with PdmLock():
+                self.logger.debug("Deactivating pod")
+                self.pod.last_command = {"command": "DEACTIVATE", "success": False}
                 self._internal_update_status()
                 self._assert_can_deactivate()
 
-                self.logger.debug("Deactivating pod")
                 request = request_deactivate()
                 self.send_request(request, with_nonce=True)
+                if self.pod.state_progress != PodProgress.Inactive:
+                    raise PdmError("Failed to deactivate")
+                else:
+                    self.pod.last_command["success"] = True
         except OmnipyError:
             raise
         except Exception as e:
@@ -331,10 +361,17 @@ class Pdm:
     def activate_pod(self, candidate_address, utc_offset):
         try:
             with PdmLock():
+                self.logger.debug("Activating pod")
+                self.pod.last_command = {"command": "ACTIVATE",
+                                         "address": candidate_address,
+                                         "utc_offset": utc_offset,
+                                         "success": False}
+
                 if self.pod.state_progress > PodProgress.ReadyForInjection:
                     raise PdmError("Pod is already activated")
 
                 self.pod.var_utc_offset = utc_offset
+                radio = None
 
                 if self.pod.state_progress is None or \
                                 self.pod.state_progress < PodProgress.TankFillCompleted:
@@ -347,7 +384,7 @@ class Pdm:
                     request = request_assign_address(candidate_address)
                     response = self.get_radio().send_message_get_message(request, message_address=0xffffffff,
                                                                          ack_address_override=candidate_address,
-                                                                         tx_power=TxPower.Lowest)
+                                                                         tx_power=TxPower.Low)
                     response_parse(response, self.pod)
 
                     self._assert_pod_can_activate()
@@ -374,7 +411,7 @@ class Pdm:
                                                 year, month, day, hour, minute)
                     response = self.get_radio().send_message_get_message(request, message_address=0xffffffff,
                                                                          ack_address_override=candidate_address,
-                                                                         tx_power=TxPower.Lowest)
+                                                                         tx_power=TxPower.Low)
                     response_parse(response, self.pod)
                     self._assert_pod_paired()
 
@@ -383,18 +420,22 @@ class Pdm:
                         self.pod.radio_packet_sequence = radio.packet_sequence
 
                     radio = self.get_radio(new=True)
-                    radio.radio_address = candidate_address
+                    radio.radio_address = self.pod.radio_address
                     radio.message_sequence = 2
 
                     self.pod.nonce_seed = 0
                     self.pod.nonce_last = None
 
                     if self.pod.var_alert_low_reservoir is not None:
-                        request = request_set_low_reservoir_alert(self.pod.var_alert_low_reservoir)
-                        self.send_request(request, with_nonce=True)
+                        if not self.pod.var_alert_low_reservoir_set:
+                            request = request_set_low_reservoir_alert(self.pod.var_alert_low_reservoir)
+                            self.send_request(request, with_nonce=True)
+                            self.pod.var_alert_low_reservoir_set = True
 
-                    request = request_set_generic_alert(5, 55)
-                    self.send_request(request, with_nonce=True)
+                    if not self.pod.var_alert_before_prime_set:
+                        request = request_set_generic_alert(5, 55)
+                        self.send_request(request, with_nonce=True)
+                        self.pod.var_alert_before_prime_set = True
 
                     # request = request_delivery_flags(0, 0)
                     # self.send_request(request, with_nonce=True)
@@ -410,8 +451,12 @@ class Pdm:
 
                 if self.pod.state_progress == PodProgress.ReadyForInjection:
                     if self.pod.var_alert_replace_pod is not None:
-                        request = request_set_pod_expiry_alert(self.pod.var_alert_replace_pod - self.pod.state_active_minutes)
-                        self.send_request(request, with_nonce=True)
+                        if not self.pod.var_alert_replace_pod_set:
+                            request = request_set_pod_expiry_alert(self.pod.var_alert_replace_pod - self.pod.state_active_minutes)
+                            self.send_request(request, with_nonce=True)
+                            self.pod.var_alert_replace_pod_set = True
+
+                self.pod.last_command["success"] = True
 
         except OmnipyError:
             raise
@@ -424,8 +469,16 @@ class Pdm:
         try:
             with PdmLock():
 
+                self.logger.debug("Starting pod")
+                self.pod.last_command = {"command": "START",
+                                         "hourly_rates": basal_schedule,
+                                         "success": False}
+
                 if self.pod.state_progress >= PodProgress.Running:
                     raise PdmError("Pod is passed the injection stage")
+
+                if self.pod.state_progress < PodProgress.ReadyForInjection:
+                    raise PdmError("Pod is not ready for injection")
 
                 if self.pod.state_progress == PodProgress.ReadyForInjection:
                     self._assert_basal_schedule_is_valid(basal_schedule)
@@ -443,8 +496,10 @@ class Pdm:
                         raise PdmError("Pod did not acknowledge basal schedule")
 
                 if self.pod.state_progress == PodProgress.BasalScheduleSet:
-                    request = request_set_initial_alerts(self.pod.var_activation_date)
-                    self.send_request(request, with_nonce=True, expect_critical_follow_up=True)
+                    if not self.pod.var_alert_after_prime_set:
+                        request = request_set_initial_alerts(self.pod.var_activation_date)
+                        self.send_request(request, with_nonce=True, expect_critical_follow_up=True)
+                        self.pod.var_alert_after_prime_set = True
 
                     request = request_insert_cannula()
                     self.send_request(request, with_nonce=True)
@@ -458,6 +513,7 @@ class Pdm:
                     if self.pod.state_progress != PodProgress.Running:
                         raise PdmError("Pod did not get to running state")
                     self.pod.var_insertion_date = time.time()
+                    self.pod.last_command["success"] = True
 
         except OmnipyError:
             raise
@@ -579,7 +635,8 @@ class Pdm:
             raise PdmError("Pod is not at the expected state of Tank Fill Completed")
 
     def _assert_pod_paired(self):
-        if self.pod.radio_address is None:
+        if self.pod.radio_address is None or self.pod.radio_address == 0 \
+                or self.pod.radio_address == 0xffffffff:
             raise PdmError("Radio radio_address not accepted")
 
         if self.pod.state_progress != PodProgress.PairingSuccess:

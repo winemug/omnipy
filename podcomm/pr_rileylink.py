@@ -7,6 +7,7 @@ from .definitions import *
 from enum import IntEnum
 from threading import Event
 from .exceptions import PacketRadioError
+from .manchester import ManchesterCodec
 
 from bluepy.btle import Peripheral, Scanner, BTLEException
 
@@ -106,6 +107,7 @@ class RileyLink(PacketRadio):
         self.response_handle = None
         self.notify_event = Event()
         self.initialized = False
+        self.manchester = ManchesterCodec()
 
     def connect(self, force_initialize=False):
         try:
@@ -237,15 +239,16 @@ class RileyLink(PacketRadio):
 
             if not force_init:
                 if v_major == 2 and v_minor < 3:
-                    response = self._command(Command.READ_REGISTER, bytes([Register.SYNC1, 0x00]))
+                    response = self._command(Command.READ_REGISTER, bytes([Register.PKTLEN, 0x00]))
                 else:
-                    response = self._command(Command.READ_REGISTER, bytes([Register.SYNC1]))
-                if response is not None and len(response) > 0 and response[0] == 0xA5:
+                    response = self._command(Command.READ_REGISTER, bytes([Register.PKTLEN]))
+                if response is not None and len(response) > 0 and response[0] == 0x50:
                     return
 
             self._command(Command.RADIO_RESET_CONFIG)
-            self._command(Command.SET_SW_ENCODING, bytes([Encoding.MANCHESTER]))
+            self._command(Command.SET_SW_ENCODING, bytes([Encoding.NONE]))
             self._command(Command.SET_PREAMBLE, bytes([0x66, 0x65]))
+            #self._command(Command.SET_PREAMBLE, bytes([0, 0]))
 
             frequency = int(433910000 / (24000000 / pow(2, 16)))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, frequency & 0xff]))
@@ -260,6 +263,7 @@ class RileyLink(PacketRadio):
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL1, 0x20]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL0, 0x00]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTLEN, 0x50]))
             # self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL1, 0x60]))
             # self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL0, 0x04]))
 
@@ -298,12 +302,12 @@ class RileyLink(PacketRadio):
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
+            #self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
+            #self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
             # self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
             # self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
 
             response = self._command(Command.GET_STATE)
             if response != b"OK":
@@ -350,16 +354,20 @@ class RileyLink(PacketRadio):
     def get_packet(self, timeout=5.0):
         try:
             self.connect()
-            return self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)),
+            result = self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)),
                                  timeout=float(timeout)+0.5)
+            if result is not None:
+                return result[0:2] + self.manchester.decode(result[2:])
+            else:
+                return None
         except Exception as e:
             raise PacketRadioError("Error while getting radio packet") from e
 
     def send_and_receive_packet(self, packet, repeat_count, delay_ms, timeout_ms, retry_count, preamble_ext_ms):
-
         try:
             self.connect()
-            return self._command(Command.SEND_AND_LISTEN,
+            data = self.manchester.encode(packet)
+            result = self._command(Command.SEND_AND_LISTEN,
                                   struct.pack(">BBHBLBH",
                                               0,
                                               repeat_count,
@@ -368,16 +376,21 @@ class RileyLink(PacketRadio):
                                               timeout_ms,
                                               retry_count,
                                               preamble_ext_ms)
-                                              + packet,
+                                              + data,
                                   timeout=30)
+            if result is not None:
+                return result[0:2] + self.manchester.decode(result[2:])
+            else:
+                return None
         except Exception as e:
             raise PacketRadioError("Error while sending and receiving data") from e
 
     def send_packet(self, packet, repeat_count, delay_ms, preamble_extension_ms):
         try:
             self.connect()
+            data = self.manchester.encode(packet)
             result = self._command(Command.SEND_PACKET, struct.pack(">BBHH", 0, repeat_count, delay_ms,
-                                                                   preamble_extension_ms) + packet,
+                                                                   preamble_extension_ms) + data,
                                   timeout=30)
             return result
         except Exception as e:

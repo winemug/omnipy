@@ -1,7 +1,7 @@
 from .definitions import *
 import simplejson as json
 from datetime import datetime
-
+import sqlite3
 
 class Pod:
     def __init__(self):
@@ -66,19 +66,25 @@ class Pod:
         self.path = None
         self.log_file_path = None
 
+        self.last_command = None
         self.last_enacted_temp_basal_start = None
         self.last_enacted_temp_basal_duration = None
         self.last_enacted_temp_basal_amount = None
-
         self.last_enacted_bolus_start = None
         self.last_enacted_bolus_amount = None
+
 
     def Save(self, save_as = None):
         if save_as is not None:
             self.path = save_as
             self.log_file_path = save_as + POD_LOG_SUFFIX
+
         if self.path is None:
-            raise ValueError("No filename given")
+            self.path = "./unnamed_pod.json"
+            self.log_file_path = "./unnamed_pod.log"
+
+        self.log()
+
         with open(self.path, "w") as stream:
             json.dump(self.__dict__, stream, indent=4, sort_keys=True)
 
@@ -132,6 +138,7 @@ class Pod:
             p.nonce_seed = d.get("nonce_seed", None)
             p.nonce_syncword = d.get("nonce_syncword", None)
 
+            p.last_command = d.get("last_command", None)
             p.last_enacted_temp_basal_start = d.get("last_enacted_temp_basal_start", None)
             p.last_enacted_temp_basal_duration = d.get("last_enacted_temp_basal_duration", None)
             p.last_enacted_temp_basal_amount = d.get("last_enacted_temp_basal_amount", None)
@@ -164,22 +171,26 @@ class Pod:
             and (self.state_progress == PodProgress.Running or self.state_progress == PodProgress.RunningLow) \
             and not self.state_faulted
 
-    def _save_with_log(self, original_request):
-        ds = datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]
-        orq = "----"
-        if original_request is not None:
-            orq = original_request
-
-        self.Save()
-        self.log(original_request)
 
     def __str__(self):
         return json.dumps(self.__dict__, indent=4, sort_keys=True)
 
-    def log(self, log_message):
-        try:
-            with open(self.log_file_path, "a") as stream:
-                stream.write(json.dumps(self.__dict__, sort_keys=True))
-        except Exception as e:
-            getLogger().warning("Failed to write the following line to the pod log file %s:\n%s\nError: %s"
-                            %(self.log_file_path, log_message, e))
+    def log(self):
+        pass
+
+    def _get_conn(self):
+        conn = sqlite3.connect(self.log_file_path)
+        sql = """ CREATE TABLE IF NOT EXISTS pod_history (
+                  timestamp real, 
+                  pod_state integer, pod_minutes integer, pod_last_command text,
+                  insulin_delivered real, insulin_canceled real, insulin_reservoir real
+                  ) """
+
+        c = conn.cursor()
+        c.execute(sql)
+        return conn
+
+    def _sql(self, sql):
+        conn = sqlite3.connect(self.log_file_path)
+        c = conn.cursor()
+        c.execute(sql)
