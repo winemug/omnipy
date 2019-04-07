@@ -34,6 +34,7 @@ REST_URL_GET_PDM_ADDRESS = "/omnipy/pdmspy"
 
 REST_URL_RL_INFO = "/rl/info"
 
+REST_URL_ARCHIVE_POD = "/pdm/archive"
 REST_URL_ACTIVATE_POD = "/pdm/activate"
 REST_URL_START_POD = "/pdm/start"
 REST_URL_STATUS = "/pdm/status"
