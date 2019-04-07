@@ -1,6 +1,6 @@
 from .definitions import *
 import simplejson as json
-from datetime import datetime
+import time
 import sqlite3
 
 class Pod:
@@ -64,6 +64,7 @@ class Pod:
         self.var_insertion_date = None
 
         self.path = None
+        self.path_db = None
         self.log_file_path = None
 
         self.last_command = None
@@ -76,12 +77,14 @@ class Pod:
 
     def Save(self, save_as = None):
         if save_as is not None:
-            self.path = save_as
+            self.path = save_as + POD_FILE_SUFFIX
             self.log_file_path = save_as + POD_LOG_SUFFIX
+            self.path_db = save_as + POD_DB_SUFFIX
 
         if self.path is None:
-            self.path = "./unnamed_pod.json"
-            self.log_file_path = "./unnamed_pod.log"
+            self.path = POD_FILE + POD_FILE_SUFFIX
+            self.log_file_path = POD_FILE + POD_LOG_SUFFIX
+            self.path_db = POD_FILE + POD_DB_SUFFIX
 
         self.log()
 
@@ -89,14 +92,18 @@ class Pod:
             json.dump(self.__dict__, stream, indent=4, sort_keys=True)
 
     @staticmethod
-    def Load(path, log_file_path=None):
+    def Load(path, log_file_path=None, db_path=None):
         if log_file_path is None:
-            log_file_path = path + POD_LOG_SUFFIX
+            log_file_path = POD_FILE + POD_LOG_SUFFIX
+
+        if db_path is None:
+            db_path = POD_FILE + POD_DB_SUFFIX
 
         with open(path, "r") as stream:
             d = json.load(stream)
             p = Pod()
             p.path = path
+            p.path_db = db_path
             p.log_file_path = log_file_path
 
             p.id_lot = d.get("id_lot", None)
@@ -176,21 +183,31 @@ class Pod:
         return json.dumps(self.__dict__, indent=4, sort_keys=True)
 
     def log(self):
-        pass
+        try:
+            with open(self.log_file_path, "a") as stream:
+                json.dump(self.__dict__, stream, sort_keys=True)
+        except:
+            getLogger().exception("Error while writing to log file")
 
-    def _get_conn(self):
-        conn = sqlite3.connect(self.log_file_path)
-        sql = """ CREATE TABLE IF NOT EXISTS pod_history (
-                  timestamp real, 
-                  pod_state integer, pod_minutes integer, pod_last_command text,
-                  insulin_delivered real, insulin_canceled real, insulin_reservoir real
-                  ) """
+        try:
+            conn = sqlite3.connect(self.path_db)
+            with conn:
+                sql = """ CREATE TABLE IF NOT EXISTS pod_history (
+                          timestamp real, 
+                          pod_state integer, pod_minutes integer, pod_last_command text,
+                          insulin_delivered real, insulin_canceled real, insulin_reservoir real
+                          ) """
 
-        c = conn.cursor()
-        c.execute(sql)
-        return conn
+                c = conn.cursor()
+                c.execute(sql)
 
-    def _sql(self, sql):
-        conn = sqlite3.connect(self.log_file_path)
-        c = conn.cursor()
-        c.execute(sql)
+                sql = """ INSERT INTO pod_history (timestamp, pod_state, pod_minutes, pod_last_command,
+                          insulin_delivered, insulin_canceled, insulin_reservoir)
+                          VALUES(?,?,?,?,?,?,?) """
+
+                vals = (time.time(), self.state_progress, self.state_active_minutes,
+                        str(self.last_command), self.insulin_delivered, self.insulin_canceled, self.insulin_reservoir)
+
+                c.execute(sql, vals)
+        except:
+            getLogger().exception("Error while writing to database")

@@ -14,6 +14,7 @@ from podcomm.pdm import Pdm, PdmLock
 from podcomm.pod import Pod
 from podcomm.pr_rileylink import RileyLink
 from podcomm.definitions import *
+from logging import FileHandler
 
 g_key = None
 g_pod = None
@@ -40,10 +41,11 @@ def _get_pod():
     try:
         if g_pod is None:
             if os.path.exists(POD_FILE + POD_FILE_SUFFIX):
-                g_pod = Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX)
+                g_pod = Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX, POD_FILE + POD_DB_SUFFIX)
             else:
                 g_pod = Pod()
                 g_pod.path = POD_FILE + POD_FILE_SUFFIX
+                g_pod.path_db = POD_FILE + POD_DB_SUFFIX
                 g_pod.log_file_path = POD_FILE + POD_LOG_SUFFIX
                 g_pod.Save()
         return g_pod
@@ -63,11 +65,13 @@ def _get_pdm():
         return None
 
 
-def _flush_memory_handler(logger):
+def _flush_handlers(logger):
     for handler in getLogger().handlers:
         if isinstance(handler, MemoryHandler):
             handler.flush()
-
+        if isinstance(handler, FileHandler):
+            handler.flush()
+            handler.close()
 
 def _archive_pod():
     global g_pod
@@ -77,13 +81,16 @@ def _archive_pod():
         g_pdm = None
         archive_name = None
         archive_suffix = datetime.utcnow().strftime("_%Y%m%d_%H%M%S")
+
         if os.path.isfile(POD_FILE + POD_FILE_SUFFIX):
             archive_name = os.rename(POD_FILE + POD_FILE_SUFFIX, POD_FILE + archive_suffix + POD_FILE_SUFFIX)
         if os.path.isfile(POD_FILE + POD_LOG_SUFFIX):
             os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
+        if os.path.isfile(POD_FILE + POD_DB_SUFFIX):
+            os.rename(POD_FILE + POD_DB_SUFFIX, POD_FILE + archive_suffix + POD_DB_SUFFIX)
 
-        _flush_memory_handler(getLogger())
-        _flush_memory_handler(get_packet_logger())
+        _flush_handlers(getLogger())
+        _flush_handlers(get_packet_logger())
 
         if os.path.isfile(OMNIPY_PACKET_LOGFILE + OMNIPY_LOGFILE_SUFFIX):
             os.rename(OMNIPY_PACKET_LOGFILE + OMNIPY_LOGFILE_SUFFIX, OMNIPY_PACKET_LOGFILE + archive_suffix + OMNIPY_LOGFILE_SUFFIX)
@@ -215,7 +222,7 @@ def archive_pod():
     _verify_auth(request)
     pod = Pod()
     _archive_pod()
-    pod.Save(POD_FILE + POD_FILE_SUFFIX)
+    pod.Save()
 
 def ping():
     return {"pong": None}
@@ -262,7 +269,7 @@ def new_pod():
         pod.radio_address = _get_pdm_address(45000)
 
     _archive_pod()
-    pod.Save(POD_FILE + POD_FILE_SUFFIX)
+    pod.Save()
 
 def activate_pod():
     _verify_auth(request)
@@ -271,7 +278,7 @@ def activate_pod():
     if pod.state_progress >= PodProgress.Running:
         pod = Pod()
         _archive_pod()
-        pod.Save(POD_FILE + POD_FILE_SUFFIX)
+        pod.Save()
 
     pdm = _get_pdm()
 
