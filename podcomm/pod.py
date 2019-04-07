@@ -33,7 +33,11 @@ class Pod:
         self.var_maximum_bolus = None
         self.var_maximum_temp_basal_rate = None
         self.var_alert_low_reservoir = None
+        self.var_alert_low_reservoir_set = False
         self.var_alert_replace_pod = None
+        self.var_alert_replace_pod_set = False
+        self.var_alert_before_prime_set = False
+        self.var_alert_after_prime_set = False
         self.var_basal_schedule = None
         self.var_notify_bolus_start = None
         self.var_notify_bolus_cancel = None
@@ -141,7 +145,12 @@ class Pod:
             p.var_maximum_bolus = d.get("var_maximum_bolus", None)
             p.var_maximum_temp_basal_rate = d.get("var_maximum_temp_basal_rate", None)
             p.var_alert_low_reservoir = d.get("var_alert_low_reservoir", None)
+            p.var_alert_low_reservoir_set = d.get("var_alert_low_reservoir_set", False)
             p.var_alert_replace_pod = d.get("var_alert_replace_pod", None)
+            p.var_alert_replace_pod_set = d.get("var_alert_replace_pod_set", False)
+            p.var_alert_before_prime_set = d.get("var_alert_before_prime_set", False)
+            p.var_alert_after_prime_set = d.get("var_alert_after_prime_set", False)
+
             p.var_notify_bolus_start = d.get("var_notify_bolus_start", None)
             p.var_notify_bolus_cancel = d.get("var_notify_bolus_cancel", None)
             p.var_notify_temp_basal_set = d.get("var_notify_temp_basal_set", None)
