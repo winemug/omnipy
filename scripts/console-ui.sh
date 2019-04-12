@@ -160,6 +160,8 @@ function ConfigureRPi(){
 
 
 function ConfigureBT(){
+    sudo systemctl stop omnipy-pan.service
+    sudo systemctl disable omnipy-pan.service
     echo "Removing existing bluetooth devices"
     sudo btmgmt power on
     sudo bt-device -l | grep -e \(.*\) --color=never -o| cut -d'(' -f2 | cut -d')' -f1 | while read -r mac
