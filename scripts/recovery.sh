@@ -17,9 +17,8 @@ startHotSpot()
 
 if [ -f $RECOVERY_FILE ]; then
 
-        #sudo systemctl stop omnipy.service
-        #sudo systemctl stop omnipy-beacon.service
-        #sudo systemctl stop omnipy-pan.service
+        sudo systemctl stop omnipy.service
+        sudo systemctl stop omnipy-pan.service
 
         echo "pi:omnipy" | chpasswd
 
