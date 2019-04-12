@@ -108,7 +108,7 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
 sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
 echo
-echo ${bold}Step 7(a)/11: ${normal}Safe shutdown (LipoShim)
+echo ${bold}Step 7a/11: ${normal}Safe shutdown LipoShim
 echo
 read -p "Are you using/planning a LipoShim to safely power down the pi if you get a low battery? Press y if so to install the relevant service. " -r
 echo
@@ -118,7 +118,7 @@ then
 fi
 
 echo
-echo ${bold}Step 7(b)/11: ${normal}Safe shutdown (JuiceBox Zero)
+echo ${bold}Step 7b/11: ${normal}Safe shutdown JuiceBox Zero
 echo
 read -p "Are you using/planning a JuiceBox Zero to safely power down the pi if you get a low battery? Press y if so to install the relevant crontab. " -r
 echo
