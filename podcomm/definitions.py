@@ -65,19 +65,19 @@ def getLogger():
         ensure_log_dir()
         logger = logging.getLogger(OMNIPY_LOGGER)
         logger.setLevel(logging.DEBUG)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
-        fh = logging.FileHandler(OMNIPY_LOGFILE)
+        fh = logging.FileHandler(DATA_PATH + OMNIPY_LOGFILE + LOGFILE_SUFFIX)
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
 
-        mh = MemoryHandler(capacity=256*1024, target=fh)
+        mh = MemoryHandler(capacity=16*1024, target=fh)
         logger.addHandler(mh)
 
-        ch = logging.StreamHandler()
-        ch.setLevel(logging.DEBUG)
-        ch.setFormatter(formatter)
-        logger.addHandler(ch)
+        # ch = logging.StreamHandler()
+        # ch.setLevel(logging.DEBUG)
+        # ch.setFormatter(formatter)
+        # logger.addHandler(ch)
 
     return logger
 
@@ -90,12 +90,17 @@ def get_packet_logger():
         packet_logger.setLevel(logging.INFO)
         formatter = logging.Formatter('%(asctime)s %(message)s')
 
-        fh = logging.FileHandler(OMNIPY_PACKET_LOGFILE)
+        fh = logging.FileHandler(DATA_PATH + OMNIPY_PACKET_LOGFILE + LOGFILE_SUFFIX)
         fh.setLevel(logging.INFO)
         fh.setFormatter(formatter)
 
-        mh = MemoryHandler(capacity=4*1024, target=fh)
+        mh = MemoryHandler(capacity=16*1024, target=fh)
         packet_logger.addHandler(mh)
+
+        # ch = logging.StreamHandler()
+        # ch.setLevel(logging.DEBUG)
+        # ch.setFormatter(formatter)
+        # packet_logger.addHandler(ch)
 
     return packet_logger
 

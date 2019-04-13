@@ -65,7 +65,7 @@ def _get_pdm():
 
 
 def _flush_handlers(logger):
-    for handler in getLogger().handlers:
+    for handler in logger.handlers:
         if isinstance(handler, MemoryHandler):
             handler.flush()
         if isinstance(handler, FileHandler):
@@ -586,6 +586,8 @@ def _exit_with_grace():
         pdm = _get_pdm()
         while pdm.is_busy():
             time.sleep(5)
+        _flush_handlers(getLogger())
+        _flush_handlers(get_packet_logger())
     except:
         logger.exception("error during graceful shutdown")
 
