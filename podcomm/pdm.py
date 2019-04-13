@@ -107,7 +107,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            return self._savePod()
+            self._savePod()
 
     def acknowledge_alerts(self, alert_mask):
         try:
@@ -131,7 +131,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            return self._savePod()
+            self._savePod()
 
     def is_busy(self):
         try:
@@ -183,7 +183,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            return self._savePod()
+            self._savePod()
 
 
     def cancel_bolus(self):
@@ -214,7 +214,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            return self._savePod()
+            self._savePod()
 
     def cancel_temp_basal(self):
         try:
@@ -246,7 +246,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            return self._savePod()
+            self._savePod()
 
     def set_temp_basal(self, basalRate, hours, confidenceReminder=False):
         try:
@@ -294,7 +294,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            return self._savePod()
+            self._savePod()
 
     def set_basal_schedule(self, schedule):
         try:
@@ -335,7 +335,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            return self._savePod()
+            self._savePod()
 
     def deactivate_pod(self):
         try:
@@ -356,7 +356,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            return self._savePod()
+            self._savePod()
 
     def activate_pod(self, candidate_address, utc_offset):
         try:
@@ -463,7 +463,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            return self._savePod()
+            self._savePod()
 
     def inject_and_start(self, basal_schedule):
         try:
@@ -508,7 +508,7 @@ class Pdm:
                         raise PdmError("Pod did not acknowledge cannula insertion start")
 
                 if self.pod.state_progress == PodProgress.Inserting:
-                    time.sleep(12)
+                    time.sleep(15)
                     self._internal_update_status()
                     if self.pod.state_progress != PodProgress.Running:
                         raise PdmError("Pod did not get to running state")
@@ -520,7 +520,7 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
-            return self._savePod()
+            self._savePod()
 
     def _savePod(self):
         try:
