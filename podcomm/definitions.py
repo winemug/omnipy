@@ -3,21 +3,23 @@ import os
 import logging
 from logging.handlers import MemoryHandler
 
-KEY_FILE = "data/key"
-LAST_ACTIVATED_FILE = "data/lastactivated"
-POD_FILE = "data/pod"
-POD_FILE_SUFFIX = ".json"
-POD_LOG_SUFFIX = ".log"
-POD_DB_SUFFIX = ".db"
-LOG_PATH = "./data"
-OMNIPY_LOGGER = "OMNIPY"
-OMNIPY_LOGFILE = "data/omnipy.log"
-OMNIPY_PACKET_LOGGER = "OMNIPACKET"
-OMNIPY_PACKET_LOGFILE = "data/packet.log"
+DATA_PATH = "./data/"
 
-OMNIPY_LOGFILE_PREFIX = "data/omnipy"
-OMNIPY_LOGFILE_SUFFIX = ".log"
-OMNIPY_LOGFILE = OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX
+KEY_FILE = "key"
+LAST_ACTIVATED_FILE = "lastactivated"
+
+POD_FILE = "pod"
+POD_FILE_SUFFIX = ".json"
+
+POD_DB_SUFFIX = ".db"
+LOGFILE_SUFFIX = ".log"
+
+OMNIPY_LOGGER = "OMNIPY"
+OMNIPY_LOGFILE = "omnipy"
+
+
+OMNIPY_PACKET_LOGGER = "OMNIPACKET"
+OMNIPY_PACKET_LOGFILE = "packet"
 
 API_VERSION_MAJOR = 1
 API_VERSION_MINOR = 3
@@ -52,8 +54,8 @@ logger = None
 packet_logger = None
 
 def ensure_log_dir():
-    if not os.path.isdir(LOG_PATH):
-        os.mkdir(LOG_PATH)
+    if not os.path.isdir(DATA_PATH):
+        os.mkdir(DATA_PATH)
 
 
 def getLogger():

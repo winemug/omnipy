@@ -15,7 +15,7 @@ logger = getLogger()
 
 
 def get_auth_params():
-    with open(KEY_FILE, "rb") as keyfile:
+    with open(DATA_PATH + KEY_FILE, "rb") as keyfile:
         key = keyfile.read(32)
 
     r = requests.get(ROOT_URL + REST_URL_TOKEN, timeout=20)

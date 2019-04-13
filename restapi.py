@@ -40,13 +40,12 @@ def _get_pod():
     global g_pod
     try:
         if g_pod is None:
-            if os.path.exists(POD_FILE + POD_FILE_SUFFIX):
-                g_pod = Pod.Load(POD_FILE + POD_FILE_SUFFIX, POD_FILE + POD_LOG_SUFFIX, POD_FILE + POD_DB_SUFFIX)
+            if os.path.exists(DATA_PATH + POD_FILE + POD_FILE_SUFFIX):
+                g_pod = Pod.Load(DATA_PATH + POD_FILE + POD_FILE_SUFFIX, DATA_PATH + POD_FILE + POD_DB_SUFFIX)
             else:
                 g_pod = Pod()
-                g_pod.path = POD_FILE + POD_FILE_SUFFIX
-                g_pod.path_db = POD_FILE + POD_DB_SUFFIX
-                g_pod.log_file_path = POD_FILE + POD_LOG_SUFFIX
+                g_pod.path = DATA_PATH + POD_FILE + POD_FILE_SUFFIX
+                g_pod.path_db = DATA_PATH + POD_FILE + POD_DB_SUFFIX
                 g_pod.Save()
         return g_pod
     except:
@@ -82,20 +81,23 @@ def _archive_pod():
         archive_name = None
         archive_suffix = datetime.utcnow().strftime("_%Y%m%d_%H%M%S")
 
-        if os.path.isfile(POD_FILE + POD_FILE_SUFFIX):
-            archive_name = os.rename(POD_FILE + POD_FILE_SUFFIX, POD_FILE + archive_suffix + POD_FILE_SUFFIX)
-        if os.path.isfile(POD_FILE + POD_LOG_SUFFIX):
-            os.rename(POD_FILE + POD_LOG_SUFFIX, POD_FILE + archive_suffix + POD_LOG_SUFFIX)
-        if os.path.isfile(POD_FILE + POD_DB_SUFFIX):
-            os.rename(POD_FILE + POD_DB_SUFFIX, POD_FILE + archive_suffix + POD_DB_SUFFIX)
+        if os.path.isfile(DATA_PATH + POD_FILE + POD_FILE_SUFFIX):
+            archive_name = os.rename(DATA_PATH + POD_FILE + POD_FILE_SUFFIX,
+                                     DATA_PATH + POD_FILE + archive_suffix + POD_FILE_SUFFIX)
+        if os.path.isfile(DATA_PATH + POD_FILE + POD_DB_SUFFIX):
+            os.rename(DATA_PATH + POD_FILE + POD_DB_SUFFIX,
+                      DATA_PATH + POD_FILE + archive_suffix + POD_DB_SUFFIX)
 
         _flush_handlers(getLogger())
         _flush_handlers(get_packet_logger())
 
-        if os.path.isfile(OMNIPY_PACKET_LOGFILE + OMNIPY_LOGFILE_SUFFIX):
-            os.rename(OMNIPY_PACKET_LOGFILE + OMNIPY_LOGFILE_SUFFIX, OMNIPY_PACKET_LOGFILE + archive_suffix + OMNIPY_LOGFILE_SUFFIX)
-        if os.path.isfile(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX):
-            os.rename(OMNIPY_LOGFILE_PREFIX + OMNIPY_LOGFILE_SUFFIX, OMNIPY_LOGFILE_PREFIX + archive_suffix + OMNIPY_LOGFILE_SUFFIX)
+        if os.path.isfile(DATA_PATH + OMNIPY_PACKET_LOGFILE + LOGFILE_SUFFIX):
+            os.rename(DATA_PATH + OMNIPY_PACKET_LOGFILE + LOGFILE_SUFFIX,
+                      DATA_PATH + OMNIPY_PACKET_LOGFILE + archive_suffix + LOGFILE_SUFFIX)
+
+        if os.path.isfile(DATA_PATH + OMNIPY_LOGFILE + LOGFILE_SUFFIX):
+            os.rename(DATA_PATH + OMNIPY_LOGFILE + LOGFILE_SUFFIX,
+                      DATA_PATH + OMNIPY_LOGFILE + archive_suffix + LOGFILE_SUFFIX)
 
         return archive_name
     except:
@@ -104,8 +106,8 @@ def _archive_pod():
 
 def _get_next_pod_address():
     try:
-        if os.path.isfile(LAST_ACTIVATED_FILE):
-            with open(LAST_ACTIVATED_FILE, "rb") as lastfile:
+        if os.path.isfile(DATA_PATH + LAST_ACTIVATED_FILE):
+            with open(DATA_PATH + LAST_ACTIVATED_FILE, "rb") as lastfile:
                 ab = lastfile.read(4)
                 addr = (ab[0] << 24) | (ab[1] << 16) | (ab[2] << 8) | ab[3]
                 blast = (addr & 0x0000000f) + 1
@@ -125,7 +127,7 @@ def _get_next_pod_address():
 
 def _save_activated_pod_address(addr):
     try:
-        with open(LAST_ACTIVATED_FILE, "w+b") as lastfile:
+        with open(DATA_PATH + LAST_ACTIVATED_FILE, "w+b") as lastfile:
             b0 = (addr >> 24) & 0xff
             b1 = (addr >> 16) & 0xff
             b2 = (addr >> 8) & 0xff
@@ -373,26 +375,32 @@ def get_status():
         req_type = 0
 
     pdm = _get_pdm()
-    pdm.update_status(req_type)
+    id = pdm.update_status(req_type)
+    return {"row_id":id}
 
 def deactivate_pod():
     _verify_auth(request)
     pdm = _get_pdm()
-    pdm.deactivate_pod()
+    id = pdm.deactivate_pod()
     _archive_pod()
+    return {"row_id":id}
 
 def bolus():
     _verify_auth(request)
 
     pdm = _get_pdm()
     amount = Decimal(request.args.get('amount'))
-    pdm.bolus(amount)
+    id = pdm.bolus(amount)
+    return {"row_id":id}
+
 
 def cancel_bolus():
     _verify_auth(request)
 
     pdm = _get_pdm()
-    pdm.cancel_bolus()
+    id = pdm.cancel_bolus()
+    return {"row_id":id}
+
 
 def set_temp_basal():
     _verify_auth(request)
@@ -400,13 +408,17 @@ def set_temp_basal():
     pdm = _get_pdm()
     amount = Decimal(request.args.get('amount'))
     hours = Decimal(request.args.get('hours'))
-    pdm.set_temp_basal(amount, hours, False)
+    id = pdm.set_temp_basal(amount, hours, False)
+    return {"row_id":id}
+
 
 def cancel_temp_basal():
     _verify_auth(request)
 
     pdm = _get_pdm()
-    pdm.cancel_temp_basal()
+    id = pdm.cancel_temp_basal()
+    return {"row_id":id}
+
 
 def set_basal_schedule():
     _verify_auth(request)
@@ -421,7 +433,9 @@ def set_basal_schedule():
     utc_offset = int(request.args.get("utc"))
     pdm.pod.var_utc_offset = utc_offset
 
-    pdm.set_basal_schedule(schedule)
+    id = pdm.set_basal_schedule(schedule)
+    return {"row_id":id}
+
 
 def is_pdm_busy():
     pdm = _get_pdm()
@@ -432,7 +446,9 @@ def acknowledge_alerts():
 
     mask = Decimal(request.args.get('alertmask'))
     pdm = _get_pdm()
-    pdm.acknowledge_alerts(mask)
+    id = pdm.acknowledge_alerts(mask)
+    return {"row_id":id}
+
 
 def shutdown():
     global g_deny
@@ -579,7 +595,7 @@ if __name__ == '__main__':
     logger.info("Rest api is starting")
 
     try:
-        with open(KEY_FILE, "rb") as keyfile:
+        with open(DATA_PATH + KEY_FILE, "rb") as keyfile:
             g_key = keyfile.read(32)
     except IOError:
         logger.exception("Error while reading keyfile. Did you forget to set a password?")

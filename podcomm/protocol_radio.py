@@ -40,6 +40,10 @@ class PdmRadio:
         self.response_exception = None
         self.radio_thread = None
 
+        self.pdm_message = None
+        self.pdm_message_address = None
+        self.ack_address_override = None
+
         self.radio_lock = RLock()
         self.start()
 

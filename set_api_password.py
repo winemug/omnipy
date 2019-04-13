@@ -20,7 +20,7 @@ def main():
             salt = "bythepowerofgrayskull".encode("utf-8")
             hash_obj = hashlib.sha256(password + salt)
             key = hash_obj.digest()
-            with open(KEY_FILE, "w+b") as keyfile:
+            with open(DATA_PATH + KEY_FILE, "w+b") as keyfile:
                 keyfile.write(bytes(key))
             break
         except Exception as e:

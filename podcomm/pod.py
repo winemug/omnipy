@@ -65,7 +65,6 @@ class Pod:
 
         self.path = None
         self.path_db = None
-        self.log_file_path = None
 
         self.last_command = None
         self.last_enacted_temp_basal_start = None
@@ -78,23 +77,19 @@ class Pod:
     def Save(self, save_as = None):
         if save_as is not None:
             self.path = save_as + POD_FILE_SUFFIX
-            self.log_file_path = save_as + POD_LOG_SUFFIX
             self.path_db = save_as + POD_DB_SUFFIX
 
         if self.path is None:
             self.path = POD_FILE + POD_FILE_SUFFIX
-            self.log_file_path = POD_FILE + POD_LOG_SUFFIX
             self.path_db = POD_FILE + POD_DB_SUFFIX
-
-        self.log()
 
         with open(self.path, "w") as stream:
             json.dump(self.__dict__, stream, indent=4, sort_keys=True)
 
+        return self.log()
+
     @staticmethod
-    def Load(path, log_file_path=None, db_path=None):
-        if log_file_path is None:
-            log_file_path = POD_FILE + POD_LOG_SUFFIX
+    def Load(path, db_path=None):
 
         if db_path is None:
             db_path = POD_FILE + POD_DB_SUFFIX
@@ -104,7 +99,6 @@ class Pod:
             p = Pod()
             p.path = path
             p.path_db = db_path
-            p.log_file_path = log_file_path
 
             p.id_lot = d.get("id_lot", None)
             p.id_t = d.get("id_t", None)
@@ -184,12 +178,6 @@ class Pod:
 
     def log(self):
         try:
-            with open(self.log_file_path, "a") as stream:
-                json.dump(self.__dict__, stream, sort_keys=True)
-        except:
-            getLogger().exception("Error while writing to log file")
-
-        try:
             conn = sqlite3.connect(self.path_db)
             with conn:
                 sql = """ CREATE TABLE IF NOT EXISTS pod_history (
@@ -205,9 +193,9 @@ class Pod:
                           insulin_delivered, insulin_canceled, insulin_reservoir)
                           VALUES(?,?,?,?,?,?,?) """
 
-                vals = (time.time(), self.state_progress, self.state_active_minutes,
+                values = (time.time(), self.state_progress, self.state_active_minutes,
                         str(self.last_command), self.insulin_delivered, self.insulin_canceled, self.insulin_reservoir)
 
-                c.execute(sql, vals)
+                return c.execute(sql, values)
         except:
             getLogger().exception("Error while writing to database")
