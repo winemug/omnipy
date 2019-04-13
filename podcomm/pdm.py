@@ -36,6 +36,14 @@ class Pdm:
         self.radio = None
         self.logger = getLogger()
 
+    def stop_radio(self):
+        if self.radio is not None:
+            self.radio.stop()
+            self.radio = None
+
+    def start_radio(self):
+        self.get_radio(new=True)
+
     def get_nonce(self):
         if self.nonce is None:
             if self.pod.id_lot is None or self.pod.id_t is None:

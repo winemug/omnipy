@@ -35,6 +35,20 @@ class RestApiException(Exception):
     def __str__(self):
         return self.error_message
 
+def _set_pod(pod):
+    global g_pod
+    global g_pdm
+
+    g_pod = pod
+
+    g_pod.path = DATA_PATH + POD_FILE + POD_FILE_SUFFIX
+    g_pod.path_db = DATA_PATH + POD_FILE + POD_DB_SUFFIX
+    g_pod.Save()
+
+    if g_pdm is not None:
+        g_pdm.stop_radio()
+        g_pdm = None
+
 
 def _get_pod():
     global g_pod
@@ -201,8 +215,6 @@ def _api_result(result_lambda, generic_err_message):
 
 
 def _get_pdm_address(timeout):
-    pdm = _get_pdm()
-
     packet = None
     with PdmLock():
         radio = _get_pdm().get_radio()
@@ -224,7 +236,7 @@ def archive_pod():
     _verify_auth(request)
     pod = Pod()
     _archive_pod()
-    pod.Save()
+    _set_pod(pod)
 
 def ping():
     return {"pong": None}
@@ -271,7 +283,7 @@ def new_pod():
         pod.radio_address = _get_pdm_address(45000)
 
     _archive_pod()
-    pod.Save()
+    _set_pod(pod)
 
 def activate_pod():
     _verify_auth(request)
@@ -280,7 +292,7 @@ def activate_pod():
     if pod.state_progress >= PodProgress.Running:
         pod = Pod()
         _archive_pod()
-        pod.Save()
+        _set_pod(pod)
 
     pdm = _get_pdm()
 
