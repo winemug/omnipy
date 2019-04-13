@@ -17,11 +17,7 @@ startHotSpot()
 
 if [ -f $RECOVERY_FILE ]; then
 
-        sudo systemctl stop omnipy.service
-        sudo systemctl stop omnipy-pan.service
-
-        echo "pi:omnipy" | chpasswd
-
+        #echo "pi:omnipy" | chpasswd
     	mkdir -p /home/pi/omnipy/data
         #rm /home/pi/omnipy/data/key
         #cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/

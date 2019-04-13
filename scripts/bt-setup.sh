@@ -49,22 +49,9 @@ echo
 echo "${bold}Paired with $btdevice.${normal}"
 mac=`echo $btdevice | cut -d'(' -f2 | cut -d')' -f1`
 
-echo
-echo
-echo "Please ${bold}enable bluetooth tethering${normal} on your phone if it's not already enabled"
-echo "Waiting for connection."
 echo "addr=$mac" > /home/pi/omnipy/scripts/btnap-custom.sh
 cat /home/pi/omnipy/scripts/btnap.sh >> /home/pi/omnipy/scripts/btnap-custom.sh
 sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
 sudo systemctl enable omnipy-pan.service
 sudo systemctl start omnipy-pan.service
-ipaddr=
-while [[ -z "$ipaddr" ]]
-do
-        printf "."
-        sleep 1
-        ipaddr=`sudo ip -o -4 address | grep bnep0 | grep -e inet.*/ -o | cut -d' ' -f2 | cut -d'/' -f1`
-done
-echo
-echo
-echo "${bold}Connection test succeeeded${normal}. IP address: $ipaddr"
+
