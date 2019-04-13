@@ -327,6 +327,7 @@ class PdmRadio:
         self.packet_logger.info("RCVD MSG %s" % pod_response)
         self.logger.debug("Send and receive completed.")
         self.message_sequence = (pod_response.sequence + 1) % 16
+        self.packet_sequence = (received.sequence + 1) % 32
         return pod_response
 
 
@@ -397,12 +398,13 @@ class PdmRadio:
                         time.time() - start_time >= allow_premature_exit_after:
                     if self.request_arrived.wait(timeout=0):
                         self.logger.debug("Prematurely exiting final phase to process next request")
-                        self.packet_sequence = (self.packet_sequence + 2) % 32
-                        return
+                        self.packet_sequence = (self.packet_sequence + 1) % 32
+                        break
                 if received is None:
                     received = self.packet_radio.get_packet(0.6)
                     if received is None:
                         self.packet_logger.debug("Silence")
+                        self.packet_sequence = (self.packet_sequence + 1) % 32
                         break
                 p, rssi = self._get_packet(received)
                 if p is None:
@@ -424,9 +426,10 @@ class PdmRadio:
 
                 self.packet_logger.info("RECV PKT %s" % p)
                 self.packet_logger.debug("RECEIVED unexpected packet: %s" % p)
-                self.last_packet_received = pget_packet
+                self.last_packet_received = p
                 self.packet_sequence = (p.sequence + 1) % 32
                 packet_to_send.with_sequence(self.packet_sequence)
+                start_time = time.time()
                 continue
 
 
