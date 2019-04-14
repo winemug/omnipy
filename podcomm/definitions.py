@@ -58,7 +58,7 @@ def ensure_log_dir():
         os.mkdir(DATA_PATH)
 
 
-def getLogger():
+def getLogger(with_console=False):
     global logger
 
     if logger is None:
@@ -74,14 +74,15 @@ def getLogger():
         mh = MemoryHandler(capacity=16*1024, target=fh)
         logger.addHandler(mh)
 
-        # ch = logging.StreamHandler()
-        # ch.setLevel(logging.DEBUG)
-        # ch.setFormatter(formatter)
-        # logger.addHandler(ch)
+        if with_console:
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.DEBUG)
+            ch.setFormatter(formatter)
+            logger.addHandler(ch)
 
     return logger
 
-def get_packet_logger():
+def get_packet_logger(with_console=False):
     global packet_logger
 
     if packet_logger is None:
@@ -97,10 +98,11 @@ def get_packet_logger():
         mh = MemoryHandler(capacity=16*1024, target=fh)
         packet_logger.addHandler(mh)
 
-        # ch = logging.StreamHandler()
-        # ch.setLevel(logging.DEBUG)
-        # ch.setFormatter(formatter)
-        # packet_logger.addHandler(ch)
+        if with_console:
+            ch = logging.StreamHandler()
+            ch.setLevel(logging.DEBUG)
+            ch.setFormatter(formatter)
+            packet_logger.addHandler(ch)
 
     return packet_logger
 
