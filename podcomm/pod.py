@@ -73,6 +73,7 @@ class Pod:
         self.last_enacted_bolus_start = None
         self.last_enacted_bolus_amount = None
 
+        self.history_entry_id = None
 
     def Save(self, save_as = None):
         if save_as is not None:
@@ -83,10 +84,16 @@ class Pod:
             self.path = POD_FILE + POD_FILE_SUFFIX
             self.path_db = POD_FILE + POD_DB_SUFFIX
 
-        with open(self.path, "w") as stream:
-            json.dump(self.__dict__, stream, indent=4, sort_keys=True)
+        try:
+            self.history_entry_id = self.log()
+        except:
+            pass
 
-        return self.log()
+        try:
+            with open(self.path, "w") as stream:
+                json.dump(self.__dict__, stream, indent=4, sort_keys=True)
+        except:
+            pass
 
     @staticmethod
     def Load(path, db_path=None):
@@ -176,19 +183,24 @@ class Pod:
     def __str__(self):
         return json.dumps(self.__dict__, indent=4, sort_keys=True)
 
-    def log(self):
-        try:
-            conn = sqlite3.connect(self.path_db)
-            with conn:
-                sql = """ CREATE TABLE IF NOT EXISTS pod_history (
-                          timestamp real, 
-                          pod_state integer, pod_minutes integer, pod_last_command text,
-                          insulin_delivered real, insulin_canceled real, insulin_reservoir real
-                          ) """
+    def _get_conn(self):
+        return sqlite3.connect(self.path_db)
 
-                c = conn.cursor()
+    def _ensure_db_structure(self):
+        with self._get_conn() as conn:
+            sql = """ CREATE TABLE IF NOT EXISTS pod_history (
+                      timestamp real, 
+                      pod_state integer, pod_minutes integer, pod_last_command text,
+                      insulin_delivered real, insulin_canceled real, insulin_reservoir real
+                      ) """
+
+            with conn.cursor() as c:
                 c.execute(sql)
 
+    def log(self):
+        try:
+            self._ensure_db_structure()
+            with self._get_conn() as conn:
                 sql = """ INSERT INTO pod_history (timestamp, pod_state, pod_minutes, pod_last_command,
                           insulin_delivered, insulin_canceled, insulin_reservoir)
                           VALUES(?,?,?,?,?,?,?) """
@@ -196,6 +208,21 @@ class Pod:
                 values = (time.time(), self.state_progress, self.state_active_minutes,
                         str(self.last_command), self.insulin_delivered, self.insulin_canceled, self.insulin_reservoir)
 
-                return c.execute(sql, values)
+                with conn.cursor() as c:
+                    c.execute(sql, values)
+                    return c.lastrowid
+        except:
+            getLogger().exception("Error while writing to database")
+
+    def get_history(self):
+        try:
+            self._ensure_db_structure()
+            with self._get_conn() as conn:
+                sql = "SELECT rowid, timestamp, pod_state, pod_minutes, pod_last_command," \
+                      " insulin_delivered, insulin_canceled, insulin_reservoir FROM pod_history ORDER BY rowid"
+
+                with conn.cursor() as c:
+                    for row in c.fetchall():
+                        print(row[4])
         except:
             getLogger().exception("Error while writing to database")
