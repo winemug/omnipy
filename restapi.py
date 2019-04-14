@@ -16,6 +16,9 @@ from podcomm.pr_rileylink import RileyLink
 from podcomm.definitions import *
 from logging import FileHandler
 
+
+g_oldest_diff = None
+g_time_diffs = []
 g_key = None
 g_pod = None
 g_pdm = None
@@ -199,11 +202,38 @@ def _verify_auth(request_obj):
         logger.exception("Error during verify_auth")
         raise
 
+def _adjust_time(adjustment):
+    logger.info("Adjusting local time by %d ms" % adjustment)
+    pdm = _get_pdm()
+    if pdm is not None:
+        pdm.set_time_adjustment(adjustment / 1000)
+
 
 def _api_result(result_lambda, generic_err_message):
+    global g_time_diffs, g_oldest_diff
     try:
         if g_deny:
             raise RestApiException("Pdm is shutting down")
+
+        if request.args.get('req_t') is not None:
+            req_time = int(request.args.get('req_t'))
+            local_time = int(time.time() * 1000)
+            difference_ms = (req_time - local_time)
+            if g_oldest_diff is None:
+                g_oldest_diff = local_time
+
+            if g_oldest_diff - local_time > 300:
+                g_time_diffs = [difference_ms]
+                g_oldest_diff = local_time
+            else:
+                g_time_diffs.append(difference_ms)
+
+            if len(g_time_diffs) > 3:
+                diff_avg = sum(g_time_diffs) / len(g_time_diffs)
+                g_time_diffs = []
+
+                if diff_avg > 30000 or diff_avg < -30000:
+                    _adjust_time(diff_avg)
 
         return _create_response(True,
                                response=result_lambda(), pod_status=_get_pod())

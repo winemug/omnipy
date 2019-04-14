@@ -34,6 +34,7 @@ class Pdm:
         self.pod = pod
         self.nonce = None
         self.radio = None
+        self.time_adjustment = 0
         self.logger = getLogger()
 
     def stop_radio(self):
@@ -183,7 +184,7 @@ class Pdm:
                 if self.pod.state_bolus != BolusState.Immediate:
                     raise PdmError("Pod did not confirm bolus")
 
-                self.pod.last_enacted_bolus_start = time.time()
+                self.pod.last_enacted_bolus_start = self.get_time()
                 self.pod.last_enacted_bolus_amount = float(bolus_amount)
                 self.pod.last_command["success"] = True
         except OmnipyError:
@@ -211,7 +212,7 @@ class Pdm:
                         raise PdmError("Failed to cancel bolus")
                     else:
                         self.pod.last_enacted_bolus_amount = float(-1)
-                        self.pod.last_enacted_bolus_start = time.time()
+                        self.pod.last_enacted_bolus_start = self.get_time()
                         self.pod.last_command["success"] = True
                         self.pod.last_command["canceled"] = self.pod.insulin_canceled
                 else:
@@ -243,7 +244,7 @@ class Pdm:
                         raise PdmError("Failed to cancel temp basal")
                     else:
                         self.pod.last_enacted_temp_basal_duration = float(-1)
-                        self.pod.last_enacted_temp_basal_start = time.time()
+                        self.pod.last_enacted_temp_basal_start = self.get_time()
                         self.pod.last_enacted_temp_basal_amount = float(-1)
                         self.pod.last_command["success"] = True
                 else:
@@ -293,7 +294,7 @@ class Pdm:
                     raise PdmError("Failed to set temp basal")
                 else:
                     self.pod.last_enacted_temp_basal_duration = float(hours)
-                    self.pod.last_enacted_temp_basal_start = time.time()
+                    self.pod.last_enacted_temp_basal_start = self.get_time()
                     self.pod.last_enacted_temp_basal_amount = float(basalRate)
                     self.pod.last_command["success"] = True
 
@@ -323,7 +324,8 @@ class Pdm:
 
                 self._assert_basal_schedule_is_valid(schedule)
 
-                pod_date = datetime.utcnow() + timedelta(minutes=self.pod.var_utc_offset)
+                pod_date = datetime.utcnow() + timedelta(minutes=self.pod.var_utc_offset) \
+                           + timedelta(seconds=self.time_adjustment)
 
                 hours = pod_date.hour
                 minutes = pod_date.minute
@@ -399,7 +401,7 @@ class Pdm:
 
                 if self.pod.state_progress == PodProgress.TankFillCompleted:
 
-                    self.pod.var_activation_date = time.time()
+                    self.pod.var_activation_date = self.get_time()
                     pod_date = datetime.utcfromtimestamp(self.pod.var_activation_date) \
                                + timedelta(minutes=self.pod.var_utc_offset)
 
@@ -491,7 +493,8 @@ class Pdm:
                 if self.pod.state_progress == PodProgress.ReadyForInjection:
                     self._assert_basal_schedule_is_valid(basal_schedule)
 
-                    pod_date = datetime.utcnow() + timedelta(minutes=self.pod.var_utc_offset)
+                    pod_date = datetime.utcnow() + timedelta(minutes=self.pod.var_utc_offset) \
+                                + timedelta(seconds=self.time_adjustment)
 
                     hour = pod_date.hour
                     minute = pod_date.minute
@@ -520,7 +523,7 @@ class Pdm:
                     self._internal_update_status()
                     if self.pod.state_progress != PodProgress.Running:
                         raise PdmError("Pod did not get to running state")
-                    self.pod.var_insertion_date = time.time()
+                    self.pod.var_insertion_date = self.get_time()
                     self.pod.last_command["success"] = True
 
         except OmnipyError:
@@ -556,7 +559,7 @@ class Pdm:
             if self.pod.last_enacted_bolus_amount < 0:
                 return False
 
-            now = time.time()
+            now = self.get_time()
             bolus_end_earliest = (self.pod.last_enacted_bolus_amount * 35) + self.pod.last_enacted_bolus_start
             bolus_end_latest = (self.pod.last_enacted_bolus_amount * 45) + 10 + self.pod.last_enacted_bolus_start
             if now > bolus_end_latest:
@@ -585,7 +588,7 @@ class Pdm:
                 and self.pod.last_enacted_temp_basal_duration is not None:
             if self.pod.last_enacted_temp_basal_amount < 0:
                 return False
-            now = time.time()
+            now = self.get_time()
             temp_basal_end_earliest = self.pod.last_enacted_temp_basal_start + \
                                       (self.pod.last_enacted_temp_basal_duration * 3600) - 60
             temp_basal_end_latest = self.pod.last_enacted_temp_basal_start + \
@@ -697,4 +700,8 @@ class Pdm:
         if self._is_bolus_running():
             raise PdmError("Pod is busy delivering a bolus")
 
+    def set_time_adjustment(self, adjustment):
+        self.time_adjustment = adjustment
 
+    def get_time(self):
+        return time.time() + self.time_adjustment
