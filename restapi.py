@@ -165,9 +165,6 @@ def _create_response(success, response, pod_status=None):
     elif response.__class__ != dict:
         response = response.__dict__
 
-    if pod_status is not None and pod_status.get("history_entry_id") is not None:
-        response["history_entry_id"] = pod_status["history_entry_id"]
-
     return json.dumps({"success": success,
                        "response": response,
                        "status": pod_status,

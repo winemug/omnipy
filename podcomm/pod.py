@@ -67,13 +67,13 @@ class Pod:
         self.path_db = None
 
         self.last_command = None
+        self.last_command_db_id = None
         self.last_enacted_temp_basal_start = None
         self.last_enacted_temp_basal_duration = None
         self.last_enacted_temp_basal_amount = None
         self.last_enacted_bolus_start = None
         self.last_enacted_bolus_amount = None
 
-        self.history_entry_id = None
 
     def Save(self, save_as = None):
         if save_as is not None:
@@ -85,7 +85,7 @@ class Pod:
             self.path_db = POD_FILE + POD_DB_SUFFIX
 
         try:
-            self.history_entry_id = self.log()
+            self.last_command_db_id = self.log()
         except:
             pass
 
@@ -194,8 +194,8 @@ class Pod:
                       insulin_delivered real, insulin_canceled real, insulin_reservoir real
                       ) """
 
-            with conn.cursor() as c:
-                c.execute(sql)
+            c = conn.cursor()
+            c.execute(sql)
 
     def log(self):
         try:
@@ -208,9 +208,9 @@ class Pod:
                 values = (time.time(), self.state_progress, self.state_active_minutes,
                         str(self.last_command), self.insulin_delivered, self.insulin_canceled, self.insulin_reservoir)
 
-                with conn.cursor() as c:
-                    c.execute(sql, values)
-                    return c.lastrowid
+                c = conn.cursor()
+                c.execute(sql, values)
+                return c.lastrowid
         except:
             getLogger().exception("Error while writing to database")
 
