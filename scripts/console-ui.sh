@@ -44,7 +44,7 @@ function NewPODActivation(){
 	if (whiptail --title "Activate new POD" --yesno "Have you already filled the new pod and heard the 2 bips ?" 15 80)
 	then
  		cd $OMNIPY_HOME
-		UserTimeOffset=$(whiptail --title "Activate new POD" --inputbox "Please confirm your timezone offset from GMT" 10 60 $TimeOffsetMin 3>&1 1>&2 2>&3)
+		UserTimeOffset=$(whiptail --title "Activate new POD" --inputbox "Please confirm your timezone offset from GMT in MINUTES.\n\nIt can be a negative number !!!" 10 60 $TimeOffsetMin 3>&1 1>&2 2>&3)
 		exitstatus=$?
 	        if [ $exitstatus = 0 ]
 		then
