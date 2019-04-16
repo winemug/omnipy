@@ -25,7 +25,7 @@ cd bluepy
 python3 ./setup.py build
 sudo python3 ./setup.py install
 
-chown -R pi.pi /home/pi
+sudo chown -R pi.pi /home/pi
 
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hciconfig`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
