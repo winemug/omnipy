@@ -21,17 +21,17 @@ if [[ -f ${RECOVERY_FILE} ]]; then
     	mkdir -p /home/pi/omnipy/data
         chown -R pi.pi /home/pi
 
-        ifconfig {$WLAN_INTERFACE} down
-        ifconfig {$WLAN_INTERFACE} up
+        ifconfig ${WLAN_INTERFACE} down
+        ifconfig ${WLAN_INTERFACE} up
 
-        ip link set dev {$WLAN_INTERFACE} down
-        ip a add 10.0.34.1/24 brd + dev {$WLAN_INTERFACE}
-        ip link set dev {$WLAN_INTERFACE} up
+        ip link set dev ${WLAN_INTERFACE} down
+        ip a add 10.0.34.1/24 brd + dev ${WLAN_INTERFACE}
+        ip link set dev ${WLAN_INTERFACE} up
         systemctl enable hostapd
         systemctl enable dnsmasq
         systemctl start hostapd
         systemctl start dnsmasq
-        dhcpcd -k {$WLAN_INTERFACE} > /dev/null 2>&1
+        dhcpcd -k ${WLAN_INTERFACE} > /dev/null 2>&1
 
 	    shellinaboxd -t --service /:pi:pi:/home/pi/omnipy:/home/pi/omnipy/scripts/console-ui.sh -p 80 -b
 
@@ -41,7 +41,7 @@ else
         systemctl stop dnsmasq
         systemctl disable hostapd
         systemctl disable dnsmasq
-        ip link set dev {$WLAN_INTERFACE} down
-        ifconfig {$WLAN_INTERFACE} down
-        ifconfig {$WLAN_INTERFACE} up
+        ip link set dev ${WLAN_INTERFACE} down
+        ifconfig ${WLAN_INTERFACE} down
+        ifconfig ${WLAN_INTERFACE} up
 fi
