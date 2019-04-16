@@ -4,6 +4,8 @@ BT_RECOVERY_FILE=/boot/omnipy-btrecovery
 PW_RECOVERY_FILE=/boot/omnipy-pwrecovery
 WLAN_INTERFACE=wlan0
 
+iw dev ${WLAN_INTERFACE} set power_save off
+
 if [[ -f ${PW_RECOVERY_FILE} ]]; then
         echo "pi:omnipy" | chpasswd
         rm /home/pi/omnipy/data/key
