@@ -12,7 +12,6 @@
 # By default this script does nothing.
 
 tvservice --off
-iwconfig wlan0 power off
 /bin/bash /home/pi/omnipy/scripts/recovery.sh > /dev/null 2>&1
 
 exit 0
