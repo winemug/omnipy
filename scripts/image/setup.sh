@@ -48,5 +48,7 @@ sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
 sudo systemctl enable omnipy-beacon.service
 
 sudo touch /boot/omnipy-recovery
+sudo touch /boot/omnipy-btrecovery
+
 rm /home/pi/.bash_history
-sudo halt
+#sudo halt

@@ -11,7 +11,7 @@
 # here in previous versions are still honored by the init script
 # so if you just keep your old version of this file nothing will break.
 
-#DOMAIN_SUFFIX=`dnsdomainname`
+DOMAIN_SUFFIX="local"
 #DNSMASQ_OPTS="--conf-file=/etc/dnsmasq.alt"
 
 # Whether or not to run the dnsmasq daemon; set to 0 to disable.

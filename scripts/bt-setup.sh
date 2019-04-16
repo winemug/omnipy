@@ -20,12 +20,13 @@ do
                 sudo bt-device -r $mac
         fi
 done
+
 echo
 echo "Activating bluetooth pairing mode"
 sudo btmgmt connectable yes
 sudo btmgmt discov yes
 sudo btmgmt pairable yes
-sudo killall bt-agent
+sudo killall -9 bt-agent
 sudo bt-agent -c NoInputNoOutput -d
 echo "Bluetooth device is now discoverable"
 echo
@@ -54,4 +55,3 @@ cat /home/pi/omnipy/scripts/btnap.sh >> /home/pi/omnipy/scripts/btnap-custom.sh
 sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
 sudo systemctl enable omnipy-pan.service
 sudo systemctl start omnipy-pan.service
-
