@@ -9,13 +9,15 @@ sudo raspi-config
 # adv, memory split, 16
 #sudo reboot
 
-
-sudo apt install -y hostapd dnsmasq bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev
+sudo apt install -y hostapd dnsmasq bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update
 #sudo apt install $(cat /home/omnipy/scripts/image/pkglist.txt | awk '{print $1}')
 
 sudo systemctl disable hostapd
 sudo systemctl unmask hostapd
 sudo systemctl disable dnsmasq
+
+sudo BRANCH=next rpi-update
+sudo reboot
 
 cd /home/pi
 
@@ -68,12 +70,19 @@ sudo cp /home/pi/omnipy/scripts/image/dnsmasq.conf /etc/dnsmasq.d/
 sudo cp /home/pi/omnipy/scripts/image/dhcpcd.conf /etc/
 sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
 
-sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
-sudo systemctl enable omnipy-beacon.service
+mkdir -p /home/pi/omnipy/data
+rm /home/pi/omnipy/data/key
+cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/
 
-sudo touch /boot/omnipy-recovery
-sudo touch /boot/omnipy-btrecovery
-sudo touch /boot/omnipy-pwrecovery
+sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
+sudo systemctl enable omnipy.service
+sudo systemctl enable omnipy-beacon.service
+sudo systemctl start omnipy.service
+sudo systemctl start omnipy-beacon.service
+
+sudo touch /boot/omnipy-btsetup
+sudo touch /boot/omnipy-pwreset
 
 rm /home/pi/.bash_history
-#sudo halt
+sudo halt
