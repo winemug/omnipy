@@ -20,7 +20,7 @@ if [[ -f ${PW_RESET_FILE} ]]; then
         systemctl stop omnipy.service > /dev/null 2>&1
     	mkdir -p /home/pi/omnipy/data
         rm /home/pi/omnipy/data/key
-        cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/
+        cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
         chown -R pi.pi /home/pi
         sudo systemctl start omnipy.service > /dev/null 2>&1
 

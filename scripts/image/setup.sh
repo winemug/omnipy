@@ -72,7 +72,7 @@ sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
 
 mkdir -p /home/pi/omnipy/data
 rm /home/pi/omnipy/data/key
-cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/
+cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
 
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
