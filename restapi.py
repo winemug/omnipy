@@ -123,33 +123,28 @@ def _archive_pod():
 
 def _get_next_pod_address():
     try:
-        if os.path.isfile(DATA_PATH + LAST_ACTIVATED_FILE):
-            with open(DATA_PATH + LAST_ACTIVATED_FILE, "rb") as lastfile:
-                ab = lastfile.read(4)
-                addr = (ab[0] << 24) | (ab[1] << 16) | (ab[2] << 8) | ab[3]
+        try:
+            with open(DATA_PATH + LAST_ACTIVATED_FILE, "r") as lastfile:
+                addr = int(lastfile.readline(), 16)
                 blast = (addr & 0x0000000f) + 1
                 addr = (addr & 0xfffffff0) | (blast & 0x0000000f)
-        else:
+        except:
             mac = get_mac()
             b0 = 0x34
             b1 = (mac >> 12) & 0xff
             b2 = (mac >> 4) & 0xff
             b3 = (mac << 4) & 0xf0
             addr = (b0 << 24) | (b1 << 16) | (b2 << 8) | b3
-
-        return int(addr)
+            addr = addr | 0x00000008
+        return addr
     except:
         logger.exception("Error while getting next radio address")
 
 
 def _save_activated_pod_address(addr):
     try:
-        with open(DATA_PATH + LAST_ACTIVATED_FILE, "w+b") as lastfile:
-            b0 = (addr >> 24) & 0xff
-            b1 = (addr >> 16) & 0xff
-            b2 = (addr >> 8) & 0xff
-            b3 = addr & 0xf0
-            lastfile.write(bytes([b0, b1, b2, b3]))
+        with open(DATA_PATH + LAST_ACTIVATED_FILE, "w") as lastfile:
+            lastfile.write(hex(addr))
     except:
         logger.exception("Error while storing activated radio address")
 
