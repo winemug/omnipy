@@ -27,9 +27,11 @@ if [[ -f ${RECOVERY_FILE} ]]; then
         ip link set dev {$WLAN_INTERFACE} down
         ip a add 10.0.34.1/24 brd + dev {$WLAN_INTERFACE}
         ip link set dev {$WLAN_INTERFACE} up
-        dhcpcd -k {$WLAN_INTERFACE} > /dev/null 2>&1
+        systemctl enable hostapd
+        systemctl enable dnsmasq
         systemctl start hostapd
         systemctl start dnsmasq
+        dhcpcd -k {$WLAN_INTERFACE} > /dev/null 2>&1
 
 	    shellinaboxd -t --service /:pi:pi:/home/pi/omnipy:/home/pi/omnipy/scripts/console-ui.sh -p 80 -b
 

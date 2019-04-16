@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
+sudo passwd pi
 sudo apt update
 sudo apt upgrade
 
 sudo raspi-config
+# hostname: omnipy
+# wifi: NO, noway, omnipyway
+# adv, memory split, 16
+#sudo reboot
 
-sudo apt install -y hostapd dnsmasq bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq
+
+sudo apt install -y hostapd dnsmasq bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev
 #sudo apt install $(cat /home/omnipy/scripts/image/pkglist.txt | awk '{print $1}')
 
 sudo systemctl disable hostapd
@@ -12,6 +18,24 @@ sudo systemctl unmask hostapd
 sudo systemctl disable dnsmasq
 
 cd /home/pi
+
+#https://raspberrypi.stackexchange.com/questions/66540/installing-bluez-5-44-onto-raspbian
+wget https://mirrors.edge.kernel.org/pub/linux/bluetooth/bluez-5.50.tar.gz
+tar xzf bluez-5.50.tar.gz
+cd bluez-5.50
+./configure --prefix=/usr --mandir=/usr/share/man --sysconfdir=/etc --localstatedir=/var --enable-experimental
+make
+sudo make install
+
+cd /usr/lib/bluetooth/
+sudo mv bluetoothd bluetoothd.old
+sudo mv obexd obexd.old
+
+sudo ln -s /usr/libexec/bluetooth/bluetoothd /usr/lib/bluetooth/bluetoothd
+sudo ln -s /usr/libexec/bluetooth/obexd /usr/lib/bluetooth/obexd
+
+sudo systemctl daemon-reload
+
 
 git config --global user.email "omnipy@balya.net"
 git config --global user.name "Omnipy Setup"
