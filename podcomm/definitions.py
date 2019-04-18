@@ -70,9 +70,7 @@ def getLogger(with_console=False):
         fh = logging.FileHandler(DATA_PATH + OMNIPY_LOGFILE + LOGFILE_SUFFIX)
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
-
-        mh = MemoryHandler(capacity=16*1024, target=fh)
-        logger.addHandler(mh)
+        logger.addHandler(fh)
 
         if with_console:
             ch = logging.StreamHandler()
@@ -94,9 +92,7 @@ def get_packet_logger(with_console=False):
         fh = logging.FileHandler(DATA_PATH + OMNIPY_PACKET_LOGFILE + LOGFILE_SUFFIX)
         fh.setLevel(logging.INFO)
         fh.setFormatter(formatter)
-
-        mh = MemoryHandler(capacity=16*1024, target=fh)
-        packet_logger.addHandler(mh)
+        packet_logger.addHandler(fh)
 
         if with_console:
             ch = logging.StreamHandler()
