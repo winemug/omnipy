@@ -21,8 +21,6 @@ sudo systemctl disable omnipy-pan.service
 
 echo "Updating omnipy"
 cd /home/pi/omnipy
-git fetch
-git checkout master
 git config --global user.email "omnipy@balya.net"
 git config --global user.name "Omnipy Setup"
 git stash
