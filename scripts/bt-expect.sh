@@ -1,5 +1,7 @@
 #!/usr/bin/expect -f
 
+set timeout 120
+
 set prompt "#"
 set address [lindex $argv 0]
 
@@ -26,10 +28,6 @@ sleep 1
 
 expect -re $prompt
 send "discoverable on\r"
-sleep 1
-
-expect -re $prompt
-send "pairable on\r"
 sleep 1
 
 expect -re $prompt

@@ -49,10 +49,12 @@ done
 
 mac=`echo $btdevice | cut -d'(' -f2 | cut -d')' -f1`
 
-/bin/bash /home/pi/omnipy/bt-expect.sh
+/usr/bin/expect -f /home/pi/omnipy/bt-expect.sh
 
 sudo btmgmt discov no
 sudo btmgmt pairable no
+
+sudo hciconfig hci0 sspmode 1
 
 echo
 
