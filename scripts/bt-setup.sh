@@ -26,35 +26,16 @@ echo "Activating bluetooth pairing mode"
 
 sudo hciconfig hci0 sspmode 0
 
-sudo btmgmt connectable yes
-sudo btmgmt discov yes
-sudo btmgmt pairable yes
-
-sudo killall -9 bt-agent
-
-echo "Bluetooth device is now discoverable"
-echo
 echo "Open ${bold}bluetooth settings${normal} on your phone to search for and ${bold}pair${normal} with this device"
 echo "If you have already paired it on your phone, please unpair it first, then pair again"
 echo
-printf "Waiting for connection.."
-
-btdevice=
-while [[ -z "$btdevice" ]]
-do
-        printf "."
-        sleep 1
-        btdevice=`sudo bt-device -l | grep -e \(.*\)`
-done
-
-mac=`echo $btdevice | cut -d'(' -f2 | cut -d')' -f1`
 
 /usr/bin/expect -f /home/pi/omnipy/bt-expect.sh
 
-sudo btmgmt discov no
-sudo btmgmt pairable no
-
 sudo hciconfig hci0 sspmode 1
+
+btdevice=`sudo bt-device -l | grep -e \(.*\)`
+mac=`echo $btdevice | cut -d'(' -f2 | cut -d')' -f1`
 
 echo
 
