@@ -21,4 +21,4 @@ sudo systemctl start omnipy-beacon.service
 sudo systemctl daemon-reload
 
 echo
-echo ${bold}Configuration updated.${normal}
+echo Configuration updated.

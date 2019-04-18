@@ -29,10 +29,6 @@ echo "Activating bluetooth pairing mode"
 
 sudo hciconfig hci0 sspmode 0
 
-echo "Open ${bold}bluetooth settings${normal} on your phone to search for and ${bold}pair${normal} with this device"
-echo "If you have already paired it on your phone, please unpair it first, then pair again"
-echo
-
 /usr/bin/expect -f /home/pi/omnipy/scripts/bt-expect.sh
 
 sudo hciconfig hci0 sspmode 1
@@ -41,8 +37,6 @@ btdevice=`sudo bt-device -l | grep -e \(.*\)`
 mac=`echo $btdevice | cut -d'(' -f2 | cut -d')' -f1`
 
 echo
-
-echo "${bold}Paired with $btdevice.${normal}"
 
 echo "addr=$mac" > /home/pi/omnipy/scripts/btnap-custom.sh
 cat /home/pi/omnipy/scripts/btnap.sh >> /home/pi/omnipy/scripts/btnap-custom.sh
