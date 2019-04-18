@@ -1,8 +1,15 @@
 #!/bin/bash
+FW_UPDATE_FILE=/boot/omnipy-fwupdate
 PW_RESET_FILE=/boot/omnipy-pwreset
 BT_SETUP_FILE=/boot/omnipy-btsetup
 RECOVERY_FILE=/boot/omnipy-recovery
 WLAN_INTERFACE=wlan0
+
+if [[ -f ${FW_UPDATE_FILE} ]]; then
+    /bin/rm ${FW_UPDATE_FILE}
+    /bin/rm /boot/.firmware_revision
+    ROOT_PATH=/ BOOT_PATH=/boot SKIP_DOWNLOAD=1 SKIP_REPODELETE=1 SKIP_BACKUP=1 UPDATE_SELF=0 RPI_REBOOT=1 rpi-update 502a515156eebbfd3cc199de8f38a975c321f20d
+fi
 
 iw dev ${WLAN_INTERFACE} set power_save off
 
@@ -27,9 +34,8 @@ if [[ -f ${PW_RESET_FILE} ]]; then
         /bin/rm ${PW_RESET_FILE}
 fi
 
-if [[ -f ${BT_SETUP_FILE} ]]; then
-
-        su -c "/bin/bash /home/pi/omnipy/scripts/bt-setup.sh" pi
+if [[ -f ${BT_SETUP_FILE} ]] || [[ ! -f /etc/systemd/system/omnipy-pan.service ]]; then
+        su -c "/bin/bash /home/pi/omnipy/scripts/bt-setup.sh &" pi
         /bin/rm ${BT_SETUP_FILE}
 fi
 

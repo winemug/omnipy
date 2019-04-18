@@ -9,6 +9,9 @@ sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} 
 
 sudo systemctl stop omnipy-pan.service
 sudo systemctl disable omnipy-pan.service
+sudo rm /etc/systemd/system/omnipy-pan.service
+sudo systemctl reset-failed
+rm /home/pi/omnipy/scripts/btnap-custom.sh
 
 echo
 echo "Removing existing bluetooth devices"

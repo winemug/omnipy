@@ -16,8 +16,12 @@ sudo systemctl disable hostapd
 sudo systemctl unmask hostapd
 sudo systemctl disable dnsmasq
 
-sudo BRANCH=next rpi-update
-sudo reboot
+/bin/rm /boot/.firmware_revision
+sudo vi /usr/bin/rpi-update
+# comment out bash read y/n part
+# comment out RATE_LIMITED part
+# comment out Invalid hash given
+sudo ROOT_PATH=/ BOOT_PATH=/boot SKIP_DOWNLOAD=0 SKIP_REPODELETE=1 SKIP_BACKUP=1 UPDATE_SELF=0 RPI_REBOOT=0 BRANCH=next rpi-update 502a515156eebbfd3cc199de8f38a975c321f20d
 
 cd /home/pi
 
@@ -76,6 +80,8 @@ cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
 
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
+sudo rm /etc/systemd/system/omnipy-pan.service
+
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
 sudo systemctl start omnipy.service
@@ -83,6 +89,7 @@ sudo systemctl start omnipy-beacon.service
 
 sudo touch /boot/omnipy-btsetup
 sudo touch /boot/omnipy-pwreset
+sudo touch /boot/omnipy-fwupdate
 
 rm /home/pi/.bash_history
 sudo halt
