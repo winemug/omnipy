@@ -23,11 +23,15 @@ done
 
 echo
 echo "Activating bluetooth pairing mode"
+
+sudo hciconfig hci0 sspmode 0
+
 sudo btmgmt connectable yes
 sudo btmgmt discov yes
 sudo btmgmt pairable yes
+
 sudo killall -9 bt-agent
-sudo bt-agent -c NoInputNoOutput -d
+
 echo "Bluetooth device is now discoverable"
 echo
 echo "Open ${bold}bluetooth settings${normal} on your phone to search for and ${bold}pair${normal} with this device"
@@ -43,12 +47,16 @@ do
         btdevice=`sudo bt-device -l | grep -e \(.*\)`
 done
 
+mac=`echo $btdevice | cut -d'(' -f2 | cut -d')' -f1`
+
+/bin/bash /home/pi/omnipy/bt-expect.sh
+
 sudo btmgmt discov no
+sudo btmgmt pairable no
 
 echo
 
 echo "${bold}Paired with $btdevice.${normal}"
-mac=`echo $btdevice | cut -d'(' -f2 | cut -d')' -f1`
 
 echo "addr=$mac" > /home/pi/omnipy/scripts/btnap-custom.sh
 cat /home/pi/omnipy/scripts/btnap.sh >> /home/pi/omnipy/scripts/btnap-custom.sh

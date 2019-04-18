@@ -9,7 +9,7 @@ sudo raspi-config
 # adv, memory split, 16
 #sudo reboot
 
-sudo apt install -y hostapd dnsmasq bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update
+sudo apt install -y hostapd dnsmasq bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update expect
 #sudo apt install $(cat /home/omnipy/scripts/image/pkglist.txt | awk '{print $1}')
 
 sudo systemctl disable hostapd
