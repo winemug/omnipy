@@ -217,12 +217,12 @@ class Pod:
     def get_history(self):
         try:
             self._ensure_db_structure()
-            with self._get_conn() as conn:
-                sql = "SELECT rowid, timestamp, pod_state, pod_minutes, pod_last_command," \
-                      " insulin_delivered, insulin_canceled, insulin_reservoir FROM pod_history ORDER BY rowid"
-
-                with conn.cursor() as c:
-                    for row in c.fetchall():
-                        print(row[4])
+            # with self._get_conn() as conn:
+            #     sql = "SELECT rowid, timestamp, pod_state, pod_minutes, pod_last_command," \
+            #           " insulin_delivered, insulin_canceled, insulin_reservoir FROM pod_history ORDER BY rowid"
+            #
+            #     with conn.cursor() as c:
+            #         for row in c.fetchall():
+            #             print(row[4])
         except:
             getLogger().exception("Error while writing to database")

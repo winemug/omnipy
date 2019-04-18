@@ -1,4 +1,3 @@
-from podcomm.pod import Pod
 from podcomm.protocol_common import *
 from podcomm.definitions import *
 from enum import IntEnum

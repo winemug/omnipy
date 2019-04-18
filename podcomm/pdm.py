@@ -439,23 +439,23 @@ class Pdm:
                     if self.pod.var_alert_low_reservoir is not None:
                         if not self.pod.var_alert_low_reservoir_set:
                             request = request_set_low_reservoir_alert(self.pod.var_alert_low_reservoir)
-                            self.send_request(request, with_nonce=True)
+                            self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
                             self.pod.var_alert_low_reservoir_set = True
 
                     if not self.pod.var_alert_before_prime_set:
                         request = request_set_generic_alert(5, 55)
-                        self.send_request(request, with_nonce=True)
+                        self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
                         self.pod.var_alert_before_prime_set = True
 
                     # request = request_delivery_flags(0, 0)
                     # self.send_request(request, with_nonce=True)
 
                     request = request_prime_cannula()
-                    self.send_request(request, with_nonce=True)
+                    self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
 
                     time.sleep(50)
 
-                while self.pod.state_progress == PodProgress.Purging:
+                while self.pod.state_progress != PodProgress.ReadyForInjection:
                     time.sleep(5)
                     self._internal_update_status()
 
@@ -463,7 +463,7 @@ class Pdm:
                     if self.pod.var_alert_replace_pod is not None:
                         if not self.pod.var_alert_replace_pod_set:
                             request = request_set_pod_expiry_alert(self.pod.var_alert_replace_pod - self.pod.state_active_minutes)
-                            self.send_request(request, with_nonce=True)
+                            self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
                             self.pod.var_alert_replace_pod_set = True
 
                 self.pod.last_command["success"] = True

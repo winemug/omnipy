@@ -1,4 +1,3 @@
-from typing import List
 
 from podcomm.exceptions import PdmError, ProtocolError
 from enum import IntEnum

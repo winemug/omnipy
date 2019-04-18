@@ -12,6 +12,20 @@ def _ack_data(address1, address2, sequence):
     return RadioPacket(address1, RadioPacketType.ACK, sequence,
                      struct.pack(">I", address2))
 
+class MessageExchange:
+    def __init__(self):
+        self.unique_packets = 0
+        self.repeated_sends = 0
+        self.receive_timeouts = 0
+        self.repeated_receives = 0
+        self.protocol_errors = 0
+        self.bad_packets = 0
+        self.radio_errors = 0
+        self.successful = False
+        self.queued = 0
+        self.started = 0
+        self.ended = 0
+
 class PdmRadio:
     def __init__(self, radio_address, msg_sequence=0, pkt_sequence=0, packet_radio=None):
         self.radio_address = radio_address
@@ -44,6 +58,8 @@ class PdmRadio:
         self.pdm_message_address = None
         self.ack_address_override = None
 
+        self.stats = []
+        self.current_exchange = MessageExchange()
         self.radio_lock = RLock()
         self.start()
 
@@ -67,6 +83,7 @@ class PdmRadio:
                                  ack_address_override=None,
                                  tx_power=None, double_take=False,
                                  expect_critical_follow_up=False):
+        queued = time.time()
         with self.radio_lock:
             if self.radio_thread is None:
                 raise PacketRadioError("Radio is stopped")
@@ -86,8 +103,12 @@ class PdmRadio:
 
             self.response_received.wait()
             self.response_received.clear()
+            self.current_exchange.queued = queued
+
             if self.pod_message is None:
+                self.current_exchange.successful = False
                 raise self.response_exception
+            self.current_exchange.successful = True
             return self.pod_message
 
     def get_packet(self, timeout=30000):
@@ -117,6 +138,9 @@ class PdmRadio:
                 self._disconnect()
                 break
 
+            self.current_exchange = MessageExchange()
+            self.current_exchange.started = time.time()
+
             try:
                 self.pod_message = self._send_and_get(self.pdm_message, self.pdm_message_address,
                                                       self.ack_address_override,
@@ -127,9 +151,9 @@ class PdmRadio:
                 self.pod_message = None
                 self.response_exception = e
 
-
             if self.response_exception is None:
                 ack_packet = self._final_ack(self.ack_address_override, self.packet_sequence)
+                self.current_exchange.ended = time.time()
                 self.response_received.set()
                 try:
                     self._send_packet(ack_packet, allow_premature_exit_after=3.5)
@@ -137,7 +161,9 @@ class PdmRadio:
                     self.logger.exception("Error during ending conversation, ignored.")
 
             else:
+                self.current_exchange.ended = time.time()
                 self.response_received.set()
+
 
     def _interim_ack(self, ack_address_override, sequence):
         if ack_address_override is None:
@@ -201,6 +227,8 @@ class PdmRadio:
 
         received = None
         packet_count = len(packets)
+
+        self.current_exchange.unique_packets = packet_count * 2
 
         for part in range(0, packet_count):
             packet = packets[part]
@@ -266,6 +294,7 @@ class PdmRadio:
                             raise
                 except PacketRadioError:
                     self.logger.debug("Trying to recover from radio error")
+                    self.current_exchange.radio_errors += 1
                     if part == 0:
                         if repeat_count < 2:
                             self._radio_init()
@@ -303,8 +332,11 @@ class PdmRadio:
                             self._reset_sequences()
                             raise
                 except ProtocolError:
-                    if part == 0 and repeat_count == 0:
+                    if expected_type == RadioPacketType.POD and received.type == RadioPacketType.ACK:
                         self.logger.debug("Trying to recover from protocol error")
+                        self.packet_sequence = (received.sequence + 1) % 32
+                        packet = self._interim_ack(ack_address_override=self.ack_address_override,
+                                               sequence=self.packet_sequence)
                         continue
                     else:
                         raise
@@ -314,6 +346,7 @@ class PdmRadio:
 
 
         self.packet_logger.info("SENT MSG %s" % pdm_message)
+        part_count = 0
         if received.type == RadioPacketType.POD:
             part_count = 1
             self.logger.debug("Received POD message part %d." % part_count)
@@ -333,7 +366,12 @@ class PdmRadio:
 
     def _exchange_packets(self, packet_to_send, expected_type, timeout=10):
         start_time = None
+        first = True
         while start_time is None or time.time() - start_time < timeout:
+            if first:
+                first = False
+            else:
+                self.current_exchange.repeated_sends += 1
             if self.last_packet_timestamp is None or time.time() - self.last_packet_timestamp > 4:
                 received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 0, 0, 300, 1, 300)
             else:
@@ -344,17 +382,20 @@ class PdmRadio:
             self.packet_logger.info("SEND PKT %s" % packet_to_send)
 
             if received is None:
+                self.current_exchange.receive_timeouts += 1
                 self.packet_logger.debug("RECV PKT None")
                 self.packet_radio.tx_up()
                 continue
             p, rssi = self._get_packet(received)
             if p is None:
+                self.current_exchange.bad_packets += 1
                 self.packet_logger.debug("RECV PKT BAD DATA: %s" % received.hex())
                 self.packet_radio.tx_down()
                 continue
 
             self.packet_logger.info("RECV PKT %s" % p)
             if p.address != self.radio_address:
+                self.current_exchange.bad_packets += 1
                 self.packet_logger.debug("RECV PKT ADDR MISMATCH")
                 self.packet_radio.tx_down()
                 continue
@@ -364,6 +405,7 @@ class PdmRadio:
             if self.last_packet_received is not None and \
                         p.sequence == self.last_packet_received.sequence and \
                         p.type == self.last_packet_received.type:
+                self.current_exchange.repeated_receives += 1
                 self.packet_logger.debug("RECV PKT previous")
                 self.packet_radio.tx_up()
                 continue
@@ -373,19 +415,23 @@ class PdmRadio:
 
             if expected_type is not None and p.type != expected_type:
                 self.packet_logger.debug("RECV PKT unexpected type %s" % p)
+                self.current_exchange.protocol_errors += 1
                 raise ProtocolError("Unexpected packet type received")
 
             if p.sequence != (packet_to_send.sequence + 1) % 32:
                 self.packet_sequence = (p.sequence + 1) % 32
                 self.packet_logger.debug("RECV PKT unexpected sequence %s" % p)
                 self.last_packet_received = p
+                self.current_exchange.protocol_errors += 1
                 raise ProtocolError("Incorrect packet sequence received")
 
             return p
+
         raise OmnipyTimeoutError("Exceeded timeout while send and receive")
 
     def _send_packet(self, packet_to_send, timeout=25, allow_premature_exit_after=None):
         start_time = None
+        self.current_exchange.unique_packets += 1
         while start_time is None or time.time() - start_time < timeout:
             try:
                 self.packet_logger.info("SEND PKT %s" % packet_to_send)
@@ -408,17 +454,20 @@ class PdmRadio:
                         break
                 p, rssi = self._get_packet(received)
                 if p is None:
+                    self.current_exchange.bad_packets += 1
                     self.packet_logger.debug("RECV PKT bad %s" % received.hex())
                     self.packet_radio.tx_down()
                     continue
 
                 if p.address != self.radio_address:
+                    self.current_exchange.bad_packets += 1
                     self.packet_logger.debug("RECV PKT ADDR MISMATCH")
                     self.packet_radio.tx_down()
                     continue
 
                 self.last_packet_timestamp = time.time()
                 if self.last_packet_received is not None:
+                    self.current_exchange.repeated_receives += 1
                     if p.type == self.last_packet_received.type and p.sequence == self.last_packet_received.sequence:
                         self.packet_logger.debug("RECV PKT previous")
                         self.packet_radio.tx_up()
@@ -426,6 +475,7 @@ class PdmRadio:
 
                 self.packet_logger.info("RECV PKT %s" % p)
                 self.packet_logger.debug("RECEIVED unexpected packet: %s" % p)
+                self.current_exchange.protocol_errors = 1
                 self.last_packet_received = p
                 self.packet_sequence = (p.sequence + 1) % 32
                 packet_to_send.with_sequence(self.packet_sequence)
@@ -434,6 +484,7 @@ class PdmRadio:
 
 
             except PacketRadioError:
+                self.current_exchange.radio_errors += 1
                 self.logger.exception("Radio error during send and receive, retrying")
                 if not self._radio_init(3):
                     raise
