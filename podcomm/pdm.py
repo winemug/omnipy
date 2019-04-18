@@ -560,15 +560,15 @@ class Pdm:
                 return False
 
             now = self.get_time()
-            bolus_end_earliest = (self.pod.last_enacted_bolus_amount * 35) + self.pod.last_enacted_bolus_start
-            bolus_end_latest = (self.pod.last_enacted_bolus_amount * 45) + 10 + self.pod.last_enacted_bolus_start
+            bolus_end_earliest = (self.pod.last_enacted_bolus_amount * 39) + 1 + self.pod.last_enacted_bolus_start
+            bolus_end_latest = (self.pod.last_enacted_bolus_amount * 41) + 3 + self.pod.last_enacted_bolus_start
             if now > bolus_end_latest:
                 return False
             elif now < bolus_end_earliest:
                 return True
 
         if no_live_check:
-            return False
+            return True
 
         self._internal_update_status()
         return self.pod.state_bolus == BolusState.Immediate
