@@ -1,6 +1,6 @@
 #!/usr/bin/expect -f
 
-set timeout 120
+set timeout 900
 
 set prompt "#"
 
