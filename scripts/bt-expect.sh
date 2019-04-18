@@ -4,7 +4,7 @@ set timeout 120
 
 set prompt "#"
 
-spawn sudo bluetoothctl -a
+spawn sudo bluetoothctl
 expect -re $prompt
 send "power on\r"
 sleep 1
@@ -33,27 +33,18 @@ expect -re $prompt
 send "pairable on\r"
 sleep 1
 
-expect -re "[NEW] Device\w(.+)\w"
-set address $expect_out(1,string)
-
 expect -re "Enter PIN code: "
+sleep 3
 send "3434\r"
 
 expect -re "Connected: yes"
-expect -re $prompt
-send "trust $address\r"
-sleep 2
-
-expect -re "trust succeeded"
-sleep 1
-
+sleep 10
 expect -re $prompt
 send "discoverable off\r"
 sleep 1
 
 expect -re $prompt
 send "pairable off\r"
-sleep 1
 
 send "quit\r"
 expect eof

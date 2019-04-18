@@ -30,7 +30,7 @@ echo "Open ${bold}bluetooth settings${normal} on your phone to search for and ${
 echo "If you have already paired it on your phone, please unpair it first, then pair again"
 echo
 
-/usr/bin/expect -f /home/pi/omnipy/bt-expect.sh
+/usr/bin/expect -f /home/pi/omnipy/scripts/bt-expect.sh
 
 sudo hciconfig hci0 sspmode 1
 
