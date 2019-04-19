@@ -9,19 +9,16 @@ sudo raspi-config
 # adv, memory split, 16
 #sudo reboot
 
-sudo apt install -y hostapd dnsmasq bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update expect
-#sudo apt install $(cat /home/omnipy/scripts/image/pkglist.txt | awk '{print $1}')
+sudo apt install -y bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update expect
+#sudo apt install -y hostapd dnsmasq
 
 sudo systemctl disable hostapd
 sudo systemctl unmask hostapd
 sudo systemctl disable dnsmasq
 
 /bin/rm /boot/.firmware_revision
-sudo vi /usr/bin/rpi-update
-# comment out bash read y/n part
-# comment out RATE_LIMITED part
-# comment out Invalid hash given
-sudo ROOT_PATH=/ BOOT_PATH=/boot SKIP_DOWNLOAD=0 SKIP_REPODELETE=1 SKIP_BACKUP=1 UPDATE_SELF=0 RPI_REBOOT=0 BRANCH=next rpi-update 502a515156eebbfd3cc199de8f38a975c321f20d
+sudo cp /home/pi/omnipy/scripts/image/rpiupdate.sh /usr/bin/rpiupdate
+sudo ROOT_PATH=/ BOOT_PATH=/boot SKIP_DOWNLOAD=0 SKIP_REPODELETE=1 SKIP_BACKUP=1 UPDATE_SELF=0 RPI_REBOOT=1 BRANCH=next rpi-update 502a515156eebbfd3cc199de8f38a975c321f20d
 
 cd /home/pi
 
@@ -63,15 +60,16 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which btmgmt`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-agent`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-network`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
-sudo find / -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
+sudo find /usr/lib -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
+sudo find /home/pi -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
 sudo apt autoremove
 
-sudo cp /home/pi/omnipy/scripts/image/default.dnsmasq /etc/default/dnsmasq
-sudo cp /home/pi/omnipy/scripts/image/default.hostapd /etc/default/hostapd
-sudo cp /home/pi/omnipy/scripts/image/hostapd.conf /etc/hostapd/
-sudo cp /home/pi/omnipy/scripts/image/dnsmasq.conf /etc/dnsmasq.d/
-sudo cp /home/pi/omnipy/scripts/image/dhcpcd.conf /etc/
+#sudo cp /home/pi/omnipy/scripts/image/default.dnsmasq /etc/default/dnsmasq
+#sudo cp /home/pi/omnipy/scripts/image/default.hostapd /etc/default/hostapd
+#sudo cp /home/pi/omnipy/scripts/image/hostapd.conf /etc/hostapd/
+#sudo cp /home/pi/omnipy/scripts/image/dnsmasq.conf /etc/dnsmasq.d/
+#sudo cp /home/pi/omnipy/scripts/image/dhcpcd.conf /etc/
 sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
 
 mkdir -p /home/pi/omnipy/data

@@ -1,0 +1,444 @@
+#!/bin/bash
+
+set -o nounset
+set -o errexit
+
+REPO_URI=${REPO_URI:-"https://github.com/Hexxeh/rpi-firmware"}
+
+UPDATE_SELF=${UPDATE_SELF:-1}
+UPDATE_URI="https://raw.githubusercontent.com/Hexxeh/rpi-update/master/rpi-update"
+
+if [[ ${BOOT_PATH:-"unset"} == "unset" && ${ROOT_PATH:-"unset"} != "unset" ]] ||
+[[ ${BOOT_PATH:-"unset"} != "unset" && ${ROOT_PATH:-"unset"} == "unset" ]]; then
+	echo " *** You need to specify both ROOT_PATH and BOOT_PATH, or neither"
+	exit 1
+fi
+
+if [[ ${BOOT_PATH:-"unset"} == "unset" ]]; then
+	NOOBS_CHECK=${NOOBS_CHECK:-1}
+else
+	NOOBS_CHECK=${NOOBS_CHECK:-0}
+fi
+
+BRANCH=${BRANCH:-"master"}
+ROOT_PATH=${ROOT_PATH:-"/"}
+BOOT_PATH=${BOOT_PATH:-"/boot"}
+WORK_PATH=${WORK_PATH:-"${ROOT_PATH}/root"}
+SKIP_KERNEL=${SKIP_KERNEL:-0}
+SKIP_SDK=${SKIP_SDK:-0}
+SKIP_REPODELETE=${SKIP_REPODELETE:-0}
+SKIP_BACKUP=${SKIP_BACKUP:-0}
+SKIP_DOWNLOAD=${SKIP_DOWNLOAD:-0}
+SKIP_WARNING=${SKIP_WARNING:-0}
+WANT_SYMVERS=${WANT_SYMVERS:-0}
+PRUNE_MODULES=${PRUNE_MODULES:-0}
+RPI_UPDATE_UNSUPPORTED=${RPI_UPDATE_UNSUPPORTED:-0}
+JUST_CHECK=${JUST_CHECK:-0}
+RPI_REBOOT=${RPI_REBOOT:-0}
+GITHUB_API_TOKEN=${GITHUB_API_TOKEN:-""}
+FW_REPO="${REPO_URI}.git"
+FW_REPOLOCAL=${FW_REPOLOCAL:-"${WORK_PATH}/.rpi-firmware"}
+FW_PATH="${BOOT_PATH}"
+FW_MODPATH="${ROOT_PATH}/lib/modules"
+FW_REV_IN=${1:-""}
+FW_REVFILE="${FW_PATH}/.firmware_revision"
+[ "${RPI_UPDATE_UNSUPPORTED}" -ne 0 ] && echo -e "You appear to be trying to update firmware on an incompatible distribution. To force update, run the following:\nsudo -E RPI_UPDATE_UNSUPPORTED=0 rpi-update" && exit 1
+
+if command -v vcgencmd > /dev/null; then
+    vcgencmd get_config str | grep -qE "^kernel=" && echo -e "You appear to be using a custom kernel file.\nSkipping installation of new kernel, as bundled dtb files may be incompatible with your kernel." && SKIP_KERNEL=1
+fi
+
+# Support for custom GitHub Auth Tokens
+GITHUB_AUTH_PARAM=""
+if [[ -n "${GITHUB_API_TOKEN}" ]]; then
+	echo " *** Using GitHub token for all requests."
+	GITHUB_AUTH_PARAM="--header \"Authorization: token ${GITHUB_API_TOKEN}\""
+fi
+
+#GITHUB_API_LIMITED=$(eval curl -Ls ${GITHUB_AUTH_PARAM} https://api.github.com/rate_limit | tr -d "," | awk 'BEGIN {reset=0;} { if ($1 == "\"limit\":") limit=$2; else if ($1 == "\"remaining\":") remaining=$2; else if ($1 == "\"reset\":" && limit>0 && remaining==0) reset=$2;} END { print reset }')
+#if [ ${GITHUB_API_LIMITED} -gt 0 ]; then
+#	echo " *** Github api is currently rate limited - please try again after $(date --date @${GITHUB_API_LIMITED})"
+#	exit 1
+#fi
+
+
+function update_self() {
+	echo " *** Performing self-update"
+	_tempFileName="$0.tmp"
+
+	if ! eval curl -Lfs ${GITHUB_AUTH_PARAM} --output "${_tempFileName}" "${UPDATE_URI}"; then
+		echo " !!! Failed to download update for rpi-update!"
+		echo " !!! Make sure you have ca-certificates installed and that the time is set correctly"
+		exit 1
+	fi
+
+	OCTAL_MODE=$(stat -c '%a' "$0")
+	if ! chmod ${OCTAL_MODE} "${_tempFileName}" ; then
+		echo " !!! Failed: Error while trying to set mode on ${_tempFileName}"
+		exit 1
+	fi
+
+	cat > "${WORK_PATH}/.updateScript.sh" << EOF
+	if mv "${_tempFileName}" "$0"; then
+		rm -- "\$0"
+		exec env UPDATE_SELF=0 /bin/bash "$0" "${FW_REV_IN}"
+	else
+		echo " !!! Failed!"
+	fi
+EOF
+
+	echo " *** Relaunching after update"
+	exec /bin/bash "${WORK_PATH}/.updateScript.sh"
+}
+
+function update_modules {
+	if [[ ${SKIP_KERNEL} -eq 0 ]]; then
+		echo " *** Updating kernel modules"
+		find "${FW_REPOLOCAL}/modules" -mindepth 1 -maxdepth 1 -type d | while read DIR; do
+			BASEDIR=$(basename "${DIR}")
+			rm -rf "${FW_MODPATH}/${BASEDIR}/kernel"
+		done
+
+		if [[ ${PRUNE_MODULES} -ne 0 ]]; then
+			find "${FW_MODPATH}" -mindepth 1 -maxdepth 1 -type d | while read DIR; do
+				COUNT=$(find ${DIR} -type f ! \( -name '*.ko' -o -name 'modules.*' \) | wc -l);
+				if [[ ${COUNT} -eq 0 ]]; then
+					echo "Pruning ${DIR}"
+					rm -rf ${DIR}
+				else
+					echo "Keeping ${DIR}"
+				fi
+			done
+		fi
+
+		cp -R "${FW_REPOLOCAL}/modules/"* "${FW_MODPATH}/"
+		find "${FW_REPOLOCAL}/modules" -mindepth 1 -maxdepth 1 -type d | while read DIR; do
+			BASEDIR=$(basename "${DIR}")
+			echo " *** depmod ${BASEDIR}"
+			depmod -b "${ROOT_PATH}" -a "${BASEDIR}"
+		done
+	else
+		echo " *** As requested, not updating kernel modules"
+	fi
+}
+
+function update_vc_libs {
+	echo " *** Updating VideoCore libraries"
+
+	if [[ -e ${ROOT_PATH}/bin/sh ]]; then
+		ELFOUTPUT=$(readelf -a "${ROOT_PATH}/bin/sh"; readelf -h "${ROOT_PATH}/bin/sh")
+	else
+		ELFOUTPUT="VFP_args"
+	fi
+	if [[ "${ELFOUTPUT}" != "${ELFOUTPUT/VFP_args/}" || \
+			"${ELFOUTPUT}" != "${ELFOUTPUT/hard-float/}" ]]; then
+		echo " *** Using HardFP libraries"
+		cp -R "${FW_REPOLOCAL}/vc/hardfp/"* "${ROOT_PATH}/"
+	else
+		echo " *** Using SoftFP libraries"
+		cp -R "${FW_REPOLOCAL}/vc/softfp/"* "${ROOT_PATH}/"
+	fi
+}
+
+function update_sdk {
+	if [[ ${SKIP_SDK} -eq 0 ]]; then
+		echo " *** Updating SDK"
+		cp -R "${FW_REPOLOCAL}/vc/sdk/"* "${ROOT_PATH}/"
+	else
+		echo " *** As requested, not updating SDK"
+	fi
+}
+
+function show_notice {
+	local FULL_NOTICE=`eval curl -Lfs ${GITHUB_AUTH_PARAM} https://raw.githubusercontent.com/hexxeh/rpi-firmware/${FW_REV}/NOTICE.md`
+	local NOTICE=$(echo "$FULL_NOTICE" | tail -n+2)
+	if [ -z "$NOTICE" ]; then
+		return
+	fi
+	local NOTICE_HASH_HEAD=$(echo "$FULL_NOTICE" | head -1)
+	if [ $(echo "${NOTICE_HASH_HEAD}" | awk -F: '{print $1}') == "HASH" ]; then
+		local NOTICE_HASH_EXISTS=true
+		local NOTICE_HASH=$(echo "${NOTICE_HASH_HEAD}" | awk '{print $2}')
+	else
+		local NOTICE_HASH_EXISTS=false
+	fi
+	if ${NOTICE_HASH_EXISTS}; then
+		local NEW_HASH=${FW_REV}
+		local LOCAL_lt_NOTICE=$(compare_hashes ${LOCAL_HASH} lt ${NOTICE_HASH})
+		local NEW_ge_NOTICE=$(compare_hashes ${NEW_HASH} ge ${NOTICE_HASH})
+		if ! ${LOCAL_lt_NOTICE} && ! ${NEW_ge_NOTICE}; then
+			return
+		fi
+	fi
+	echo "$NOTICE"
+	if ! echo "$NOTICE" | grep -q WARNING; then
+		return
+	fi
+	if [[ ${SKIP_WARNING} -ne 0 ]]; then
+		return
+	fi
+#	read -p "Would you like to proceed? (y/N)" -n 1 -r -s
+#	echo ""
+#	if ! [[ $REPLY =~ ^[Yy]$ ]]; then
+#		exit 1;
+#	fi
+}
+
+function update_firmware {
+	echo " *** Updating firmware"
+	rm -rf "${FW_PATH}/"*.elf
+	rm -rf "${FW_PATH}/"bootcode.bin
+	cp "${FW_REPOLOCAL}/"*.elf "${FW_PATH}/"
+	cp "${FW_REPOLOCAL}/"*.bin "${FW_PATH}/"
+	cp "${FW_REPOLOCAL}/"*.dat "${FW_PATH}/"
+	if [[ ${SKIP_KERNEL} -eq 0 ]]; then
+		cp "${FW_REPOLOCAL}/"*.img "${FW_PATH}/"
+		if [[ -n $(shopt -s nullglob; echo "${FW_REPOLOCAL}/"*.dtb*) ]]; then
+			cp "${FW_REPOLOCAL}/"*.dtb* "${FW_PATH}/"
+		fi
+		if [[ -n $(shopt -s nullglob; echo "${FW_REPOLOCAL}/overlays/"*.dtb*) ]]; then
+			mkdir -p "${FW_PATH}/overlays"
+			cp "${FW_REPOLOCAL}/overlays/"*.dtb* "${FW_PATH}/overlays/"
+			if [[ -f "${FW_REPOLOCAL}/overlays/README" ]]; then
+				cp "${FW_REPOLOCAL}/overlays/README" "${FW_PATH}/overlays/"
+			fi
+		fi
+	else
+		echo " *** As requested, not updating kernel"
+	fi
+	if [[ ${WANT_SYMVERS} -ne 0 ]]; then
+		if [[ -f "${FW_REPOLOCAL}/Module.symvers" ]]; then
+			cp "${FW_REPOLOCAL}/Module.symvers" "${FW_PATH}/"
+		fi
+		if [[ -f "${FW_REPOLOCAL}/Module7.symvers" ]]; then
+			cp "${FW_REPOLOCAL}/Module7.symvers" "${FW_PATH}/"
+		fi
+		if [[ -f "${FW_REPOLOCAL}/git_hash" ]]; then
+			cp "${FW_REPOLOCAL}/git_hash" "${FW_PATH}/"
+		fi
+	fi
+}
+
+function finalise {
+	if [[ -f "${FW_PATH}/arm192_start.elf" ]]; then
+		echo " *** Setting 192M ARM split"
+		cp "${FW_PATH}/arm192_start.elf" "${FW_PATH}/start.elf"
+	fi
+	if [[ -e ${ROOT_PATH}/etc ]]; then
+		echo " *** Running ldconfig"
+		ldconfig -r "${ROOT_PATH}"
+	fi
+	echo " *** Storing current firmware revision"
+	echo "${FW_REV}" > "${FW_REVFILE}"
+}
+
+function do_backup {
+	if [[ ${SKIP_BACKUP} -eq 0 ]]; then
+		echo " *** Backing up files (this will take a few minutes)"
+		if [[ -d "${FW_PATH}.bak" ]]; then
+			echo " *** Remove old firmware backup"
+			rm -rf "${FW_PATH}.bak"
+		fi
+		echo " *** Backing up firmware"
+		cp -a "${FW_PATH}" "${FW_PATH}.bak"
+		if [[ ${SKIP_KERNEL} -eq 0 ]]; then
+			if [[ -d "${FW_MODPATH}.bak" ]]; then
+				echo " *** Remove old modules backup"
+				rm -rf "${FW_MODPATH}.bak"
+			fi
+			echo " *** Backing up modules $(uname -r)"
+			if [[ -d "${FW_MODPATH}/$(uname -r)" ]]; then
+				mkdir -p "${FW_MODPATH}.bak" && cp -a "${FW_MODPATH}/$(uname -r)" "${FW_MODPATH}.bak"
+			fi
+		fi
+	fi
+}
+
+function do_update {
+	show_notice
+	download_rev
+	if [[ -f "${FW_REPOLOCAL}/pre-install" ]]; then
+		echo " *** Running pre-install script"
+		source "${FW_REPOLOCAL}/pre-install"
+	fi
+	update_firmware
+	update_modules
+	update_vc_libs
+	update_sdk
+	finalise
+	if [[ -f "${FW_REPOLOCAL}/post-install" ]]; then
+		echo " *** Running post-install script"
+		source "${FW_REPOLOCAL}/post-install"
+	fi
+	remove_rev
+	echo " *** Syncing changes to disk"
+	sync
+	echo " *** If no errors appeared, your firmware was successfully updated to ${FW_REV}"
+	if [[ "${ROOT_PATH}" == "/" ]]; then
+		if [[ ${RPI_REBOOT} -ne 0 ]]; then
+			echo " *** Rebooting to activate the new firmware"
+			reboot
+		else
+			echo " *** A reboot is needed to activate the new firmware"
+		fi
+	fi
+}
+
+function download_rev {
+	if [[ ${SKIP_DOWNLOAD} -eq 0 ]]; then
+		if ! eval curl -Lfs ${GITHUB_AUTH_PARAM} --output /dev/null --head --fail "${REPO_URI}/tarball/${FW_REV}"; then
+			echo "Invalid git hash specified"
+			exit 1
+		fi
+		echo " *** Downloading specific firmware revision (this will take a few minutes)"
+		rm -rf "${FW_REPOLOCAL}"
+		mkdir -p "${FW_REPOLOCAL}"
+		eval curl -L ${GITHUB_AUTH_PARAM} "${REPO_URI}/tarball/${FW_REV}" | tar xzf - -C "${FW_REPOLOCAL}" --strip-components=1
+	fi
+}
+
+function remove_rev {
+	echo " *** Deleting downloaded files"
+	if [[ ${SKIP_REPODELETE} -eq 0 ]]; then
+		rm -rf "${FW_REPOLOCAL}"
+	fi
+}
+
+function noobs_fix {
+	echo " !!! $BOOT_PATH appears to contain NOOBS files"
+	echo "     This may occur if fstab contains incorrect entries."
+	echo "     rpi-update will attempt to correct fstab."
+	read -p "Would you like to proceed? (y/N)" -n 1 -r -s
+	echo
+	if ! [[ $REPLY =~ ^[Yy]$ ]]; then
+		exit 1;
+	fi
+
+	if ! grep -qE "/dev/mmcblk0p1\s+/boot" ${ROOT_PATH}/etc/fstab; then
+		echo "Unexpected fstab entry"
+		exit 1
+	fi
+
+	local ROOTNUM=`cat /proc/cmdline | sed -n 's|.*root=/dev/mmcblk0p\([0-9]*\).*|\1|p'`
+	if [ ! "$ROOTNUM" ];then
+		echo "Could not determine root partition."
+		exit 1
+	fi
+	local BOOT_DEV="/dev/mmcblk0p$((ROOTNUM-1))"
+	local ROOT_DEV="/dev/mmcblk0p${ROOTNUM}"
+	sed ${ROOT_PATH}/etc/fstab -e "s|^.*[^#].* / |${ROOT_DEV}  / |;s|^.*[^#].* /boot |${BOOT_DEV}  /boot |"
+	read -p "Does this look correct?  (y/N)" -n 1 -r -s
+	echo
+	if ! [[ $REPLY =~ ^[Yy]$ ]]; then
+		exit 1;
+	fi
+	sed ${ROOT_PATH}/etc/fstab -i -e "s|^.*[^#].* / |${ROOT_DEV}  / |;s|^.*[^#].* /boot |${BOOT_DEV}  /boot |"
+
+	umount /boot
+	if [ $? -ne 0 ]; then
+		echo "Failed to umount /boot. Remount manually and try again."
+		exit 1
+	else
+		mount /boot
+	fi
+
+}
+
+function get_hash_date {
+	commit_api="https://api.github.com/repos/Hexxeh/rpi-firmware/git/commits/"
+	eval curl -Ls ${GITHUB_AUTH_PARAM} "$commit_api"$1 | grep "date" | head -1 | awk -F\" '{print $4}'
+}
+
+function compare_hashes {
+	date1=$(get_hash_date $1)
+	date2=$(get_hash_date $3)
+	if [ $(date -d "$date1" +%s) -$2 $(date -d "$date2" +%s) ]; then
+		echo true
+	else
+		echo false
+	fi
+}
+
+function get_long_hash {
+	# ask github for long version hash
+	local REPO_API=${REPO_URI/github.com/api.github.com\/repos}/commits/$1
+	eval curl -Ls ${GITHUB_AUTH_PARAM} ${REPO_API} | awk 'BEGIN {hash=""} { if (hash == "" && $1 == "\"sha\":") {hash=substr($2, 2, 40);} } END {print hash}'
+}
+
+
+if [[ ${EUID} -ne 0 ]]; then
+	echo " !!! This tool must be run as root"
+	exit 1
+fi
+
+echo " *** Raspberry Pi firmware updater by Hexxeh, enhanced by AndrewS and Dom"
+
+if [[ ! -d ${WORK_PATH} ]]; then
+	echo " !!! ${WORK_PATH} doesn't exist - creating"
+	mkdir -p ${WORK_PATH}
+fi
+
+if [[ ${UPDATE_SELF} -ne 0 ]]; then
+	update_self
+fi
+
+if [[ ! -d "${FW_PATH}" ]]; then
+	echo " !!! ${FW_PATH} doesn't exist - creating"
+	mkdir -p ${FW_PATH}
+fi
+
+if [[ ${SKIP_KERNEL} -eq 0 ]] && [[ ! -d "${FW_MODPATH}" ]]; then
+	echo " !!! ${FW_MODPATH} doesn't exist - creating"
+	mkdir -p ${FW_MODPATH}
+fi
+
+if [[ ${NOOBS_CHECK} -eq 1 ]] && [[ -f ${BOOT_PATH}/recovery.elf ]]; then
+	noobs_fix
+fi
+
+command -v readelf >/dev/null 2>&1 || {
+	echo " !!! This tool requires you have readelf installed, please install it first"
+	echo "     In Debian, try: sudo apt-get install binutils"
+	echo "     In Arch, try: pacman -S binutils"
+	exit 1
+}
+
+if [[ "${FW_REV_IN}" == "" ]]; then
+	FW_REV_IN=${BRANCH}
+fi
+
+FW_REV=$(get_long_hash ${FW_REV_IN})
+
+#if [[ "${FW_REV}" == "" ]]; then
+#	echo " *** Invalid hash given"
+#	exit 1
+#fi
+
+if [[ ! -f "${FW_REVFILE}" ]]; then
+	LOCAL_HASH=0
+	echo " *** We're running for the first time"
+	if [[ ${JUST_CHECK} -ne 0 ]]; then
+		exit 2
+	fi
+	do_backup
+else
+	LOCAL_HASH=$(get_long_hash $(cat "${FW_REVFILE}"))
+	if [[ ${LOCAL_HASH} == "${FW_REV}" ]]; then
+		echo " *** Your firmware is already up to date"
+		exit 0
+	fi
+	if [[ ${JUST_CHECK} -ne 0 ]]; then
+		if $(compare_hashes ${LOCAL_HASH} lt ${FW_REV}); then
+			echo " *** Firmware update required. New commits available:"
+			DIFF_API=${REPO_URI/github.com/api.github.com\/repos}/compare/${LOCAL_HASH}...${FW_REV}
+		else
+			echo " *** Firmware downgrade requested. Commits to drop:"
+			DIFF_API=${REPO_URI/github.com/api.github.com\/repos}/compare/${FW_REV}...${LOCAL_HASH}
+		fi
+		SEPARATOR="======================================================"
+		eval curl -Ls ${GITHUB_AUTH_PARAM} ${DIFF_API} | awk -v SEPARATOR="${SEPARATOR}" -F\" ' { if ($2 == "commits") {commits=1} if (commits && $2 == "message") {print SEPARATOR "\nCommit: " $4} }' | sed 's/\\n\\n/\nCommit:\ /g'
+		exit 2
+	fi
+fi
+
+do_update

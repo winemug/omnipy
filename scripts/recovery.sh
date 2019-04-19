@@ -8,18 +8,19 @@ WLAN_INTERFACE=wlan0
 if [[ -f ${FW_UPDATE_FILE} ]]; then
     /bin/rm ${FW_UPDATE_FILE}
     /bin/rm /boot/.firmware_revision
+    cp /home/pi/omnipy/scripts/image/rpiupdate.sh /usr/bin/rpiupdate
     ROOT_PATH=/ BOOT_PATH=/boot SKIP_DOWNLOAD=1 SKIP_REPODELETE=1 SKIP_BACKUP=1 UPDATE_SELF=0 RPI_REBOOT=1 rpi-update 502a515156eebbfd3cc199de8f38a975c321f20d
 fi
 
 iw dev ${WLAN_INTERFACE} set power_save off
 
-systemctl stop hostapd
-systemctl stop dnsmasq
-systemctl disable hostapd
-systemctl disable dnsmasq
-ip link set dev ${WLAN_INTERFACE} down
-ifconfig ${WLAN_INTERFACE} down
-ifconfig ${WLAN_INTERFACE} up
+#systemctl stop hostapd
+#systemctl stop dnsmasq
+#systemctl disable hostapd
+#systemctl disable dnsmasq
+#ip link set dev ${WLAN_INTERFACE} down
+#ifconfig ${WLAN_INTERFACE} down
+#ifconfig ${WLAN_INTERFACE} up
 
 if [[ -f ${PW_RESET_FILE} ]]; then
 
@@ -39,21 +40,21 @@ if [[ -f ${BT_SETUP_FILE} ]] || [[ ! -f /etc/systemd/system/omnipy-pan.service ]
         /bin/rm ${BT_SETUP_FILE}
 fi
 
-if [[ -f ${RECOVERY_FILE} ]]; then
-
-    	mkdir -p /home/pi/omnipy/data
-        chown -R pi.pi /home/pi
-
-        ip link set dev ${WLAN_INTERFACE} down
-        ip a add 10.0.34.1/24 brd + dev ${WLAN_INTERFACE}
-        ip link set dev ${WLAN_INTERFACE} up
-        systemctl enable hostapd
-        systemctl enable dnsmasq
-        systemctl start hostapd
-        systemctl start dnsmasq
-        dhcpcd -k ${WLAN_INTERFACE} > /dev/null 2>&1
-
-	    shellinaboxd -t --service /:pi:pi:/home/pi/omnipy:/home/pi/omnipy/scripts/console-ui.sh -p 80 -b
-
-        /bin/rm ${RECOVERY_FILE}
-fi
+#if [[ -f ${RECOVERY_FILE} ]]; then
+#
+#    	mkdir -p /home/pi/omnipy/data
+#        chown -R pi.pi /home/pi
+#
+#        ip link set dev ${WLAN_INTERFACE} down
+#        ip a add 10.0.34.1/24 brd + dev ${WLAN_INTERFACE}
+#        ip link set dev ${WLAN_INTERFACE} up
+#        systemctl enable hostapd
+#        systemctl enable dnsmasq
+#        systemctl start hostapd
+#        systemctl start dnsmasq
+#        dhcpcd -k ${WLAN_INTERFACE} > /dev/null 2>&1
+#
+#	    shellinaboxd -t --service /:pi:pi:/home/pi/omnipy:/home/pi/omnipy/scripts/console-ui.sh -p 80 -b
+#
+#        /bin/rm ${RECOVERY_FILE}
+#fi

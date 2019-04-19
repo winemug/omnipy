@@ -11,7 +11,6 @@
 #
 # By default this script does nothing.
 
-tvservice --off
-/bin/bash /home/pi/omnipy/scripts/recovery.sh > /dev/null 2>&1
+/bin/bash /home/pi/omnipy/scripts/recovery.sh
 
 exit 0
