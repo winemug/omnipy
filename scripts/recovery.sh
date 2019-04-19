@@ -29,7 +29,7 @@ if [[ -f ${PW_RESET_FILE} ]]; then
         rm /home/pi/omnipy/data/key
         cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
         chown -R pi.pi /home/pi
-        sudo systemctl start omnipy.service > /dev/null 2>&1
+        systemctl start omnipy.service > /dev/null 2>&1
 
         /bin/rm ${PW_RESET_FILE}
 fi
@@ -57,4 +57,3 @@ if [[ -f ${RECOVERY_FILE} ]]; then
 
         /bin/rm ${RECOVERY_FILE}
 fi
-btw
