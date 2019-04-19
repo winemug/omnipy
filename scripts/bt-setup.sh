@@ -5,7 +5,7 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which btmgmt`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-agent`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-network`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
-sudo find /usr/lib -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
+sudo find /usr/local -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 sudo find /home/pi -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
 sudo systemctl stop omnipy-pan.service
