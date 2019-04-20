@@ -67,6 +67,7 @@ def getLogger(with_console=False):
         logger.setLevel(logging.DEBUG)
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
 
+        os.makedirs(DATA_PATH, exist_ok=True)
         fh = logging.FileHandler(DATA_PATH + OMNIPY_LOGFILE + LOGFILE_SUFFIX)
         fh.setLevel(logging.DEBUG)
         fh.setFormatter(formatter)
