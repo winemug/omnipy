@@ -28,7 +28,8 @@ g_token_lock = Lock()
 
 app = Flask(__name__, static_url_path="/")
 configureLogging()
-logger = getLogger()
+logger = getLogger(with_console=False)
+get_packet_logger(with_console=False)
 
 
 class RestApiException(Exception):
@@ -99,8 +100,9 @@ def _archive_pod():
         archive_suffix = datetime.utcnow().strftime("_%Y%m%d_%H%M%S")
 
         if os.path.isfile(DATA_PATH + POD_FILE + POD_FILE_SUFFIX):
-            archive_name = os.rename(DATA_PATH + POD_FILE + POD_FILE_SUFFIX,
-                                     DATA_PATH + POD_FILE + archive_suffix + POD_FILE_SUFFIX)
+            archive_name = DATA_PATH + POD_FILE + archive_suffix + POD_FILE_SUFFIX
+            os.rename(DATA_PATH + POD_FILE + POD_FILE_SUFFIX,
+                                     archive_name)
         if os.path.isfile(DATA_PATH + POD_FILE + POD_DB_SUFFIX):
             os.rename(DATA_PATH + POD_FILE + POD_DB_SUFFIX,
                       DATA_PATH + POD_FILE + archive_suffix + POD_DB_SUFFIX)
@@ -148,6 +150,7 @@ def _save_activated_pod_address(addr):
     except:
         logger.exception("Error while storing activated radio address")
 
+
 def _create_response(success, response, pod_status=None):
 
     if pod_status is None:
@@ -164,7 +167,8 @@ def _create_response(success, response, pod_status=None):
                        "response": response,
                        "status": pod_status,
                        "datetime": time.time(),
-                       "api": {"version_major": API_VERSION_MAJOR, "version_minor": API_VERSION_MINOR}
+                       "api": {"version_major": API_VERSION_MAJOR, "version_minor": API_VERSION_MINOR,
+                               "version_revision": API_VERSION_REVISION, "version_build": API_VERSION_BUILD}
                        }, indent=4, sort_keys=True)
 
 
@@ -196,6 +200,7 @@ def _verify_auth(request_obj):
     except Exception:
         logger.exception("Error during verify_auth")
         raise
+
 
 def _adjust_time(adjustment):
     logger.info("Adjusting local time by %d ms" % adjustment)
@@ -242,10 +247,9 @@ def _api_result(result_lambda, generic_err_message):
 def _get_pdm_address(timeout):
     packet = None
     with PdmLock():
-        radio = _get_pdm().get_radio()
-        radio.stop()
-
         try:
+            radio = _get_pdm().get_radio()
+            radio.stop()
             packet = radio.get_packet(timeout)
         finally:
             radio.disconnect()
@@ -277,6 +281,7 @@ def create_token():
 def check_password():
     _verify_auth(request)
 
+
 def get_pdm_address():
     _verify_auth(request)
 
@@ -289,6 +294,7 @@ def get_pdm_address():
     address = _get_pdm_address(timeout)
 
     return {"radio_address": address, "radio_address_hex": "%8X" % address}
+
 
 def new_pod():
     _verify_auth(request)
@@ -310,6 +316,7 @@ def new_pod():
     _archive_pod()
     _set_pod(pod)
 
+
 def activate_pod():
     _verify_auth(request)
 
@@ -326,6 +333,7 @@ def activate_pod():
     pdm.activate_pod(req_address, utc_offset=utc_offset)
     _save_activated_pod_address(req_address)
 
+
 def start_pod():
     _verify_auth(request)
 
@@ -339,11 +347,13 @@ def start_pod():
 
     pdm.inject_and_start(schedule)
 
+
 def _int_parameter(obj, parameter):
     if request.args.get(parameter) is not None:
         obj.__dict__[parameter] = int(request.args.get(parameter))
         return True
     return False
+
 
 def _float_parameter(obj, parameter):
     if request.args.get(parameter) is not None:
@@ -403,6 +413,7 @@ def get_rl_info():
     r = RileyLink()
     return r.get_info()
 
+
 def get_status():
     _verify_auth(request)
     t = request.args.get('type')
@@ -415,12 +426,14 @@ def get_status():
     id = pdm.update_status(req_type)
     return {"row_id":id}
 
+
 def deactivate_pod():
     _verify_auth(request)
     pdm = _get_pdm()
     id = pdm.deactivate_pod()
     _archive_pod()
     return {"row_id":id}
+
 
 def bolus():
     _verify_auth(request)
@@ -478,6 +491,7 @@ def is_pdm_busy():
     pdm = _get_pdm()
     return {"busy": pdm.is_busy()}
 
+
 def acknowledge_alerts():
     _verify_auth(request)
 
@@ -499,6 +513,7 @@ def shutdown():
     os.system("sudo shutdown -h")
     return {"shutdown": time.time()}
 
+
 def restart():
     global g_deny
     _verify_auth(request)
@@ -511,13 +526,25 @@ def restart():
     os.system("sudo shutdown -r")
     return {"restart": time.time()}
 
+
+def update_omnipy():
+    global g_deny
+    _verify_auth(request)
+
+    g_deny = True
+    pdm = _get_pdm()
+    while pdm.is_busy():
+        time.sleep(1)
+    os.system("/bin/bash /home/pi/omnipy/scripts/pi-update.sh")
+    return {"update started": time.time()}
+
+
 @app.route("/")
 def main_page():
     try:
         return app.send_static_file("omnipy.html")
     except:
         logger.exception("Error while serving root file")
-
 
 @app.route('/content/<path:path>')
 def send_content(path):
@@ -610,11 +637,17 @@ def a19():
 def a20():
     return _api_result(lambda: archive_pod(), "Failure while archiving pod")
 
+@app.route(REST_URL_OMNIPY_UPDATE)
+def a20():
+    return _api_result(lambda: update_omnipy(), "Failure while archiving pod")
+
+
 def _run_flask():
     try:
         app.run(host='0.0.0.0', port=4444, debug=True, use_reloader=False)
     except:
         logger.exception("Error while running rest api, exiting")
+
 
 def _exit_with_grace():
     try:
@@ -629,6 +662,7 @@ def _exit_with_grace():
         logger.exception("error during graceful shutdown")
 
     exit(0)
+
 
 if __name__ == '__main__':
     logger.info("Rest api is starting")

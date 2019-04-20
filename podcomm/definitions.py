@@ -23,10 +23,13 @@ OMNIPY_PACKET_LOGFILE = "packet"
 
 API_VERSION_MAJOR = 1
 API_VERSION_MINOR = 3
+API_VERSION_REVISION = 4
+API_VERSION_BUILD = 90420
 
 REST_URL_PING = "/omnipy/ping"
 REST_URL_OMNIPY_SHUTDOWN = "/omnipy/shutdown"
 REST_URL_OMNIPY_RESTART = "/omnipy/restart"
+REST_URL_OMNIPY_UPDATE = "/pdm/updatesw"
 
 REST_URL_TOKEN = "/omnipy/token"
 REST_URL_CHECK_PASSWORD = "/omnipy/pwcheck"
@@ -52,6 +55,7 @@ REST_URL_SET_BASAL_SCHEDULE = "/pdm/setbasalschedule"
 
 logger = None
 packet_logger = None
+
 
 def ensure_log_dir():
     if not os.path.isdir(DATA_PATH):
@@ -80,6 +84,7 @@ def getLogger(with_console=False):
 
     return logger
 
+
 def get_packet_logger(with_console=False):
     global packet_logger
 
@@ -102,11 +107,14 @@ def get_packet_logger(with_console=False):
 
     return packet_logger
 
+
 def configureLogging():
     pass
 
+
 class RequestType(IntEnum):
     pass
+
 
 class BolusState(IntEnum):
     NotRunning = 0

@@ -107,8 +107,11 @@ class PdmRadio:
 
             if self.pod_message is None:
                 self.current_exchange.successful = False
+                self.stats.append(self.current_exchange)
                 raise self.response_exception
+
             self.current_exchange.successful = True
+            self.stats.append(self.current_exchange)
             return self.pod_message
 
     def get_packet(self, timeout=30000):
@@ -220,7 +223,6 @@ class PdmRadio:
         try:
             if tx_power is not None:
                 self.packet_radio.set_tx_power(tx_power)
-            self._awaken()
         except PacketRadioError:
             if not self._radio_init(3):
                 raise
@@ -501,7 +503,3 @@ class PdmRadio:
             except:
                 getLogger().exception("RECEIVED DATA: %s RSSI: %d" % (binascii.hexlify(data[2:]), rssi))
         return None, rssi
-
-    def _awaken(self):
-        #self.packet_radio.send_packet(bytes(), 0, 0, 250)
-        pass
