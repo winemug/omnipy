@@ -10,7 +10,6 @@ sudo raspi-config
 # enable predictive intf names
 
 sudo apt update && sudo apt upgrade -y
-
 sudo apt install -y bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update expect
 #sudo apt install -y hostapd dnsmasq
 #sudo systemctl disable hostapd
@@ -61,7 +60,7 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which btmgmt`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-agent`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-network`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
-sudo find /usr/lib -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
+sudo find /usr/local -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 sudo find /home/pi -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
 sudo apt autoremove
