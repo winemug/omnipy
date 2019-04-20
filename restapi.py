@@ -539,6 +539,37 @@ def update_omnipy():
     return {"update started": time.time()}
 
 
+def update_wlan():
+    global g_deny
+    _verify_auth(request)
+
+    ssid = str(request.args.get('ssid'))
+    pw = str(request.args.get('pw'))
+
+    g_deny = True
+    pdm = _get_pdm()
+    while pdm.is_busy():
+        time.sleep(1)
+    os.system('/bin/bash /home/pi/omnipy/scripts/pi-setwifi.sh "%s" "%s"' % (ssid, pw))
+    return {"update started": time.time()}
+
+
+def update_password():
+    global g_key
+
+    _verify_auth(request)
+
+    iv = base64.b64decode(request.args.get("i"))
+    pw_enc = base64.b64decode(request.args.get('pw'))
+
+    cipher = AES.new(g_key, AES.MODE_CBC, iv)
+    new_key = cipher.decrypt(pw_enc)
+
+    with open(DATA_PATH + KEY_FILE, "wb") as key_file:
+        key_file.write(new_key)
+    g_key = new_key
+
+
 @app.route("/")
 def main_page():
     try:
@@ -638,9 +669,16 @@ def a20():
     return _api_result(lambda: archive_pod(), "Failure while archiving pod")
 
 @app.route(REST_URL_OMNIPY_UPDATE)
-def a20():
-    return _api_result(lambda: update_omnipy(), "Failure while archiving pod")
+def a21():
+    return _api_result(lambda: update_omnipy(), "Failure while executing software update")
 
+@app.route(REST_URL_OMNIPY_WIFI)
+def a22():
+    return _api_result(lambda: update_wlan(), "Failure while updating wifi parameters")
+
+@app.route(REST_URL_OMNIPY_CHANGE_PASSWORD)
+def a23():
+    return _api_result(lambda: update_password(), "Failure while changing omnipy password")
 
 def _run_flask():
     try:

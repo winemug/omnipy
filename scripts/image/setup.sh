@@ -8,9 +8,12 @@ sudo raspi-config
 # wifi: NO, noway, omnipyway
 # adv, memory split, 16
 # enable predictive intf names
+# locale en.us_utf8
+# timezone other/utc
+
 
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update expect
+sudo apt install -y screen bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update expect
 #sudo apt install -y hostapd dnsmasq
 #sudo systemctl disable hostapd
 #sudo systemctl unmask hostapd
