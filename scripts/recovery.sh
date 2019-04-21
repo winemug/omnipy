@@ -16,7 +16,7 @@ if [[ -f ${FW_UPDATE_FILE} ]]; then
     /bin/rm ${FW_UPDATE_FILE}
     /bin/rm /boot/.firmware_revision
     cp /home/pi/omnipy/scripts/image/rpiupdate.sh /usr/bin/rpiupdate
-    ROOT_PATH=/ BOOT_PATH=/boot SKIP_DOWNLOAD=1 SKIP_REPODELETE=1 SKIP_BACKUP=1 UPDATE_SELF=0 RPI_REBOOT=1 rpi-update 502a515156eebbfd3cc199de8f38a975c321f20d
+    ROOT_PATH=/ BOOT_PATH=/boot SKIP_DOWNLOAD=1 SKIP_REPODELETE=1 SKIP_BACKUP=1 UPDATE_SELF=0 RPI_REBOOT=1 rpi-update
     shutdown -r now
 fi
 
