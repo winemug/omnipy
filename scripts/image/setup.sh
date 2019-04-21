@@ -8,12 +8,15 @@ sudo raspi-config
 # wifi: NO, noway, omnipyway
 # adv, memory split, 16
 # enable predictive intf names
-# locale en.us_utf8
 # timezone other/utc
+#reboot
 
 
 sudo apt update && sudo apt upgrade -y
 sudo apt install -y screen bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update expect
+#reboot
+
+
 #sudo apt install -y hostapd dnsmasq
 #sudo systemctl disable hostapd
 #sudo systemctl unmask hostapd
@@ -26,11 +29,15 @@ git clone https://github.com/winemug/omnipy.git
 git clone https://github.com/winemug/bluepy.git
 
 
-sudo /bin/rm /boot/.firmware_revision
+#sudo /bin/rm /boot/.firmware_revision
 sudo cp /home/pi/omnipy/scripts/image/rpiupdate.sh /usr/bin/rpiupdate
-sudo ROOT_PATH=/ BOOT_PATH=/boot SKIP_DOWNLOAD=0 SKIP_REPODELETE=1 SKIP_BACKUP=1 UPDATE_SELF=0 RPI_REBOOT=1 BRANCH=next rpi-update 502a515156eebbfd3cc199de8f38a975c321f20d
+sudo git clone https://github.com/Hexxeh/rpi-firmware.git /root/.rpi-firmware
+#sudo ROOT_PATH=/ BOOT_PATH=/boot SKIP_DOWNLOAD=0 SKIP_REPODELETE=1 SKIP_BACKUP=1 UPDATE_SELF=0 RPI_REBOOT=1 BRANCH=next rpi-update 502a515156eebbfd3cc199de8f38a975c321f20d
+#reboot
+wget https://github.com/Hexxeh/rpi-firmware/archive/master.zip
+unzip master.zip
+sudo mv rpi-firmware-master /root/.rpi-firmware
 
-cd /home/pi
 
 #https://raspberrypi.stackexchange.com/questions/66540/installing-bluez-5-44-onto-raspbian
 wget https://mirrors.edge.kernel.org/pub/linux/bluetooth/bluez-5.50.tar.gz
@@ -88,9 +95,10 @@ sudo systemctl enable omnipy-beacon.service
 sudo systemctl start omnipy.service
 sudo systemctl start omnipy-beacon.service
 
-sudo touch /boot/omnipy-btsetup
 sudo touch /boot/omnipy-pwreset
 sudo touch /boot/omnipy-fwupdate
+sudo touch /boot/omnipy-expandfs
+sudo touch /boot/omnipy-btsetup
 
 rm /home/pi/.bash_history
 #wpa?
