@@ -37,7 +37,7 @@ expect -re "Enter PIN code: "
 sleep 3
 send "3434\r"
 
-expect -re "Connected: yes"
+expect -re "Connected:"
 sleep 15
 
 expect -re $prompt
