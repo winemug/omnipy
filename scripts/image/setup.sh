@@ -108,10 +108,6 @@ sudo halt
 
 sudo umount /dev/sdh1
 sudo umount /dev/sdh2
-#shrink with /g/parted
-sudo dcfldd if=/dev/sdh of=omnipy.img
-#abort as appropriate
-sudo ~/pishrink.sh omnipy.img omnipy2.img
-rm omnipy.img
-mv omnipy2.img omnipy.img
+#shrink with /g/parted 3192MiB
+sudo dcfldd if=/dev/sdh of=omnipy.img bs=512 count=6635520
 zip -9 omnipy.zip omnipy.img
