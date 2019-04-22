@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-sudo passwd pi
 sudo touch /boot/ssh
+
+sudo passwd pi
 sudo raspi-config
-# enable ssh
 
 # hostname: omnipy
 # wifi: NO, noway, omnipyway
@@ -13,7 +13,8 @@ sudo raspi-config
 
 
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y screen bluez-tools python3 python3-pip git build-essential libglib2.0-dev vim jq libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update expect
+sudo apt install -y screen git python3 python3-pip vim jq bluez-tools
+#expect build-essential libglib2.0-dev libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update
 #reboot
 
 
@@ -43,8 +44,8 @@ sudo mv rpi-firmware-master /root/.rpi-firmware
 wget https://mirrors.edge.kernel.org/pub/linux/bluetooth/bluez-5.50.tar.gz
 tar xzf bluez-5.50.tar.gz
 cd bluez-5.50
-./configure --prefix=/usr --mandir=/usr/share/man --sysconfdir=/etc --localstatedir=/var --enable-experimental
-make
+./configure --prefix=/usr --mandir=/usr/share/man --sysconfdir=/etc --localstatedir=/var --disable-cups --disable-a2dp --disable-avrcp --disable-hid --disable-hog --enable-experimental
+make -j4
 sudo make install
 
 cd /usr/lib/bluetooth/
@@ -88,17 +89,18 @@ cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
 
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
-sudo rm /etc/systemd/system/omnipy-pan.service
+sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
 
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
+sudo systemctl enable omnipy-pan.service
 sudo systemctl start omnipy.service
 sudo systemctl start omnipy-beacon.service
+sudo systemctl start omnipy-pan.service
 
 sudo touch /boot/omnipy-pwreset
-sudo touch /boot/omnipy-fwupdate
 sudo touch /boot/omnipy-expandfs
-sudo touch /boot/omnipy-btsetup
+sudo touch /boot/omnipy-btreset
 
 rm /home/pi/.bash_history
 #wpa?
