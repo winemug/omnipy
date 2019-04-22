@@ -33,11 +33,11 @@ iw dev ${WLAN_INTERFACE} set power_save off
 if [[ -f ${PW_RESET_FILE} ]]; then
 
         echo "pi:omnipy" | chpasswd
-        systemctl stop omnipy.service > /dev/null 2>&1
     	mkdir -p /home/pi/omnipy/data
         rm /home/pi/omnipy/data/key
         cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
         chown -R pi.pi /home/pi
+        systemctl stop omnipy.service > /dev/null 2>&1
         systemctl start omnipy.service > /dev/null 2>&1
         /bin/rm ${PW_RESET_FILE}
 fi
