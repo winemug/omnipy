@@ -108,6 +108,14 @@ sudo halt
 
 sudo umount /dev/sdh1
 sudo umount /dev/sdh2
+sudo gparted /dev/sdh
 #shrink with /g/parted 3192MiB
+sudo mount /dev/sdh2 /mnt/piroot/
+sudo dcfldd if=/dev/zero of=/mnt/piroot/zero.txt
+sudo rm /mnt/piroot/zero.txt
+sudo sync
+sudo umount /dev/sdh2
+sudo sync
+
 sudo dcfldd if=/dev/sdh of=omnipy.img bs=512 count=6635520
 zip -9 omnipy.zip omnipy.img
