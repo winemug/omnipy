@@ -23,13 +23,13 @@ class MessageExchange:
         self.protocol_errors = 0
         self.bad_packets = 0
         self.radio_errors = 0
-        self.successful = False
         self.queued = 0
         self.started = 0
         self.ended = 0
         self.avg_rssi = 0
         self.pa_min = 0
         self.pa_max = 0
+        self.successful = False
 
 class PdmRadio:
     def __init__(self, radio_address, msg_sequence=0, pkt_sequence=0, packet_radio=None):

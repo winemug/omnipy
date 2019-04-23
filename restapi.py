@@ -17,27 +17,49 @@ from podcomm.definitions import *
 from logging import FileHandler
 
 
-g_oldest_diff = None
-g_time_diffs = []
-g_key = None
-g_pod = None
-g_pdm = None
-g_deny = False
-g_tokens = []
-g_token_lock = Lock()
-
-app = Flask(__name__, static_url_path="/")
-configureLogging()
-logger = getLogger(with_console=False)
-get_packet_logger(with_console=False)
-
-
 class RestApiException(Exception):
     def __init__(self, msg="Unknown"):
         self.error_message = msg
 
     def __str__(self):
         return self.error_message
+
+
+class OmnipyRestApi:
+    def __init__(self):
+        self.key = None
+        try:
+            with open(DATA_PATH + KEY_FILE, "rb") as keyfile:
+                self.key = keyfile.read(32)
+        except Exception as e:
+            raise RestApiException("Failed to load key file.") from e
+
+        self.oldest_diff = None
+        self.time_diffs = []
+        self.pod = None
+        self.pdm = None
+        self.deny = False
+        self.tokens = []
+        self.token_lock = Lock()
+
+        self.logger = getLogger(with_console=False)
+        self.packet_logger = get_packet_logger(with_console=False)
+        self.app = Flask(__name__, static_url_path="/")
+
+    def start(self):
+        t = Thread(target=self._run_flask)
+        t.setDaemon(True)
+        t.start()
+
+    def stop(self):
+        pass
+
+    def _run_flask(self):
+        try:
+            self.app.run(host='0.0.0.0', port=4444, debug=True, use_reloader=False)
+        except Exception as e:
+            raise RestApiException("Error while running rest api, exiting") from e
+
 
 def _set_pod(pod):
     global g_pod
@@ -680,13 +702,6 @@ def a22():
 def a23():
     return _api_result(lambda: update_password(), "Failure while changing omnipy password")
 
-def _run_flask():
-    try:
-        app.run(host='0.0.0.0', port=4444, debug=True, use_reloader=False)
-    except:
-        logger.exception("Error while running rest api, exiting")
-
-
 def _exit_with_grace():
     try:
         global g_deny
@@ -705,23 +720,16 @@ def _exit_with_grace():
 if __name__ == '__main__':
     logger.info("Rest api is starting")
 
-    try:
-        with open(DATA_PATH + KEY_FILE, "rb") as keyfile:
-            g_key = keyfile.read(32)
-    except IOError:
-        logger.exception("Error while reading keyfile. Did you forget to set a password?")
-        raise
+    api = OmnipyApi()
 
-    try:
-        os.system("sudo systemctl restart systemd-timesyncd && sudo systemctl daemon-reload")
-    except:
-        logger.exception("Error while reloading timesync daemon")
-
+    api.start()
     signal.signal(signal.SIGTERM, _exit_with_grace)
+    try:
+        while True:
+            time.sleep(1)
 
-    t = Thread(target=_run_flask)
-    t.setDaemon(True)
-    t.start()
+    except KeyboardInterrupt:
+        _exit_with_grace()
 
     try:
         while True:

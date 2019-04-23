@@ -3,6 +3,9 @@ class OmnipyError(Exception):
     def __init__(self, message="Unknown"):
         self.error_message = message
 
+class OmnipyDbError(OmnipyError):
+    def __init__(self, message="Unknown database error"):
+        OmnipyError.__init__(self, message)
 
 class PacketRadioError(OmnipyError):
     def __init__(self, message="Unknown RL error", err_code=None):
