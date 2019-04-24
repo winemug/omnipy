@@ -28,8 +28,8 @@ g_token_lock = Lock()
 
 app = Flask(__name__, static_url_path="/")
 configureLogging()
-logger = getLogger(with_console=False)
-get_packet_logger(with_console=False)
+logger = getLogger(with_console=True)
+get_packet_logger(with_console=True)
 
 
 class RestApiException(Exception):
@@ -424,6 +424,7 @@ def get_status():
 
     pdm = _get_pdm()
     id = pdm.update_status(req_type)
+
     return {"row_id":id}
 
 
@@ -500,6 +501,13 @@ def acknowledge_alerts():
     id = pdm.acknowledge_alerts(mask)
     return {"row_id":id}
 
+
+def silence_alarms():
+    _verify_auth(request)
+
+    pdm = _get_pdm()
+    id = pdm.hf_silence_will_fall()
+    return {"row_id":id}
 
 def shutdown():
     global g_deny
@@ -679,6 +687,10 @@ def a22():
 @app.route(REST_URL_OMNIPY_CHANGE_PASSWORD)
 def a23():
     return _api_result(lambda: update_password(), "Failure while changing omnipy password")
+
+@app.route(REST_URL_SILENCE_ALARMS)
+def a24():
+    return _api_result(lambda: silence_alarms(), "Failure while silencing")
 
 def _run_flask():
     try:

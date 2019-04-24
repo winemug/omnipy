@@ -142,6 +142,75 @@ class Pdm:
         finally:
             self._savePod()
 
+    # def configure_reservoir_alarm(self, iu_reservoir_level=None):
+    #     try:
+    #         with PdmLock(0):
+    #             if iu_reservoir_level is None:
+    #                 request = request_clear_low_reservoir_alert()
+    #             else:
+    #                 request = request_set_low_reservoir_alert(self.pod.var_alert_low_reservoir)
+    #             self.send_request(request, with_nonce=True)
+    #             self.pod.var_alert_low_reservoir_set = True
+    #     except OmnipyError:
+    #         raise
+    #     except Exception as e:
+    #         raise PdmError("Unexpected error") from e
+    #
+    # def configure_pod_expiry_alarm(self, minutes_after_activation=None):
+    #     try:
+    #         with PdmLock(0):
+    #             if minutes_after_activation is None:
+    #                 request = request_clear_pod_expiry_alert()
+    #             else:
+    #                 request = request_set_pod_expiry_alert(minutes_after_activation)
+    #             self.send_request(request, with_nonce=True)
+    #             self.pod.var_alert_low_reservoir_set = True
+    #     except OmnipyError:
+    #         raise
+    #     except Exception as e:
+    #         raise PdmError("Unexpected error") from e
+    def hf_silence_will_fall(self):
+        try:
+            with PdmLock():
+                self._internal_update_status()
+                if self.pod.state_alert > 0:
+                    self.logger.info("Acknowledging alerts with bitmask %d" % self.pod.state_alert)
+                    self.pod.last_command = {"command": "ACK_ALERTS", "mask": self.pod.state_alert, "success": False}
+                    request = request_acknowledge_alerts(self.pod.state_alert)
+                    self.send_request(request, with_nonce=True)
+                    self.pod.last_command = {"command": "ACK_ALERTS", "mask": self.pod.state_alert, "success": False}
+
+                self._internal_update_status(1)
+
+                active_alerts = []
+                if self.pod.state_alerts is not None:
+                    for ai in range(0,8):
+                        if self.pod.state_alerts[ai] > 0:
+                            active_alerts.append(ai)
+
+                if len(active_alerts) == 0:
+                    self.logger.info("No alerts active")
+                else:
+                    self.logger.info("Clearing alerts: %s" % str(active_alerts))
+                    acs = []
+                    for i in active_alerts:
+                        ac = AlertConfiguration()
+                        ac.activate = False
+                        ac.alert_after_minutes = 0
+                        ac.alert_duration = 0
+                        ac.alert_index = i
+                        acs.append(ac)
+                    request = request_acknowledge_alerts(self.pod.state_alert)
+                    self.send_request(request, with_nonce=True)
+                    self.pod.last_command["success"] = True
+        except OmnipyError:
+            raise
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
+        finally:
+            self._savePod()
+
+
     def is_busy(self):
         try:
             with PdmLock(0):
@@ -436,16 +505,16 @@ class Pdm:
                     self.pod.nonce_seed = 0
                     self.pod.nonce_last = None
 
-                    if self.pod.var_alert_low_reservoir is not None:
-                        if not self.pod.var_alert_low_reservoir_set:
-                            request = request_set_low_reservoir_alert(self.pod.var_alert_low_reservoir)
-                            self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
-                            self.pod.var_alert_low_reservoir_set = True
-
-                    if not self.pod.var_alert_before_prime_set:
-                        request = request_set_generic_alert(5, 55)
-                        self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
-                        self.pod.var_alert_before_prime_set = True
+                    # if self.pod.var_alert_low_reservoir is not None:
+                    #     if not self.pod.var_alert_low_reservoir_set:
+                    #         request = request_set_low_reservoir_alert(self.pod.var_alert_low_reservoir)
+                    #         self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
+                    #         self.pod.var_alert_low_reservoir_set = True
+                    #
+                    # if not self.pod.var_alert_before_prime_set:
+                    #     request = request_set_generic_alert(5, 55)
+                    #     self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
+                    #     self.pod.var_alert_before_prime_set = True
 
                     # request = request_delivery_flags(0, 0)
                     # self.send_request(request, with_nonce=True)
@@ -453,18 +522,19 @@ class Pdm:
                     request = request_prime_cannula()
                     self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
 
-                    time.sleep(50)
+                    time.sleep(55)
 
+                self._internal_update_status()
                 while self.pod.state_progress != PodProgress.ReadyForInjection:
                     time.sleep(5)
                     self._internal_update_status()
 
-                if self.pod.state_progress == PodProgress.ReadyForInjection:
-                    if self.pod.var_alert_replace_pod is not None:
-                        if not self.pod.var_alert_replace_pod_set:
-                            request = request_set_pod_expiry_alert(self.pod.var_alert_replace_pod - self.pod.state_active_minutes)
-                            self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
-                            self.pod.var_alert_replace_pod_set = True
+                # if self.pod.state_progress == PodProgress.ReadyForInjection:
+                #     if self.pod.var_alert_replace_pod is not None:
+                #         if not self.pod.var_alert_replace_pod_set:
+                #             request = request_set_pod_expiry_alert(self.pod.var_alert_replace_pod - self.pod.state_active_minutes)
+                #             self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
+                #             self.pod.var_alert_replace_pod_set = True
 
                 self.pod.last_command["success"] = True
 
@@ -485,7 +555,7 @@ class Pdm:
                                          "success": False}
 
                 if self.pod.state_progress >= PodProgress.Running:
-                    raise PdmError("Pod is passed the injection stage")
+                    raise PdmError("Pod has passed the injection stage")
 
                 if self.pod.state_progress < PodProgress.ReadyForInjection:
                     raise PdmError("Pod is not ready for injection")
@@ -507,10 +577,10 @@ class Pdm:
                         raise PdmError("Pod did not acknowledge basal schedule")
 
                 if self.pod.state_progress == PodProgress.BasalScheduleSet:
-                    if not self.pod.var_alert_after_prime_set:
-                        request = request_set_initial_alerts(self.pod.var_activation_date)
-                        self.send_request(request, with_nonce=True, expect_critical_follow_up=True)
-                        self.pod.var_alert_after_prime_set = True
+                    # if not self.pod.var_alert_after_prime_set:
+                    #     request = request_set_initial_alerts(self.pod.var_activation_date)
+                    #     self.send_request(request, with_nonce=True, expect_critical_follow_up=True)
+                    #     self.pod.var_alert_after_prime_set = True
 
                     request = request_insert_cannula()
                     self.send_request(request, with_nonce=True)
@@ -519,7 +589,7 @@ class Pdm:
                         raise PdmError("Pod did not acknowledge cannula insertion start")
 
                 if self.pod.state_progress == PodProgress.Inserting:
-                    time.sleep(15)
+                    time.sleep(13)
                     self._internal_update_status()
                     if self.pod.state_progress != PodProgress.Running:
                         raise PdmError("Pod did not get to running state")

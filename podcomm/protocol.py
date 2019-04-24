@@ -29,106 +29,54 @@ def request_setup_pod(lot, tid, address, year, month, day, hour, minute):
     return PdmMessage(PdmRequest.SetupPod, cmd_body)
 
 
-def request_set_low_reservoir_alert(iu_reservoir_level):
-    cmd_body = _alert_configuration_message(PodAlertBit.LowReservoir,
-                                                 activate=True,
-                                                 trigger_auto_off=False,
-                                                 trigger_reservoir=True,
-                                                 duration_minutes=60,
-                                                 alert_after_reservoir=iu_reservoir_level,
-                                                 beep_type=BeepType.BipBip,
-                                                 beep_repeat_type=BeepPattern.OnceEveryHour)
-    return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
+def request_alert_setup(alert_configurations):
+    cmd_body = bytes()
 
+    for ac in alert_configurations:
+        if ac.alert_after_minutes is None and ac.alert_after_reservoir is None and ac.activate:
+            raise PdmError("Either alert_after_minutes or alert_after_reservoir must be set")
+        elif ac.alert_after_minutes is not None and ac.alert_after_reservoir is not None:
+            raise PdmError("Only one of alert_after_minutes or alert_after_reservoir must be set")
 
-def request_clear_low_reservoir_alert():
-    cmd_body = _alert_configuration_message(PodAlertBit.LowReservoir,
-                                                 activate=False,
-                                                 trigger_auto_off=False,
-                                                 trigger_reservoir=True,
-                                                 duration_minutes=0,
-                                                 alert_after_reservoir=0,
-                                                 beep_type=BeepType.NoSound,
-                                                 beep_repeat_type=BeepPattern.OnceEveryHour)
-    return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
+        if ac.alert_duration > 0x1FF:
+            raise PdmError("Alert duration in minutes cannot be more than %d" % 0x1ff)
+        elif ac.alert_duration < 0:
+            raise PdmError("Invalid alert duration value")
 
+        if ac.alert_after_minutes is not None and ac.alert_after_minutes > 4800:
+            raise PdmError("Alert cannot be set beyond 80 hours")
+        if ac.alert_after_minutes is not None and ac.alert_after_minutes < 0:
+            raise PdmError("Invalid value for alert_after_minutes")
 
-def request_set_pod_expiry_alert(minutes_after_activation):
-    cmd_body = _alert_configuration_message(PodAlertBit.LowReservoir,
-                                                 activate=True,
-                                                 trigger_auto_off=False,
-                                                 trigger_reservoir=False,
-                                                 duration_minutes=60,
-                                                 alert_after_minutes=minutes_after_activation,
-                                                 beep_type=BeepType.BipBip,
-                                                 beep_repeat_type=BeepPattern.OnceEveryHour)
-    return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
+        if ac.alert_after_reservoir is not None and ac.alert_after_reservoir > 50:
+            raise PdmError("Alert cannot be set for more than 50 units")
+        if ac.alert_after_reservoir is not None and ac.alert_after_reservoir < 0:
+            raise PdmError("Invalid value for alert_after_reservoir")
 
+        b0 = ac.alert_index << 4
+        if ac.activate:
+            b0 |= 0x08
+        if ac.alert_after_reservoir is not None:
+            b0 |= 0x04
+        if ac.trigger_auto_off:
+            b0 |= 0x02
 
-def request_clear_pod_expiry_alert():
-    cmd_body = _alert_configuration_message(PodAlertBit.LowReservoir,
-                                                 activate=False,
-                                                 trigger_auto_off=False,
-                                                 trigger_reservoir=False,
-                                                 duration_minutes=0,
-                                                 alert_after_minutes=0,
-                                                 beep_type=BeepType.NoSound,
-                                                 beep_repeat_type=BeepPattern.Once)
-    return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
+        b0 |= (ac.alert_duration >> 8) & 0x0001
+        b1 = ac.alert_duration & 0x00ff
+        b2 = 0
+        b3 = 0
+        if ac.alert_after_reservoir is not None:
+            reservoir_limit = int(ac.alert_after_reservoir * 10)
+            b2 = reservoir_limit >> 8
+            b3 = reservoir_limit & 0x00ff
+        if ac.alert_after_minutes is not None:
+            b2 = ac.alert_after_minutes >> 8
+            b3 = ac.alert_after_minutes & 0x00ff
 
-
-def request_set_generic_alert(minutes_after_set, repeat_interval):
-    cmd_body = _alert_configuration_message(PodAlertBit.TimerLimit,
-                                                 activate=True,
-                                                 trigger_auto_off=False,
-                                                 duration_minutes=minutes_after_set,
-                                                 alert_after_minutes=repeat_interval,
-                                                 beep_repeat_type=BeepPattern.OnceEveryMinuteForThreeMinutesAndRepeatEveryFifteenMinutes,
-                                                 beep_type=BeepType.BipBipBipTwice)
-    return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
-
-
-def request_clear_generic_alert():
-    cmd_body = _alert_configuration_message(PodAlertBit.TimerLimit,
-                                                 activate=True,
-                                                 trigger_auto_off=False,
-                                                 duration_minutes=0,
-                                                 alert_after_minutes=0,
-                                                 beep_repeat_type=BeepPattern.Once,
-                                                 beep_type=BeepType.NoSound)
-    return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
-
-def request_set_initial_alerts(activation_date):
-
-    minutes_past_activation = int(time.time() - activation_date) + 1
-    minutes_to_72hours = (72*60) - minutes_past_activation
-    minutes_to_80hours = (80*60) - minutes_past_activation
-
-    cmd_body = _alert_configuration_message(PodAlertBit.TimerLimit,
-                                            activate=True,
-                                            trigger_auto_off=False,
-                                            alert_after_minutes=minutes_to_72hours,
-                                            duration_minutes=7*60,
-                                            beep_repeat_type=BeepPattern.OnceEveryHour,
-                                            beep_type=BeepType.BipBeepFourTimes)
-
-    cmd_body += _alert_configuration_message(PodAlertBit.EndOfService,
-                                            activate=True,
-                                            trigger_auto_off=False,
-                                            alert_after_minutes=minutes_to_80hours,
-                                            duration_minutes=15,
-                                            beep_repeat_type=BeepPattern.OnceEveryHour,
-                                            beep_type=BeepType.BipBeepFourTimes)
-
-    cmd_body += _alert_configuration_message(PodAlertBit.AutoOff,
-                                            activate=False,
-                                            trigger_auto_off=False,
-                                            alert_after_minutes=0,
-                                            duration_minutes=0,
-                                            beep_repeat_type=BeepPattern.Once,
-                                            beep_type=BeepType.NoSound)
+        cmd_body += bytes([b0, b1, b2, b3, ac.beep_repeat_type, ac.beep_type])
 
     return PdmMessage(PdmRequest.ConfigureAlerts, cmd_body)
+
 
 def request_set_basal_schedule(schedule, hour, minute, second):
     halved_schedule = []
@@ -307,7 +255,7 @@ def response_parse(response, pod):
 
 def parse_information_response(response, pod):
         if response[0] == 0x01:
-            pass
+            pod.state_alerts = struct.unpack(">8H", response[3:])
         elif response[0] == 0x02:
             pod.state_last_updated = time.time()
             pod.state_faulted = True
@@ -414,58 +362,6 @@ def parse_version_response(response, pod):
         pod.radio_address = struct.unpack(">I", response[17:21])[0]
     else:
         pod.radio_address = struct.unpack(">I", response[16:20])[0]
-
-
-def _alert_configuration_message(alert_bit, activate, trigger_auto_off, duration_minutes, beep_repeat_type, beep_type,
-                     alert_after_minutes=None, alert_after_reservoir=None, trigger_reservoir=False):
-    if alert_after_minutes is None:
-        if alert_after_reservoir is None:
-            raise PdmError("Either alert_after_minutes or alert_after_reservoir must be set")
-        elif not trigger_reservoir:
-            raise PdmError("Trigger insulin_reservoir must be True if alert_after_reservoir is to be set")
-    else:
-        if alert_after_reservoir is not None:
-            raise PdmError("Only one of alert_after_minutes or alert_after_reservoir must be set")
-        elif trigger_reservoir:
-            raise PdmError("Trigger insulin_reservoir must be False if alert_after_minutes is to be set")
-
-    if duration_minutes > 0x1FF:
-        raise PdmError("Alert duration in minutes cannot be more than %d" % 0x1ff)
-    elif duration_minutes < 0:
-        raise PdmError("Invalid alert duration value")
-
-    if alert_after_minutes is not None and alert_after_minutes > 4800:
-        raise PdmError("Alert cannot be set beyond 80 hours")
-    if alert_after_minutes is not None and alert_after_minutes < 0:
-        raise PdmError("Invalid value for alert_after_minutes")
-
-    if alert_after_reservoir is not None and alert_after_reservoir > 50:
-        raise PdmError("Alert cannot be set for more than 50 units")
-    if alert_after_reservoir is not None and alert_after_reservoir < 0:
-        raise PdmError("Invalid value for alert_after_reservoir")
-
-    b0 = alert_bit << 4
-    if activate:
-        b0 |= 0x08
-    if trigger_reservoir:
-        b0 |= 0x04
-    if trigger_auto_off:
-        b0 |= 0x02
-
-    b0 |= (duration_minutes >> 8) & 0x0001
-    b1 = duration_minutes & 0x00ff
-
-    if alert_after_reservoir is not None:
-        reservoir_limit = int(alert_after_reservoir * 10)
-        b2 = reservoir_limit >> 8
-        b3 = reservoir_limit & 0x00ff
-    elif alert_after_minutes is not None:
-        b2 = alert_after_minutes >> 8
-        b3 = alert_after_minutes & 0x00ff
-    else:
-        raise PdmError("Incorrect alert configuration requested")
-
-    return bytes([b0, b1, b2, b3, beep_repeat_type, beep_type])
 
 
 def _bolus_message(pulse_count, pulse_speed=16, reminders=0, delivery_delay=2):

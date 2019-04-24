@@ -74,6 +74,7 @@ def cancel_bolus(args, pa):
 
 
 def status(args, pa):
+    pa["type"] = args.req_type
     call_api(args.url, REST_URL_STATUS, pa)
 
 
@@ -89,6 +90,9 @@ def activate(args, pa):
 def archive(args, pa):
     call_api(args.url, REST_URL_ARCHIVE_POD, pa)
 
+
+def silence(args, pa):
+    call_api(args.url, REST_URL_SILENCE_ALARMS, pa)
 
 def start(args, pa):
     for i in range(0,48):
@@ -119,7 +123,11 @@ def main():
     subparser.add_argument("radio_address", help="Radio radio_address of the pod", default=None, nargs="?")
     subparser.set_defaults(func=new_pod)
 
+    subparser = subparsers.add_parser("silence", help="silence -h")
+    subparser.set_defaults(func=silence)
+
     subparser = subparsers.add_parser("status", help="status -h")
+    subparser.add_argument("req_type", type=int, help="Status request type", default=0, nargs="?")
     subparser.set_defaults(func=status)
 
     subparser = subparsers.add_parser("tempbasal", help="tempbasal -h")

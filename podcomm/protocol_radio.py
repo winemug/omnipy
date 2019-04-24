@@ -160,7 +160,7 @@ class PdmRadio:
                 self.response_received.set()
                 try:
                     self._send_packet(ack_packet, allow_premature_exit_after=3.5)
-                except Exception as e:
+                except Exception:
                     self.logger.exception("Error during ending conversation, ignored.")
 
             else:
@@ -278,7 +278,7 @@ class PdmRadio:
                                 try:
                                     self.packet_radio.set_tx_power(TxPower.Highest)
                                     self._send_packet(ack_packet)
-                                except Exception as e:
+                                except Exception:
                                     self.logger.exception("Ignored.")
                             self._reset_sequences()
                             raise

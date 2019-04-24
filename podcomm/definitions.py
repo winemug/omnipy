@@ -43,6 +43,7 @@ REST_URL_GET_PDM_ADDRESS = "/omnipy/pdmspy"
 
 REST_URL_RL_INFO = "/rl/info"
 
+REST_URL_SILENCE_ALARMS = "/pdm/silence"
 REST_URL_ARCHIVE_POD = "/pdm/archive"
 REST_URL_ACTIVATE_POD = "/pdm/activate"
 REST_URL_START_POD = "/pdm/start"
@@ -147,27 +148,16 @@ class PodProgress(IntEnum):
     Inactive = 15
 
 
-class PodAlert(IntEnum):
-    AutoOff = 0x01
-    Unknown = 0x02
-    EndOfService = 0x04
-    Expired = 0x08
-    LowReservoir = 0x10
-    SuspendInProgress = 0x20
-    SuspendEnded = 0x40
-    TimerLimit = 0x80
-
-
-class PodAlertBit(IntEnum):
-    AutoOff = 0x00
-    Unknown = 0x01
-    EndOfService = 0x02
-    Expired = 0x03
-    LowReservoir = 0x04
-    SuspendInProgress = 0x05
-    SuspendEnded = 0x06
-    TimerLimit = 0x07
-
+class AlertConfiguration:
+    def __init__(self):
+        self.alert_index = None
+        self.activate = False
+        self.trigger_auto_off = False
+        self.alert_after_minutes = None
+        self.alert_after_reservoir = None
+        self.alert_duration = None
+        self.beep_type = 0
+        self.beep_repeat_type = 0
 
 class BeepPattern(IntEnum):
     Once = 0
