@@ -511,16 +511,26 @@ class Pdm:
                     #         self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
                     #         self.pod.var_alert_low_reservoir_set = True
                     #
-                    # if not self.pod.var_alert_before_prime_set:
-                    #     request = request_set_generic_alert(5, 55)
-                    #     self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
-                    #     self.pod.var_alert_before_prime_set = True
+
+                    ac = AlertConfiguration()
+                    ac.activate = True
+                    ac.alert_index = 7
+                    ac.alert_after_minutes = 5
+                    ac.alert_duration = 55
+                    ac.beep_type = BeepType.BipBeepFourTimes
+                    ac.beep_repeat_type = BeepPattern.OnceEveryFiveMinutes
+                    acs = [ac]
+                    request = request_alert_setup(acs)
+                    self.send_request(request, with_nonce=True)
 
                     # request = request_delivery_flags(0, 0)
                     # self.send_request(request, with_nonce=True)
 
+                    request = request_delivery_flags(0, 0)
+                    self.send_request(request, with_nonce=True)
+
                     request = request_prime_cannula()
-                    self.send_request(request, with_nonce=True, tx_power=TxPower.Low)
+                    self.send_request(request, with_nonce=True)
 
                     time.sleep(55)
 
@@ -578,9 +588,27 @@ class Pdm:
 
                 if self.pod.state_progress == PodProgress.BasalScheduleSet:
                     # if not self.pod.var_alert_after_prime_set:
-                    #     request = request_set_initial_alerts(self.pod.var_activation_date)
-                    #     self.send_request(request, with_nonce=True, expect_critical_follow_up=True)
-                    #     self.pod.var_alert_after_prime_set = True
+
+                    ac1 = AlertConfiguration()
+                    ac1.activate = False
+                    ac1.alert_index = 7
+                    ac1.alert_duration = 0
+                    ac1.alert_after_minutes = 0
+                    ac1.beep_type = 0
+                    ac1.beep_repeat_type = 0
+
+                    ac2 = AlertConfiguration()
+                    ac2.activate = False
+                    ac2.alert_index = 0
+                    ac2.trigger_auto_off = True
+                    ac2.duration = 15
+                    ac2.beep_repeat_type = 2
+                    ac2.beep_type = 2
+                    ac2.alert_duration = 0
+
+                    acs = [ac1, ac2]
+                    request = request_alert_setup(acs)
+                    self.send_request(request, with_nonce=True)
 
                     request = request_insert_cannula()
                     self.send_request(request, with_nonce=True)

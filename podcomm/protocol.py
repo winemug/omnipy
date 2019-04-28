@@ -38,10 +38,11 @@ def request_alert_setup(alert_configurations):
         elif ac.alert_after_minutes is not None and ac.alert_after_reservoir is not None:
             raise PdmError("Only one of alert_after_minutes or alert_after_reservoir must be set")
 
-        if ac.alert_duration > 0x1FF:
-            raise PdmError("Alert duration in minutes cannot be more than %d" % 0x1ff)
-        elif ac.alert_duration < 0:
-            raise PdmError("Invalid alert duration value")
+        if ac.alert_duration is not None:
+            if ac.alert_duration > 0x1FF:
+                raise PdmError("Alert duration in minutes cannot be more than %d" % 0x1ff)
+            elif ac.alert_duration < 0:
+                raise PdmError("Invalid alert duration value")
 
         if ac.alert_after_minutes is not None and ac.alert_after_minutes > 4800:
             raise PdmError("Alert cannot be set beyond 80 hours")

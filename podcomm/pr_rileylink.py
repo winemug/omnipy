@@ -79,16 +79,7 @@ class Encoding(IntEnum):
     FOURBSIXB = 2
 
 
-PA_LEVELS = [0x12,
-             0x0E, 0x0E,
-             0x1D, 0x1D,
-             0x34, 0x34, 0x34,
-             0x2C, 0x2C, 0x2C, 0x2C,
-             0x60, 0x60, 0x60, 0x60,
-             0x84, 0x84, 0x84, 0x84, 0x84,
-             0xC8, 0xC8, 0xC8, 0xC8, 0xC8,
-             0xC0, 0xC0]
-
+PA_LEVELS = [0x12, 0x0E, 0x1D, 0x34, 0x2C, 0x60, 0x84, 0xC8, 0xC0]
 
 g_rl_address = None
 g_rl_version = None
@@ -288,7 +279,7 @@ class RileyLink(PacketRadio):
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL2, 0x2A]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL1, 0x00]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 0x35]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 0x31]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.TEST0, 0x09]))
             # self._command(Command.UPDATE_REGISTER, bytes([Register.FOCCFG, 0x17]))
             # self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL3, 0xE9]))
@@ -341,9 +332,9 @@ class RileyLink(PacketRadio):
             elif tx_power == TxPower.Lowest:
                 self._set_amp(0)
             elif tx_power == TxPower.Low:
-                self._set_amp(PA_LEVELS.index(0x12))
+                self._set_amp(PA_LEVELS.index(0x1D))
             elif tx_power == TxPower.Normal:
-                self._set_amp(PA_LEVELS.index(0x60))
+                self._set_amp(PA_LEVELS.index(0x84))
             elif tx_power == TxPower.High:
                 self._set_amp(PA_LEVELS.index(0xC8))
             elif tx_power == TxPower.Highest:
