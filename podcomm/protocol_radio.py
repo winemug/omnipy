@@ -334,14 +334,11 @@ class PdmRadio:
                             self._reset_sequences()
                             raise
                 except ProtocolError:
-                    if expected_type == RadioPacketType.POD and received.type == RadioPacketType.ACK:
-                        self.logger.debug("Trying to recover from protocol error")
-                        self.packet_sequence = (received.sequence + 1) % 32
-                        packet = self._interim_ack(ack_address_override=self.ack_address_override,
-                                               sequence=self.packet_sequence)
-                        continue
-                    else:
-                        raise
+                    self.logger.debug("Trying to recover from protocol error")
+                    self.packet_sequence = (received.sequence + 1) % 32
+                    packet = self._interim_ack(ack_address_override=self.ack_address_override,
+                                           sequence=self.packet_sequence)
+                    continue
 
             part += 1
             self.packet_sequence = (received.sequence + 1) % 32
