@@ -45,6 +45,7 @@ REST_URL_RL_INFO = "/rl/info"
 
 REST_URL_SILENCE_ALARMS = "/pdm/silence"
 REST_URL_ARCHIVE_POD = "/pdm/archive"
+REST_URL_PAIR_POD = "/pdm/pair"
 REST_URL_ACTIVATE_POD = "/pdm/activate"
 REST_URL_START_POD = "/pdm/start"
 REST_URL_STATUS = "/pdm/status"

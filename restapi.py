@@ -317,7 +317,7 @@ def new_pod():
     _set_pod(pod)
 
 
-def activate_pod():
+def pair_pod():
     _verify_auth(request)
 
     pod = _get_pod()
@@ -330,8 +330,15 @@ def activate_pod():
 
     req_address = _get_next_pod_address()
     utc_offset = int(request.args.get('utc'))
-    pdm.activate_pod(req_address, utc_offset=utc_offset)
+    pdm.pair_pod(req_address, utc_offset=utc_offset)
     _save_activated_pod_address(req_address)
+
+
+def activate_pod():
+    _verify_auth(request)
+
+    pdm = _get_pdm()
+    pdm.activate_pod()
 
 
 def start_pod():
@@ -660,9 +667,13 @@ def a15():
 def a16():
     return _api_result(lambda: restart(), "Failure while executing reboot")
 
+@app.route(REST_URL_PAIR_POD)
+def a165():
+    return _api_result(lambda: pair_pod(), "Failure while activating the pod")
+
 @app.route(REST_URL_ACTIVATE_POD)
 def a17():
-    return _api_result(lambda: activate_pod(), "Failure while activating a new pod")
+    return _api_result(lambda: activate_pod(), "Failure while activating the pod")
 
 @app.route(REST_URL_START_POD)
 def a18():

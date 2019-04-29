@@ -13,7 +13,7 @@ sudo raspi-config
 
 
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y screen git python3 python3-pip vim jq bluez-tools libglib2.0-dev
+sudo apt install -y screen git python3 python3-pip vim jq bluez-tools libglib2.0-dev python3-rpi.gpio
 #expect build-essential libglib2.0-dev libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update
 #reboot
 

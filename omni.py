@@ -84,6 +84,8 @@ def deactivate(args, pa):
 
 def activate(args, pa):
     pa["utc"] = args.utcoffset
+    call_api(args.url, REST_URL_PAIR_POD, pa)
+    pa = get_auth_params()
     call_api(args.url, REST_URL_ACTIVATE_POD, pa)
 
 

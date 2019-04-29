@@ -437,17 +437,17 @@ class Pdm:
         finally:
             self._savePod()
 
-    def activate_pod(self, candidate_address, utc_offset):
+    def pair_pod(self, candidate_address, utc_offset):
         try:
             with PdmLock():
                 self.logger.debug("Activating pod")
-                self.pod.last_command = {"command": "ACTIVATE",
+                self.pod.last_command = {"command": "PAIR",
                                          "address": candidate_address,
                                          "utc_offset": utc_offset,
                                          "success": False}
 
-                if self.pod.state_progress > PodProgress.ReadyForInjection:
-                    raise PdmError("Pod is already activated")
+                if self.pod.state_progress > PodProgress.PairingSuccess:
+                    raise PdmError("Pod is already paired")
 
                 self.pod.var_utc_offset = utc_offset
                 radio = None
@@ -494,6 +494,27 @@ class Pdm:
                     response_parse(response, self.pod)
                     self._assert_pod_paired()
 
+                self.pod.last_command["success"] = True
+
+        except OmnipyError:
+            raise
+        except Exception as e:
+            raise PdmError("Unexpected error") from e
+        finally:
+            self._savePod()
+
+
+    def activate_pod(self):
+        try:
+            with PdmLock():
+                self.logger.debug("Activating pod")
+                self.pod.last_command = {"command": "ACTIVATE",
+                                         "success": False}
+
+                if self.pod.state_progress > PodProgress.ReadyForInjection:
+                    raise PdmError("Pod is already activated")
+
+                radio = None
                 if self.pod.state_progress == PodProgress.PairingSuccess:
                     if radio is not None:
                         self.pod.radio_packet_sequence = radio.packet_sequence
