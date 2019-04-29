@@ -4,8 +4,8 @@ Omnipy v1.3 is not coming anytime soon
 But **Omnipy v1.4** is already there!
 
 Links:
-[Download v1.4](https://github.com/winemug/omnipy/releases/tag/v1.4)
-[Release Notes](https://github.com/winemug/omnipy/wiki/Release-Notes)
+* [Download](https://github.com/winemug/omnipy/releases/tag/v1.4)
+* [Release Notes](https://github.com/winemug/omnipy/wiki/Release-Notes)
 
 Note: [Wiki](Wiki) and [Setup documentation](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) is being currently updated. Check back in a couple of hours (as of 21:00 UTC) for a full update!
 
