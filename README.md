@@ -1,6 +1,7 @@
 ## Good news everyone!
-~~**Omnipy v1.3 coming soon**~~
-**Omnipy v1.4 is ready**
+**Omnipy v1.3 is not coming anytime soon**
+
+But Omnipy v1.4 is already there!
 
 Follow the progress during the day (April 29th) as documentation on wiki gets updated (due to significantly simplified setup procedure) and download links are published.
 
