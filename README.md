@@ -1,30 +1,40 @@
-# Project status March 27th
+# What is omnipy?
 
-## Good news everyone!
-*Omnipy v1.3 coming soon**
+![rileylink android raspberrypi](https://github.com/winemug/omnipy/raw/master/img/droidrlpi.jpg)
 
-Development and testing is going forward now that we've pods for testing. Thanks to all our contributors on the [slack channel](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY) who have been sending pods, helping with coding and documentation, providing feedback and spreading the word.
+Omnipy is a set of hardware and software components that allows users of the Omnipod insulin pump to automate insulin delivery using [Android APS](https://androidaps.readthedocs.io/en/latest/EN/). Android APS is a long established artificial pancreas system with support for many different insulin pumps, but does not (yet) officially feature Omnipod support. Omnipy bridges this gap and brings Omnipod to Android APS.
 
-![slackers](https://raw.githubusercontent.com/winemug/omnipy/master/img/slackers.png)
+Omnipy evolved from my initial efforts on working with OmniPod and is released to public as of February 2019. It has grown over time with support and feedback from the community.
 
-Here's what to look forward to in this (last) feature update for omnipy:
+Read the [introduction](https://github.com/winemug/omnipy/wiki) page on the wiki for more information.
 
-- All remaining PDM features: Pod activation, basal rate adjustments, 
-- Android APS: Messages, warnings, status updates from omnipy and a functional UI for PDM
-- Overall connection stability improvements in all areas: Pod, Rileylink and omnipy
-- An easier way to set up omnipy with raspberry pi and Android APS on your phone
+## Omnipy v1.4 released
 
-*Watch out on this page for release announcement and links. For questions, updates and support join us in the [omnicore-pdm slack via this invite link](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTY0ODcyOTA0ODcwLTNiMDc2OTE5MDk4Yjk0MDZlNDY1MmViMDkyZGYxZmQ2NWIwNDVhMmM0NTM1ZTM4MDdlYjFjNjBmZTRlYzllMmY).
+This release features the long awaited pod activation and basal schedule changes and comes with a brand new way of installation on the raspberry pi.
 
-**March 17th - omnipy v1.2 released**
+[Download](https://github.com/winemug/omnipy/releases/tag/v1.4) the latest version here.
 
-This release fixes an issue with the AAPS client incorrectly registering failed commands as succeeded. For all changes, see [release notes](https://github.com/winemug/omnipy/wiki/Release-Notes) on the wiki for more information.
+Please refer to the [Setup documentation](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) on the wiki for information on how to set up the latest version of omnipy and the [Release Notes](https://github.com/winemug/omnipy/wiki/Release-Notes) for more information on release contents.
 
-Also see [upgrading](https://github.com/winemug/omnipy/wiki/Upgrading-Software) if you are running a previous version.
+## Important information from the author
+
+As of omnipy v1.4 release, **all development activities on omnipy is stopped**. The project is considered feature-complete and stable enough for general use.
+
+Unless a major issue is encountered, there will be no fixes or updates to the current release. Support will still be available in the same form as it has been until today. If anyone is interested in taking the project further in its current form, [get in touch](mailto:barisk@gmail.com).
+
+## Next up: OmniCore
+
+I will focus all development efforts related to Omnipod and Omnipod Dash on [**OmniCore**](https://github.com/winemug/OmniCore), an OmniPod focused software product with a broader scope involving multiple platforms, hardware components and surprise features.
+
+Today, I'm excited to announce that the very first milestone of OmniCore is going to _replace omnipy completely_ to address one particular complaint all omnipy users (including myself) have had so far: Having to carry a raspberry pi and a power supply.
+
+**All of the omnipy functionality has already been ported** and the first release is scheduled to arrive _very_ soon. Keep an eye on the [OmniCore](https://github.com/winemug/OmniCore) github page for a status update in the coming days.
+
+## Join us
+
+For questions, updates and support join us in the [omnicore-pdm slack](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTk2MzYxOTAwNDUyLWNkZTBlYjk0ZWU1YTA1ZjA4OGVlOWQ3YWZkNmNkNzk0YjdhMWM0NmQ3ZTRiM2I3ZDVkNGYyYWJiYTM5Yjc2YjM).
 
 # Wiki Links
-
-[Setup](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) documentation for omnipy
 
 [Requirements](https://github.com/winemug/omnipy/wiki/Requirements)
 
@@ -34,23 +44,3 @@ Also see [upgrading](https://github.com/winemug/omnipy/wiki/Upgrading-Software) 
 
 [Support](https://github.com/winemug/omnipy/wiki/Support)
 
-# About
-omnipy is a PDM (personal diabetes manager) emulator for the OmniPod insulin pump and it can be used to command the pump to perform various functions over a Raspberry Pi on a local network. It exposes a basic HTTP API to be utilized by APS systems, and currently integrates with Android APS via a [custom fork](https://github.com/winemug/omnipy/wiki/AndroidAPS-Setup) of Android APS v2.x
-
-![rileylink android raspberrypi](https://github.com/winemug/omnipy/raw/master/img/droidrlpi.jpg)
-
-# Important Background Information
-This used to be a pet project, where I investigated the radio communication between the OmniPod and the PDM. Whilst still studying the OmniPod, I have decided that there was enough information available to let it execute basic commands which would make it usable in an artifical pancreas system. I've put together a prototype and integrated it into AndroidAPS for our own use, which became what it is today.
-
-As a father of a child with Type I diabetes, I desperately needed something until there was a "proper" solution, so this piece of software became indispensible, albeit its design issues and lack of user-friendliness.
-
-You are welcome to test it and report issues, but be aware you are doing this on your **own risk** ~~and so far it has been tested by **only two people**.~~ Initially tested off-body and on non-t1d volunteers, my son has been using this as a closed loop since November 2018. Since then it has evolved from a raspberry pi with a usb stick (rfcat) to raspberry pi with the RileyLink and Android APS and made gradually available for testing to the general public earlier in March 2019. It's now being tested by more and more people and core functionality has so far shown itself to be stable for a looping setup.
-
-# What's next?
-
-This was intended to be a throw-away prototype and I ~~want~~try to keep it that way. The raspberry pi and android are redundant, as both have enough processing power to perform the operations. My focus on Omnipod related development will shift on to the [OmniCore](https://github.com/winemug/OmniCore) project, which will be ready for public testing by ~~mid~~ ~~late March~~ sometime after the final feature update of omnipy.
-
-In the mean time, please do report any issues you find so they can be addressed.
-
-# Information on RileyLink "433"
-It seems that the release announcement of [RileyLink433](https://getrileylink.org/product/rileylink433/) got people excited about OmniPod loopability. For clarification: RL 433 is **not** an absolute requirement. If you have the old RileyLink, it will still work - however in a _very_ limited range. It's strongly suggested to change the antenna, for which purpose RileyLink also provides an antenna upgrade kit. Please see the [requirements](https://github.com/winemug/omnipy/wiki/Requirements) section in the wiki and [Increasing Radio Range](https://github.com/winemug/omnipy/wiki/Increasing-Radio-Range) for what you can further do with your RileyLink.
