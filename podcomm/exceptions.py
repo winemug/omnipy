@@ -11,8 +11,16 @@ class PacketRadioError(OmnipyError):
 
 
 class ProtocolError(OmnipyError):
-    def __init__(self, message="Unknown protocol error"):
+    def __init__(self, message="Unknown protocol error", packet=None):
         OmnipyError.__init__(self, message)
+        self.packet = packet
+
+
+class RecoverableProtocolError(ProtocolError):
+    def __init__(self, message, packet):
+        OmnipyError.__init__(self, message)
+        self.packet = packet
+
 
 class OmnipyTimeoutError(OmnipyError):
     def __init__(self, message="Timeout error"):

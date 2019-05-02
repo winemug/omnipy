@@ -1,4 +1,4 @@
-from .exceptions import PacketRadioError, OmnipyTimeoutError
+from .exceptions import PacketRadioError, OmnipyTimeoutError, RecoverableProtocolError
 from podcomm.packet_radio import TxPower
 from podcomm.protocol_common import *
 from .pr_rileylink import RileyLink
@@ -333,16 +333,20 @@ class PdmRadio:
                             self.logger.debug("Failed recovery")
                             self._reset_sequences()
                             raise
+                except RecoverableProtocolError as rpe:
+                    self.logger.debug("Trying to recover from protocol error")
+                    self.packet_sequence = (rpe.packet.sequence + 1) % 32
+                    if expected_type == RadioPacketType.POD and rpe.packet.type == RadioPacketType.ACK:
+                        packet = self._interim_ack(ack_address_override=self.ack_address_override,
+                                               sequence=self.packet_sequence)
+                    continue
                 except ProtocolError:
                     self.logger.debug("Trying to recover from protocol error")
-                    self.packet_sequence = (received.sequence + 1) % 32
-                    packet = self._interim_ack(ack_address_override=self.ack_address_override,
-                                           sequence=self.packet_sequence)
+                    self.packet_sequence = (self.packet_sequence + 2) % 32
                     continue
 
             part += 1
             self.packet_sequence = (received.sequence + 1) % 32
-
 
         self.packet_logger.info("SENT MSG %s" % pdm_message)
         part_count = 0
@@ -361,7 +365,6 @@ class PdmRadio:
         self.message_sequence = (pod_response.sequence + 1) % 16
         self.packet_sequence = (received.sequence + 1) % 32
         return pod_response
-
 
     def _exchange_packets(self, packet_to_send, expected_type, timeout=10):
         start_time = None
@@ -415,14 +418,14 @@ class PdmRadio:
             if expected_type is not None and p.type != expected_type:
                 self.packet_logger.debug("RECV PKT unexpected type %s" % p)
                 self.current_exchange.protocol_errors += 1
-                raise ProtocolError("Unexpected packet type received")
+                raise RecoverableProtocolError("Unexpected packet type", received)
 
             if p.sequence != (packet_to_send.sequence + 1) % 32:
                 self.packet_sequence = (p.sequence + 1) % 32
                 self.packet_logger.debug("RECV PKT unexpected sequence %s" % p)
                 self.last_packet_received = p
                 self.current_exchange.protocol_errors += 1
-                raise ProtocolError("Incorrect packet sequence received")
+                raise RecoverableProtocolError("Incorrect packet sequence", received)
 
             return p
 
