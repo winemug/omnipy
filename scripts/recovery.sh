@@ -2,7 +2,7 @@
 #FW_UPDATE_FILE=/boot/omnipy-fwupdate
 PW_RESET_FILE=/boot/omnipy-pwreset
 BT_RESET_FILE=/boot/omnipy-btreset
-#RECOVERY_FILE=/boot/omnipy-recovery
+HOT_SPOT_FILE=/boot/omnipy-hotspot
 EXPAND_FS=/boot/omnipy-expandfs
 WLAN_INTERFACE=wlan0
 
@@ -22,14 +22,6 @@ fi
 
 iw dev ${WLAN_INTERFACE} set power_save off
 
-#systemctl stop hostapd
-#systemctl stop dnsmasq
-#systemctl disable hostapd
-#systemctl disable dnsmasq
-#ip link set dev ${WLAN_INTERFACE} down
-#ifconfig ${WLAN_INTERFACE} down
-#ifconfig ${WLAN_INTERFACE} up
-
 if [[ -f ${PW_RESET_FILE} ]]; then
 
         echo "pi:omnipy" | chpasswd
@@ -47,21 +39,36 @@ if [[ -f ${BT_RESET_FILE} ]]; then
         /bin/rm ${BT_RESET_FILE}
 fi
 
-#if [[ -f ${RECOVERY_FILE} ]]; then
-#
-#    	mkdir -p /home/pi/omnipy/data
-#        chown -R pi.pi /home/pi
-#
-#        ip link set dev ${WLAN_INTERFACE} down
-#        ip a add 10.0.34.1/24 brd + dev ${WLAN_INTERFACE}
-#        ip link set dev ${WLAN_INTERFACE} up
-#        systemctl enable hostapd
-#        systemctl enable dnsmasq
-#        systemctl start hostapd
-#        systemctl start dnsmasq
-#        dhcpcd -k ${WLAN_INTERFACE} > /dev/null 2>&1
-#
-#	    shellinaboxd -t --service /:pi:pi:/home/pi/omnipy:/home/pi/omnipy/scripts/console-ui.sh -p 80 -b
-#
-#        /bin/rm ${RECOVERY_FILE}
-#fi
+if [[ -f ${HOT_SPOT_FILE} ]]; then
+
+    	mkdir -p /home/pi/omnipy/data
+        chown -R pi.pi /home/pi
+
+        wpa_cli terminate >/dev/null 2>&1
+        ip addr flush dev ${WLAN_INTERFACE}
+        ip link set dev ${WLAN_INTERFACE} down
+        rm -r /var/run/wpa_supplicant >/dev/null 2>&1
+
+        ifconfig ${WLAN_INTERFACE} down
+        ifconfig ${WLAN_INTERFACE} up
+        ip link set dev ${WLAN_INTERFACE} down
+        ip a add 10.0.34.1/24 brd + dev ${WLAN_INTERFACE}
+        ip link set dev ${WLAN_INTERFACE} up
+        dhcpcd -k ${WLAN_INTERFACE} > /dev/null 2>&1
+        systemctl start hostapd
+        systemctl start dnsmasq
+
+	    shellinaboxd -t --service /:pi:pi:/home/pi/omnipy:/home/pi/omnipy/scripts/console-ui.sh -p 80 -b
+
+        /bin/rm ${HOT_SPOT_FILE}
+else
+        ip link set dev ${WLAN_INTERFACE} down
+        ifconfig ${WLAN_INTERFACE} down
+        ifconfig ${WLAN_INTERFACE} up
+        systemctl stop hostapd
+        systemctl stop dnsmasq
+        ip addr flush dev ${WLAN_INTERFACE}
+        ip link set dev ${WLAN_INTERFACE} up
+        dhcpcd  -n ${WLAN_INTERFACE} >/dev/null 2>&1
+        wpa_supplicant -B -i ${WLAN_INTERFACE} -c /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>&1
+fi

@@ -18,10 +18,23 @@ sudo apt install -y screen git python3 python3-pip vim jq bluez-tools libglib2.0
 #reboot
 
 
-#sudo apt install -y hostapd dnsmasq
-#sudo systemctl disable hostapd
-#sudo systemctl unmask hostapd
-#sudo systemctl disable dnsmasq
+sudo apt install -y hostapd dnsmasq
+sudo systemctl disable hostapd
+sudo systemctl unmask hostapd
+sudo systemctl disable dnsmasq
+
+sudo systemctl enable hostapd
+sudo systemctl enable dnsmasq
+sudo systemctl start hostapd
+sudo systemctl stop hostapd
+sudo systemctl stop dnsmasq
+
+sudo cp /home/pi/omnipy/scripts/image/default.dnsmasq /etc/default/dnsmasq
+sudo cp /home/pi/omnipy/scripts/image/default.hostapd /etc/default/hostapd
+sudo cp /home/pi/omnipy/scripts/image/hostapd.conf /etc/hostapd/
+sudo cp /home/pi/omnipy/scripts/image/dnsmasq.conf /etc/dnsmasq.d/
+sudo cp /home/pi/omnipy/scripts/image/dhcpcd.conf /etc/
+sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
 
 git config --global user.email "omnipy@balya.net"
 git config --global user.name "Omnipy Setup"
@@ -74,12 +87,7 @@ sudo find /home/pi -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+e
 
 sudo apt autoremove
 
-#sudo cp /home/pi/omnipy/scripts/image/default.dnsmasq /etc/default/dnsmasq
-#sudo cp /home/pi/omnipy/scripts/image/default.hostapd /etc/default/hostapd
-#sudo cp /home/pi/omnipy/scripts/image/hostapd.conf /etc/hostapd/
-#sudo cp /home/pi/omnipy/scripts/image/dnsmasq.conf /etc/dnsmasq.d/
-#sudo cp /home/pi/omnipy/scripts/image/dhcpcd.conf /etc/
-sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
+
 
 mkdir -p /home/pi/omnipy/data
 rm /home/pi/omnipy/data/key
