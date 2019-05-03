@@ -57,6 +57,8 @@ class PdmRadio:
         self.pdm_message = None
         self.pdm_message_address = None
         self.ack_address_override = None
+        self.debug_cut_last_ack = False
+        self.debug_cut_msg_after = None
 
         self.stats = []
         self.current_exchange = MessageExchange()
@@ -158,10 +160,14 @@ class PdmRadio:
                 ack_packet = self._final_ack(self.ack_address_override, self.packet_sequence)
                 self.current_exchange.ended = time.time()
                 self.response_received.set()
-                try:
-                    self._send_packet(ack_packet, allow_premature_exit_after=3.5)
-                except Exception:
-                    self.logger.exception("Error during ending conversation, ignored.")
+
+                if not self.debug_cut_last_ack:
+                    try:
+                        self._send_packet(ack_packet, allow_premature_exit_after=3.5)
+                    except Exception:
+                        self.logger.exception("Error during ending conversation, ignored.")
+                else:
+                    self.message_sequence = (self.message_sequence - 2) % 16
 
             else:
                 self.current_exchange.ended = time.time()
@@ -250,10 +256,13 @@ class PdmRadio:
                     expected_type = RadioPacketType.ACK
 
                 try:
-                    received = self._exchange_packets(packet.with_sequence(self.packet_sequence),
-                                                      expected_type=expected_type,
-                                                      timeout=timeout)
-                    break
+                    if self.debug_cut_msg_after is None or self.debug_cut_msg_after != part:
+                        received = self._exchange_packets(packet.with_sequence(self.packet_sequence),
+                                                          expected_type=expected_type,
+                                                          timeout=timeout)
+                        break
+                    else:
+                        raise Exception("debug cut here")
                 except OmnipyTimeoutError:
                     self.logger.debug("Trying to recover from timeout error")
                     if part == 0:
@@ -418,14 +427,14 @@ class PdmRadio:
             if expected_type is not None and p.type != expected_type:
                 self.packet_logger.debug("RECV PKT unexpected type %s" % p)
                 self.current_exchange.protocol_errors += 1
-                raise RecoverableProtocolError("Unexpected packet type", received)
+                raise RecoverableProtocolError("Unexpected packet type", p)
 
             if p.sequence != (packet_to_send.sequence + 1) % 32:
                 self.packet_sequence = (p.sequence + 1) % 32
                 self.packet_logger.debug("RECV PKT unexpected sequence %s" % p)
                 self.last_packet_received = p
                 self.current_exchange.protocol_errors += 1
-                raise RecoverableProtocolError("Incorrect packet sequence", received)
+                raise RecoverableProtocolError("Incorrect packet sequence", p)
 
             return p
 

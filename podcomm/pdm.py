@@ -35,6 +35,7 @@ class Pdm:
         self.nonce = None
         self.radio = None
         self.time_adjustment = 0
+        self.debug_status_skip = False
         self.logger = getLogger()
 
     def stop_radio(self):
@@ -101,6 +102,8 @@ class Pdm:
                 raise PdmError("Nonce sync failed")
 
     def _internal_update_status(self, update_type=0):
+        if self.debug_status_skip:
+            return
         self._assert_pod_address_assigned()
         self.send_request(request_status(update_type))
 
@@ -299,14 +302,16 @@ class Pdm:
             with PdmLock():
                 self.logger.debug("Canceling temp basal")
                 self.pod.last_command = {"command": "TEMPBASAL_CANCEL", "success": False}
-                self._assert_pod_address_assigned()
-                self._internal_update_status()
-                self._assert_can_generate_nonce()
-                self._assert_immediate_bolus_not_active()
-                self._assert_not_faulted()
-                self._assert_status_running()
 
-                if self._is_temp_basal_active():
+                if not self.debug_status_skip:
+                    self._assert_pod_address_assigned()
+                    self._internal_update_status()
+                    self._assert_can_generate_nonce()
+                    self._assert_immediate_bolus_not_active()
+                    self._assert_not_faulted()
+                    self._assert_status_running()
+
+                if self._is_temp_basal_active() or self.debug_status_skip:
                     request = request_cancel_temp_basal()
                     self.send_request(request, with_nonce=True)
                     if self.pod.state_basal == BasalState.TempBasal:
@@ -334,28 +339,30 @@ class Pdm:
                                          "duration_hours": hours,
                                          "hourly_rate": basalRate,
                                          "success": False}
-                self._assert_pod_address_assigned()
-                self._internal_update_status()
-                self._assert_can_generate_nonce()
-                self._assert_immediate_bolus_not_active()
-                self._assert_not_faulted()
-                self._assert_status_running()
+                if not self.debug_status_skip:
+                    self._assert_pod_address_assigned()
+                    self._internal_update_status()
+                    self._assert_can_generate_nonce()
+                    self._assert_immediate_bolus_not_active()
+                    self._assert_not_faulted()
+                    self._assert_status_running()
 
-                if hours > 12 or hours < 0.5:
-                    raise PdmError("Requested duration is not valid")
+                    if hours > 12 or hours < 0.5:
+                        raise PdmError("Requested duration is not valid")
 
-                if self.pod.var_maximum_temp_basal_rate is not None and \
-                        basalRate > Decimal(self.pod.var_maximum_temp_basal_rate):
-                    raise PdmError("Requested rate exceeds maximum temp basal setting")
-                if basalRate > Decimal(30):
-                    raise PdmError("Requested rate exceeds maximum temp basal capability")
+                    if self.pod.var_maximum_temp_basal_rate is not None and \
+                            basalRate > Decimal(self.pod.var_maximum_temp_basal_rate):
+                        raise PdmError("Requested rate exceeds maximum temp basal setting")
+                    if basalRate > Decimal(30):
+                        raise PdmError("Requested rate exceeds maximum temp basal capability")
 
-                if self._is_temp_basal_active():
-                    self.logger.debug("Canceling active temp basal before setting a new temp basal")
-                    request = request_cancel_temp_basal()
-                    self.send_request(request, with_nonce=True)
-                    if self.pod.state_basal == BasalState.TempBasal:
-                        raise PdmError("Failed to cancel running temp basal")
+                    if self._is_temp_basal_active():
+                        self.logger.debug("Canceling active temp basal before setting a new temp basal")
+                        request = request_cancel_temp_basal()
+                        self.send_request(request, with_nonce=True)
+                        if self.pod.state_basal == BasalState.TempBasal:
+                            raise PdmError("Failed to cancel running temp basal")
+
                 request = request_temp_basal(basalRate, hours)
                 self.send_request(request, with_nonce=True)
 

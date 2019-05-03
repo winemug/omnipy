@@ -22,9 +22,15 @@ class RecoverableProtocolError(ProtocolError):
         self.packet = packet
 
 
+class StatusUpdateRequired(OmnipyError):
+    def __init(self):
+        OmnipyError.__init__(self)
+
+
 class OmnipyTimeoutError(OmnipyError):
     def __init__(self, message="Timeout error"):
         OmnipyError.__init__(self, message)
+
 
 class PdmError(OmnipyError):
     def __init__(self, message="Unknown pdm error"):
