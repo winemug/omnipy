@@ -82,6 +82,7 @@ ACTIVE_MODE=
 while true;
 do
     if [[ ${ACTIVE_MODE} -eq "ap" ]]; then
+        echo "Running in access point mode, next check in 300 seconds"
         sleep 300
         if [[ areKnownNetworksNearBy ]]; then
               systemctl stop omnipy.service
@@ -98,6 +99,7 @@ do
               systemctl start omnipy.service
         fi
     elif [[ ${ACTIVE_MODE} -eq "client" ]]; then
+        echo "Running in wi-fi client mode, next check in 60 seconds"
         sleep 60
         if [[ ! IsWifiConnected ]]; then
             systemctl stop omnipy.service
@@ -113,8 +115,11 @@ do
             systemctl start omnipy.service
         fi
     else
+        echo "Checking current network state"
         if [[ ! IsWifiConnected ]]; then
+            echo "Wi-fi not connected, scanning"
             if [[ areKnownNetworksNearBy ]]; then
+                echo "Found known networks, will try to connect"
                 CreateWifiClient
             fi
         fi
