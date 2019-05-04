@@ -136,11 +136,11 @@ class SpiBatteryVoltageChecker:
             voltspcround = 0
         return voltspcround
 
-
-sbc = SpiBatteryVoltageChecker()
-while True:
-    try:
-        print("Battery is now at %d percent" % sbc.get_measurement())
-        time.sleep(10)
-    except KeyboardInterrupt:
-        break
+#
+# sbc = SpiBatteryVoltageChecker()
+# while True:
+#     try:
+#         print("Battery is now at %d percent" % sbc.get_measurement())
+#         time.sleep(10)
+#     except KeyboardInterrupt:
+#         break
