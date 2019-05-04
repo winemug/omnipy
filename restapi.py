@@ -30,8 +30,8 @@ g_battery_checker = SpiBatteryVoltageChecker()
 
 app = Flask(__name__, static_url_path="/")
 configureLogging()
-logger = getLogger(with_console=True)
-get_packet_logger(with_console=True)
+logger = getLogger(with_console=False)
+get_packet_logger(with_console=False)
 
 
 class RestApiException(Exception):
