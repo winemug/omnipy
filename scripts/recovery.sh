@@ -2,7 +2,6 @@
 #FW_UPDATE_FILE=/boot/omnipy-fwupdate
 PW_RESET_FILE=/boot/omnipy-pwreset
 BT_RESET_FILE=/boot/omnipy-btreset
-#HOT_SPOT_FILE=/boot/omnipy-hotspot
 EXPAND_FS=/boot/omnipy-expandfs
 WLAN_INTERFACE=wlan0
 
@@ -35,10 +34,6 @@ fi
 if [[ -f ${BT_RESET_FILE} ]]; then
         su -c "/bin/bash /home/pi/omnipy/scripts/bt-reset.sh &" pi
         /bin/rm ${BT_RESET_FILE}
-fi
-
-if [[ -f ${HOT_SPOT_FILE} ]]; then
-    systemctl start omnipy-hotspot.service
 fi
 
 #if [[ -f ${HOT_SPOT_FILE} ]]; then

@@ -67,9 +67,39 @@ done
 return 1
 }
 
+HOT_SPOT_FILE=/boot/omnipy-hotspot
 WLAN_INTERFACE=wlan0
 iw dev ${WLAN_INTERFACE} set power_save off
-ACTIVE_MODE=
+
+if [[ -z "${SSID_REGISTERED}" ]]; then
+    echo "No SSIDs registered"
+    if [[ -f ${HOT_SPOT_FILE} ]]; then
+        echo "Hot spot is enabled permanently"
+        ACTIVE_MODE="ap-only"
+    else
+        echo "Wireless networking is disabled"
+        ACTIVE_MODE="none"
+    fi
+else
+    echo "Found SSID entries in wpa-config"
+    if [[ -f ${HOT_SPOT_FILE} ]]; then
+        echo "Hot spot is enabled permanently"
+        ACTIVE_MODE=
+    else
+        echo "Hotspot is disabled"
+        ACTIVE_MODE="client-only"
+    fi
+fi
+
+if [[ ${ACTIVE_MODE} == "none" ]]; then
+    exit 0
+fi
+
+if [[ ${ACTIVE_MODE} == "ap-only" ]]; then
+    CreateHotSpot
+    exit 0
+fi
+
 while true;
 do
     if [[ ${ACTIVE_MODE} == "ap" ]]; then
@@ -107,6 +137,15 @@ do
             systemctl stop omnipy.service
             systemctl start omnipy.service
 
+        fi
+    elif [[ ${ACTIVE_MODE} == "client-only" ]]; then
+        if ! IsWifiConnected; then
+            echo "Wi-fi disconnected, retrying"
+            CreateWifiClient
+            if ! IsWifiConnected; then
+                    echo "Wi-fi connection failed, waiting to retry"
+                    sleep 120
+            fi
         fi
     else
         echo "Checking current network state"

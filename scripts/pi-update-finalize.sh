@@ -39,10 +39,11 @@ sudo cp /home/pi/omnipy/scripts/omnipy-hotspot.service /etc/systemd/system/
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
 sudo systemctl enable omnipy-pan.service
-sudo systemctl disable omnipy-hotspot.service
+sudo systemctl enable omnipy-hotspot.service
 sudo systemctl start omnipy.service
 sudo systemctl start omnipy-beacon.service
 sudo systemctl start omnipy-pan.service
+sudo systemctl start omnipy-hotspot.service
 sudo systemctl daemon-reload
 
 echo
