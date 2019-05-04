@@ -29,6 +29,7 @@ class SpiBatteryVoltageChecker:
 
         self.battery_level = -1
         self.adc_readings = []
+        self.sync_lock = RLock()
 
         try:
             # Set up set up GPIO & SPI interface pins
@@ -48,7 +49,6 @@ class SpiBatteryVoltageChecker:
             if bp <= 0.01:
                 print("spi reader not detected")
             else:
-                self.sync_lock = RLock()
                 self.service_thread = Thread(target=self._service_loop)
                 self.service_thread.setDaemon(True)
                 self.service_thread.start()
