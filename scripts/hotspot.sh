@@ -81,11 +81,11 @@ ACTIVE_MODE=
 
 while true;
 do
-    if [[ ${ACTIVE_MODE} eq "ap" ]]; then
+    if [[ ${ACTIVE_MODE} -eq "ap" ]]; then
         sleep 300
         if [[ areKnownNetworksNearBy ]]; then
               systemctl stop omnipy.service
-              KillHotspot
+              KillHotSpot
               echo "Hotspot Deactivated, Bringing Wifi Up"
               CreateWifiClient
               if [[ ! IsWifiConnected ]]; then
@@ -97,7 +97,7 @@ do
               fi
               systemctl start omnipy.service
         fi
-    elif [[ ${ACTIVE_MODE} eq "client" ]]; then
+    elif [[ ${ACTIVE_MODE} -eq "client" ]]; then
         sleep 60
         if [[ ! IsWifiConnected ]]; then
             systemctl stop omnipy.service
@@ -113,8 +113,10 @@ do
             systemctl start omnipy.service
         fi
     else
-        if [[ areKnownNetworksNearBy ]]; then
-            CreateWifiClient
+        if [[ ! IsWifiConnected ]]; then
+            if [[ areKnownNetworksNearBy ]]; then
+                CreateWifiClient
+            fi
         fi
 
         if [[ ! IsWifiConnected ]]; then
