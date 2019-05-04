@@ -58,7 +58,7 @@ if [[ -f ${HOT_SPOT_FILE} ]]; then
         systemctl start hostapd
         systemctl start dnsmasq
 
-	    shellinaboxd -t --service /:pi:pi:/home/pi/omnipy:/home/pi/omnipy/scripts/console-ui.sh -p 80 -b
+	    #shellinaboxd -t --service /:pi:pi:/home/pi/omnipy:/home/pi/omnipy/scripts/console-ui.sh -p 80 -b
 
         #/bin/rm ${HOT_SPOT_FILE}
 else
