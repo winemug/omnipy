@@ -1,6 +1,6 @@
 [Unit]
 Description=Omnipy WiFi Hotspot service
-After=multi-user.target
+After=network.target
 
 [Service]
 ExecStart=/bin/bash /home/pi/omnipy/scripts/hotspot.sh

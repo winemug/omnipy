@@ -71,6 +71,8 @@ HOT_SPOT_FILE=/boot/omnipy-hotspot
 WLAN_INTERFACE=wlan0
 iw dev ${WLAN_INTERFACE} set power_save off
 
+SSID_REGISTERED=$(awk '/ssid="/{ print $0 }' /etc/wpa_supplicant/wpa_supplicant.conf | awk -F'ssid=' '{ print $2 }' ORS=',' | sed 's/\"/''/g' | sed 's/,$//')
+
 if [[ -z "${SSID_REGISTERED}" ]]; then
     echo "No SSIDs registered"
     if [[ -f ${HOT_SPOT_FILE} ]]; then
