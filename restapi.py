@@ -15,6 +15,7 @@ from podcomm.pod import Pod
 from podcomm.pr_rileylink import RileyLink
 from podcomm.definitions import *
 from logging import FileHandler
+from batt_check import SpiBatteryVoltageChecker
 
 
 g_oldest_diff = None
@@ -25,6 +26,7 @@ g_pdm = None
 g_deny = False
 g_tokens = []
 g_token_lock = Lock()
+g_battery_checker = SpiBatteryVoltageChecker()
 
 app = Flask(__name__, static_url_path="/")
 configureLogging()
@@ -123,6 +125,11 @@ def _archive_pod():
         logger.exception("Error while archiving existing pod")
 
 
+def _get_battery_level():
+    global g_battery_checker
+    return g_battery_checker.get_measurement()
+
+
 def _get_next_pod_address():
     try:
         try:
@@ -168,7 +175,8 @@ def _create_response(success, response, pod_status=None):
                        "status": pod_status,
                        "datetime": time.time(),
                        "api": {"version_major": API_VERSION_MAJOR, "version_minor": API_VERSION_MINOR,
-                               "version_revision": API_VERSION_REVISION, "version_build": API_VERSION_BUILD}
+                               "version_revision": API_VERSION_REVISION, "version_build": API_VERSION_BUILD},
+                       "battery_level": _get_battery_level()
                        }, indent=4, sort_keys=True)
 
 
