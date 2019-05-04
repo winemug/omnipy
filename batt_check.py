@@ -48,12 +48,14 @@ class SpiBatteryVoltageChecker:
             bp = self._get_percentage(average)
             if bp <= 0.01:
                 print("spi reader not detected")
+                GPIO.cleanup()
             else:
                 self.service_thread = Thread(target=self._service_loop)
                 self.service_thread.setDaemon(True)
                 self.service_thread.start()
         except:
             print("Failed to set up GPIO pins for battery level reading")
+            GPIO.cleanup()
 
     def get_measurement(self):
         with self.sync_lock:
