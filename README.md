@@ -15,7 +15,7 @@ This update fixes an issue in the communication recovery process and is strongly
 
 Note that this does not fix connection issues itself. Instead it fixes one of the several workarounds in omnipy, which try to prevent pod failures due to connection issues.
 
-On a related not, it has come to my attention that many users are having _serious_ connectivity problems; but are simply _not realizing_ it due to the workarounds mentioned above. Please consider the following points for stable communications:
+It has also come to my attention that many users are having _serious_ connectivity problems; but are simply _not realizing_ it due to the workarounds mentioned above. Please consider the following points for stable communications:
 
 * Make sure your RileyLink is not on running on low battery, whether the leds are blinking or it seems to be working, is not good enough.
 * Make sure your Raspberry Pi and RileyLink are not farther away from each other. Try to keep them as close as possible. Some raspberry pi's apparently have BLE range issues and the RileyLink does not have the best BLE reception either.
