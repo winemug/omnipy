@@ -8,11 +8,23 @@ Omnipy evolved from my initial efforts on working with OmniPod and is released t
 
 Read the [introduction](https://github.com/winemug/omnipy/wiki) page on the wiki for more information.
 
-## Omnipy v1.4 released
+## May the 4th, omnipy be with you
+### Released update v1.4.1
 
-This release features the long awaited pod activation and basal schedule changes and comes with a brand new way of installation on the raspberry pi.
+This update fixes an issue in the communication recovery process and is strongly suggested if you are experiencing frequent disconnection issues either between Pod-RileyLink or RileyLink-Raspberry Pi.
 
-[Download](https://github.com/winemug/omnipy/releases/tag/v1.4) the latest version here.
+Note that this does not fix connection issues itself. Instead it fixes one of the several workarounds in omnipy, which try to prevent pod failures due to connection issues.
+
+On a related not, it has come to my attention that many users are having _serious_ connectivity problems; but are simply _not realizing_ it due to the workarounds mentioned above. Please consider the following points for stable communications:
+
+* Make sure your RileyLink is not on running on low battery, whether the leds are blinking or it seems to be working, is not good enough.
+* Make sure your Raspberry Pi and RileyLink are not farther away from each other. Try to keep them as close as possible. Some raspberry pi's apparently have BLE range issues and the RileyLink does not have the best BLE reception either.
+* Make sure your RileyLink's 433 MHz antenna is performing. One way to measure that is to look into the packet logs and omnipy.log to check if there is a significant number of repeats during message exchange.
+* If you suspect that the communication between the Pod and RileyLink is not optimal, have a look at the wire antenna option. I cannot overstate the amazing range of the simple wire antenna.
+* If you cannot afford to build the custom antenna, don't let the RL sit far away from the Pod. If you're frequently going away from the RL, put it on a high place. 
+
+
+[Download](https://github.com/winemug/omnipy/releases/tag/v1.4.1) the latest version here.
 
 Please refer to the [Setup documentation](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) on the wiki for information on how to set up the latest version of omnipy and the [Release Notes](https://github.com/winemug/omnipy/wiki/Release-Notes) for more information on release contents.
 
