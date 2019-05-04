@@ -1,6 +1,25 @@
 #!/usr/bin/env bash
 echo
 echo Updating service scripts and restarting services
+sudo apt update && sudo apt upgrade -y
+
+echo Ensure installation of packages needed in v1.4.1
+sudo apt install -y python3-rpi.gpio hostapd dnsmasq
+sudo systemctl disable hostapd
+sudo systemctl unmask hostapd
+sudo systemctl disable dnsmasq
+sudo systemctl enable hostapd
+sudo systemctl enable dnsmasq
+sudo systemctl start hostapd
+sudo systemctl stop hostapd
+sudo systemctl stop dnsmasq
+sudo cp /home/pi/omnipy/scripts/image/default.dnsmasq /etc/default/dnsmasq
+sudo cp /home/pi/omnipy/scripts/image/default.hostapd /etc/default/hostapd
+sudo cp /home/pi/omnipy/scripts/image/hostapd.conf /etc/hostapd/
+sudo cp /home/pi/omnipy/scripts/image/dnsmasq.conf /etc/dnsmasq.d/
+sudo cp /home/pi/omnipy/scripts/image/dhcpcd.conf /etc/
+sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
+
 
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hciconfig`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`

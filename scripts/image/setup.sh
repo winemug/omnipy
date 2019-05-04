@@ -22,13 +22,11 @@ sudo apt install -y hostapd dnsmasq
 sudo systemctl disable hostapd
 sudo systemctl unmask hostapd
 sudo systemctl disable dnsmasq
-
 sudo systemctl enable hostapd
 sudo systemctl enable dnsmasq
 sudo systemctl start hostapd
 sudo systemctl stop hostapd
 sudo systemctl stop dnsmasq
-
 sudo cp /home/pi/omnipy/scripts/image/default.dnsmasq /etc/default/dnsmasq
 sudo cp /home/pi/omnipy/scripts/image/default.hostapd /etc/default/hostapd
 sudo cp /home/pi/omnipy/scripts/image/hostapd.conf /etc/hostapd/
