@@ -45,3 +45,8 @@ sudo systemctl daemon-reload
 
 echo
 echo Configuration updated.
+echo
+echo Rebooting
+echo
+sleep 3
+sudo reboot
