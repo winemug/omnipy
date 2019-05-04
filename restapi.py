@@ -718,7 +718,7 @@ def _run_flask():
         logger.exception("Error while running rest api, exiting")
 
 
-def _exit_with_grace():
+def _exit_with_grace(a, b):
     try:
         global g_deny
         g_deny = True
@@ -759,5 +759,5 @@ if __name__ == '__main__':
             time.sleep(1)
 
     except KeyboardInterrupt:
-        _exit_with_grace()
+        _exit_with_grace(0, 0)
 
