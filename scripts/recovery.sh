@@ -37,6 +37,10 @@ if [[ -f ${BT_RESET_FILE} ]]; then
         /bin/rm ${BT_RESET_FILE}
 fi
 
+if [[ -f ${HOT_SPOT_FILE} ]]; then
+    systemctl start omnipy-hotspot.service
+fi
+
 #if [[ -f ${HOT_SPOT_FILE} ]]; then
 #
 #    	mkdir -p /home/pi/omnipy/data
