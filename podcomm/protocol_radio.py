@@ -1,4 +1,4 @@
-from .exceptions import PacketRadioError, OmnipyTimeoutError, RecoverableProtocolError
+from .exceptions import PacketRadioError, OmnipyTimeoutError, RecoverableProtocolError, StatusUpdateRequired
 from podcomm.packet_radio import TxPower
 from podcomm.protocol_common import *
 from .pr_rileylink import RileyLink
@@ -11,6 +11,7 @@ import subprocess
 def _ack_data(address1, address2, sequence):
     return RadioPacket(address1, RadioPacketType.ACK, sequence,
                      struct.pack(">I", address2))
+
 
 class MessageExchange:
     def __init__(self):
@@ -26,12 +27,12 @@ class MessageExchange:
         self.started = 0
         self.ended = 0
 
+
 class PdmRadio:
     def __init__(self, radio_address, msg_sequence=0, pkt_sequence=0, packet_radio=None):
         self.radio_address = radio_address
         self.message_sequence = msg_sequence
         self.packet_sequence = pkt_sequence
-        self.last_received_packet = None
         self.logger = getLogger()
         self.packet_logger = get_packet_logger()
 
@@ -59,6 +60,8 @@ class PdmRadio:
         self.ack_address_override = None
         self.debug_cut_last_ack = False
         self.debug_cut_msg_after = None
+        self.debug_cut_message_seq = 0
+        self.debug_cut_packet_seq = 0
 
         self.stats = []
         self.current_exchange = MessageExchange()
@@ -167,12 +170,13 @@ class PdmRadio:
                     except Exception:
                         self.logger.exception("Error during ending conversation, ignored.")
                 else:
-                    self.message_sequence = (self.message_sequence - 2) % 16
-
+                    self.message_sequence = (self.message_sequence - self.debug_cut_message_seq) % 16
+                    self.packet_sequence = (self.packet_sequence - self.debug_cut_packet_seq) % 16
+                    self.last_packet_received = None
+                    self.last_packet_timestamp = None
             else:
                 self.current_exchange.ended = time.time()
                 self.response_received.set()
-
 
     def _interim_ack(self, ack_address_override, sequence):
         if ack_address_override is None:
@@ -346,8 +350,7 @@ class PdmRadio:
                     self.logger.debug("Trying to recover from protocol error")
                     self.packet_sequence = (rpe.packet.sequence + 1) % 32
                     if expected_type == RadioPacketType.POD and rpe.packet.type == RadioPacketType.ACK:
-                        packet = self._interim_ack(ack_address_override=self.ack_address_override,
-                                               sequence=self.packet_sequence)
+                        raise StatusUpdateRequired()
                     continue
                 except ProtocolError:
                     self.logger.debug("Trying to recover from protocol error")

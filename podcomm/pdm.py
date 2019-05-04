@@ -1,7 +1,7 @@
 from .protocol import *
 from .protocol_radio import PdmRadio
 from .nonce import *
-from .exceptions import PdmError, OmnipyError, PdmBusyError
+from .exceptions import PdmError, OmnipyError, PdmBusyError, StatusUpdateRequired
 from .definitions import *
 from .packet_radio import TxPower
 from decimal import *
@@ -101,6 +101,7 @@ class Pdm:
                 self.get_nonce().reset()
                 raise PdmError("Nonce sync failed")
 
+
     def _internal_update_status(self, update_type=0):
         if self.debug_status_skip:
             return
@@ -114,8 +115,10 @@ class Pdm:
                 self.pod.last_command = { "command": "STATUS", "type": update_type, "success": False }
                 self._internal_update_status(update_type)
                 self.pod.last_command["success"] = True
-        except OmnipyError:
-            raise
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.update_status(update_type=update_type)
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -127,7 +130,8 @@ class Pdm:
                 self.logger.info("Acknowledging alerts with bitmask %d" % alert_mask)
                 self.pod.last_command = {"command": "ACK_ALERTS", "mask": alert_mask, "success": False}
                 self._assert_pod_address_assigned()
-                self._internal_update_status()
+                self._assert_immediate_bolus_not_active()
+                #self._internal_update_status()
                 self._assert_can_acknowledge_alerts()
 
                 if self.pod.state_alert | alert_mask != self.pod.state_alert:
@@ -138,8 +142,11 @@ class Pdm:
                 if self.pod.state_alert & alert_mask != 0:
                     raise PdmError("Failed to acknowledge one or more alerts")
                 self.pod.last_command["success"] = True
-        except OmnipyError:
-            raise
+
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.acknowledge_alerts(alert_mask)
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -176,6 +183,7 @@ class Pdm:
         try:
             with PdmLock():
                 self._internal_update_status()
+                self._assert_immediate_bolus_not_active()
                 if self.pod.state_alert > 0:
                     self.logger.info("Acknowledging alerts with bitmask %d" % self.pod.state_alert)
                     self.pod.last_command = {"command": "ACK_ALERTS", "mask": self.pod.state_alert, "success": False}
@@ -206,13 +214,15 @@ class Pdm:
                     request = request_acknowledge_alerts(self.pod.state_alert)
                     self.send_request(request, with_nonce=True)
                     self.pod.last_command["success"] = True
-        except OmnipyError:
-            raise
+
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.hf_silence_will_fall()
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
             self._savePod()
-
 
     def is_busy(self):
         try:
@@ -231,7 +241,6 @@ class Pdm:
                 self.pod.last_command = {"command": "BOLUS", "units": bolus_amount, "success": False}
 
                 self._assert_pod_address_assigned()
-                self._internal_update_status()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
                 self._assert_not_faulted()
@@ -259,8 +268,10 @@ class Pdm:
                 self.pod.last_enacted_bolus_start = self.get_time()
                 self.pod.last_enacted_bolus_amount = float(bolus_amount)
                 self.pod.last_command["success"] = True
-        except OmnipyError:
-            raise
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.bolus(bolus_amount)
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -290,8 +301,10 @@ class Pdm:
                 else:
                     raise PdmError("Bolus is not running")
 
-        except OmnipyError:
-            raise
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.cancel_bolus()
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -305,7 +318,6 @@ class Pdm:
 
                 if not self.debug_status_skip:
                     self._assert_pod_address_assigned()
-                    self._internal_update_status()
                     self._assert_can_generate_nonce()
                     self._assert_immediate_bolus_not_active()
                     self._assert_not_faulted()
@@ -324,8 +336,10 @@ class Pdm:
                 else:
                     self.logger.warning("Cancel temp basal received, while temp basal was not active. Ignoring.")
 
-        except OmnipyError:
-            raise
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.cancel_temp_basal()
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -341,7 +355,6 @@ class Pdm:
                                          "success": False}
                 if not self.debug_status_skip:
                     self._assert_pod_address_assigned()
-                    self._internal_update_status()
                     self._assert_can_generate_nonce()
                     self._assert_immediate_bolus_not_active()
                     self._assert_not_faulted()
@@ -374,8 +387,10 @@ class Pdm:
                     self.pod.last_enacted_temp_basal_amount = float(basalRate)
                     self.pod.last_command["success"] = True
 
-        except OmnipyError:
-            raise
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.set_temp_basal(basalRate=basalRate, hours=hours)
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -389,7 +404,6 @@ class Pdm:
                                          "hourly_rates": schedule,
                                          "success": False}
                 self._assert_pod_address_assigned()
-                self._internal_update_status()
                 self._assert_can_generate_nonce()
                 self._assert_immediate_bolus_not_active()
                 self._assert_not_faulted()
@@ -416,8 +430,10 @@ class Pdm:
                     self.pod.var_basal_schedule = schedule
                     self.pod.last_command["success"] = True
 
-        except OmnipyError:
-            raise
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.set_basal_schedule(schedule)
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -426,9 +442,10 @@ class Pdm:
     def deactivate_pod(self):
         try:
             with PdmLock():
+                self._assert_immediate_bolus_not_active()
                 self.logger.debug("Deactivating pod")
                 self.pod.last_command = {"command": "DEACTIVATE", "success": False}
-                self._internal_update_status()
+                #self._internal_update_status()
                 self._assert_can_deactivate()
 
                 request = request_deactivate()
@@ -437,8 +454,11 @@ class Pdm:
                     raise PdmError("Failed to deactivate")
                 else:
                     self.pod.last_command["success"] = True
-        except OmnipyError:
-            raise
+
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.deactivate_pod()
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -503,13 +523,14 @@ class Pdm:
 
                 self.pod.last_command["success"] = True
 
-        except OmnipyError:
-            raise
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.pair_pod(candidate_address, utc_offset)
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
             self._savePod()
-
 
     def activate_pod(self):
         try:
@@ -576,8 +597,10 @@ class Pdm:
 
                 self.pod.last_command["success"] = True
 
-        except OmnipyError:
-            raise
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.activate_pod()
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -652,8 +675,10 @@ class Pdm:
                     self.pod.var_insertion_date = self.get_time()
                     self.pod.last_command["success"] = True
 
-        except OmnipyError:
-            raise
+        except StatusUpdateRequired:
+            self.logger.info("Requesting status update first")
+            self._internal_update_status()
+            self.inject_and_start(basal_schedule)
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
