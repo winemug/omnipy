@@ -118,14 +118,11 @@ class SpiBatteryVoltageChecker:
         adc_sum = 0
         for adcnum in self.adcs:
             try:
-                adc_sum += self.readadc(adcnum, self.SPICLK, self.SPIMOSI, self.SPIMISO, self.SPICS)
+                adc_sum += self._readadc(adcnum, self.SPICLK, self.SPIMOSI, self.SPIMISO, self.SPICS)
             except:
                 print("Error reading adc value")
             time.sleep(0.05)
         return float(adc_sum / len(self.adcs))
-
-    def _get_battery_level(self):
-        avg = self._get_moving_average()
 
     def _get_percentage(self, adc_reading):
         # convert analogue reading to volts and %, accounting for vref and setup of resistor bridge
