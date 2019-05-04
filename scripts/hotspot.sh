@@ -34,7 +34,7 @@ CreateHotSpot()
     systemctl start hostapd
 }
 
-ConnectToWifi()
+CreateWifiClient()
 {
     CleanUp
     echo "Starting WiFi connection"
@@ -110,8 +110,7 @@ do
               systemctl stop omnipy-beacon.service
               systemctl stop omnipy.service
               echo "Known networks are nearby, deactivating hotspot and connecting to wi-fi"
-              CreateWifiClient
-              if ! IsWifiConnected; then
+              if ! CreateWifiClient; then
                     echo "Failed to connect to wifi, going back into hotspot mode"
                     CreateHotSpot
                     ACTIVE_MODE="ap"
@@ -127,8 +126,7 @@ do
         sleep 60
         if ! IsWifiConnected; then
             echo "Wi-fi disconnected, retrying"
-            CreateWifiClient
-            if ! IsWifiConnected; then
+            if ! CreateWifiClient; then
                     echo "No wi-fi connection, creating hot-spot"
                     CreateHotSpot
                     ACTIVE_MODE="ap"
@@ -143,8 +141,7 @@ do
     elif [[ ${ACTIVE_MODE} == "client-only" ]]; then
         if ! IsWifiConnected; then
             echo "Wi-fi disconnected, retrying"
-            CreateWifiClient
-            if ! IsWifiConnected; then
+            if ! CreateWifiClient; then
                     echo "Wi-fi connection failed, waiting to retry"
                     sleep 120
             fi
