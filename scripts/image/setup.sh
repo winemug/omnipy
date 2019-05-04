@@ -107,6 +107,7 @@ sudo systemctl start omnipy-pan.service
 sudo touch /boot/omnipy-pwreset
 sudo touch /boot/omnipy-expandfs
 sudo touch /boot/omnipy-btreset
+sudo touch /boot/omnipy-hotspot
 
 rm /home/pi/.bash_history
 #wpa?
