@@ -34,10 +34,13 @@ sudo chown -R pi.pi /home/pi
 sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/scripts/omnipy-hotspot.service /etc/systemd/system/
 
 sudo systemctl enable omnipy.service
 sudo systemctl enable omnipy-beacon.service
 sudo systemctl enable omnipy-pan.service
+sudo systemctl enable omnipy-hotspot.service
+sudo systemctl start omnipy-hotspot.service
 sudo systemctl start omnipy.service
 sudo systemctl start omnipy-beacon.service
 sudo systemctl start omnipy-pan.service

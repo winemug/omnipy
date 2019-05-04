@@ -1,6 +1,6 @@
 [Unit]
 Description=Omnipy Rest API
-After=network.target
+After=network.target omnipy-beacon.service omnipy-hotspot.service omnipy-pan.service
 
 [Service]
 ExecStart=/usr/bin/python3 -u /home/pi/omnipy/restapi.py

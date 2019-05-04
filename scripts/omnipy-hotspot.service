@@ -1,0 +1,15 @@
+[Unit]
+Description=Omnipy WiFi Hotspot service
+After=multi-user.target
+
+[Service]
+ExecStart=/bin/bash /home/pi/omnipy/scripts/hotspot.sh
+WorkingDirectory=/home/pi/omnipy/scripts/
+StandardOutput=inherit
+StandardError=inherit
+TimeoutStopSec=10
+Restart=on-abort
+User=root
+
+[Install]
+WantedBy=multi-user.target
