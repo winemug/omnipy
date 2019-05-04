@@ -51,7 +51,7 @@ CreateWifiClient()
     sleep 20 #give time for connection to be completed to router
 }
 
-IsWifiConnected()
+IsWifiDisconnected()
 {
 	wpa_cli -i ${WLAN_INTERFACE} status | grep 'ip_address' >/dev/null 2>&1
 	return $?
@@ -67,21 +67,21 @@ SSID_REPLY=`iw dev "$wifidev" scan ap-force | egrep "^BSS|SSID:"`
 for SSID in ${SSID_LIST}
 do
      SSID_CLEAN=$(echo ${SSID} | tr -d '\r')
-     if [[ -z `echo ${SSID_REPLY} | grep ${SSID_CLEAN}` ]]
+     echo ${SSID_REPLY} | grep ${SSID_CLEAN} > /dev/null 2>&1
+     if [[ $? ]]
      then
-        return 1
+        return 0
      fi
 done
-return 0
+return 1
 }
 
 WLAN_INTERFACE=wlan0
 iw dev ${WLAN_INTERFACE} set power_save off
 ACTIVE_MODE=
-
 while true;
 do
-    if [[ ${ACTIVE_MODE} -eq "ap" ]]; then
+    if [[ ${ACTIVE_MODE} == "ap" ]]; then
         echo "Running in access point mode, next check in 300 seconds"
         sleep 300
         if [[ areKnownNetworksNearBy ]]; then
@@ -89,7 +89,7 @@ do
               KillHotSpot
               echo "Hotspot Deactivated, Bringing Wifi Up"
               CreateWifiClient
-              if [[ ! IsWifiConnected ]]; then
+              if [[ IsWifiDisconnected ]]; then
                     echo "Failed to connect to wifi, going back into hotspot mode"
                     CreateHotSpot
                     ACTIVE_MODE="ap"
@@ -98,14 +98,14 @@ do
               fi
               systemctl start omnipy.service
         fi
-    elif [[ ${ACTIVE_MODE} -eq "client" ]]; then
+    elif [[ ${ACTIVE_MODE} == "client" ]]; then
         echo "Running in wi-fi client mode, next check in 60 seconds"
         sleep 60
-        if [[ ! IsWifiConnected ]]; then
+        if [[ IsWifiDisconnected ]]; then
             systemctl stop omnipy.service
             echo "Wi-fi disconnected, retrying"
             CreateWifiClient
-            if [[ ! IsWifiConnected ]]; then
+            if [[ IsWifiDisconnected ]]; then
                     echo "No wi-fi connection, creating hot-spot"
                     CreateHotSpot
                     ACTIVE_MODE="ap"
@@ -116,15 +116,16 @@ do
         fi
     else
         echo "Checking current network state"
-        if [[ ! IsWifiConnected ]]; then
+        if [[ IsWifiDisconnected ]]; then
             echo "Wi-fi not connected, scanning"
             if [[ areKnownNetworksNearBy ]]; then
                 echo "Found known networks, will try to connect"
+                KillHotSpot
                 CreateWifiClient
             fi
         fi
 
-        if [[ ! IsWifiConnected ]]; then
+        if [[ IsWifiDisconnected ]]; then
             echo "No wi-fi connection, creating hotspot"
             CreateHotSpot
             ACTIVE_MODE="ap"
