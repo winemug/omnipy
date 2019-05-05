@@ -63,7 +63,7 @@ class SpiBatteryVoltageChecker:
 
     def _service_loop(self):
         while True:
-            time.sleep(60000)
+            time.sleep(60)
             try:
                 with self.sync_lock:
                     self.battery_level = self._get_percentage(self._get_moving_average())
@@ -135,11 +135,12 @@ class SpiBatteryVoltageChecker:
             voltspcround = 0
         return voltspcround
 
-#
-# sbc = SpiBatteryVoltageChecker()
-# while True:
-#     try:
-#         print("Battery is now at %d percent" % sbc.get_measurement())
-#         time.sleep(10)
-#     except KeyboardInterrupt:
-#         break
+
+if __name__ == '__main__':
+    sbc = SpiBatteryVoltageChecker()
+    while True:
+        try:
+            print("Battery is now at %d percent" % sbc.get_measurement())
+            time.sleep(10)
+        except KeyboardInterrupt:
+            break
