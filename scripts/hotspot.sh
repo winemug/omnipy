@@ -44,7 +44,6 @@ CreateWifiClient()
     wpa_supplicant -B -i ${WLAN_INTERFACE} -c /etc/wpa_supplicant/wpa_supplicant.conf >/dev/null 2>&1
 	echo "Waiting 20 seconds"
     sleep 20 #give time for connection to be completed to router
-    return IsWifiConnected
 }
 
 IsWifiConnected()
