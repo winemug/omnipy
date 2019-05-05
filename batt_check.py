@@ -50,6 +50,7 @@ class SpiBatteryVoltageChecker:
                 print("spi reader not detected")
                 GPIO.cleanup()
             else:
+                self.battery_level = bp
                 self.service_thread = Thread(target=self._service_loop)
                 self.service_thread.setDaemon(True)
                 self.service_thread.start()
