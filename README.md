@@ -10,7 +10,7 @@ Read the [introduction](https://github.com/winemug/omnipy/wiki) page on the wiki
 
 ### May 6th, Update v1.4.2
 
-https://github.com/winemug/omnipy/releases/tag/v1.4.2
+https://github.com/winemug/omnipy/releases/tag/v1.4.2 (Link updated with sd-card image)
 
 This update fixes an issue introduced with the latest update, which again due to flaky communications could result in pod failures. Please update as soon as possible, especially if coming from v1.4.1.
 
