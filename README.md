@@ -11,9 +11,9 @@ Read the [introduction](https://github.com/winemug/omnipy/wiki) page on the wiki
 ## May the 4th, omnipy be with you
 ### Released update v1.4.1
 
-This update fixes an issue in the communication recovery process and is strongly suggested if you are experiencing frequent disconnection issues either between Pod-RileyLink or RileyLink-Raspberry Pi.
+This update fixes an issue in the communication recovery process and is _strongly suggested if you are experiencing frequent disconnection issues_ either between Pod-RileyLink or RileyLink-Raspberry Pi. Note that this does NOT fix connection issues. Instead it fixes one of the several workarounds in omnipy, which try to prevent pod failures due to connection issues.
 
-Note that this does not fix connection issues itself. Instead it fixes one of the several workarounds in omnipy, which try to prevent pod failures due to connection issues.
+See [Release Notes](https://github.com/winemug/omnipy/wiki/Release-Notes) for more information on what's new and what's changed in this release.
 
 It has also come to my attention that many users are having _serious_ connectivity problems; but are simply _not realizing_ it due to the workarounds mentioned above. Please consider the following points for stable communications:
 
@@ -26,7 +26,7 @@ It has also come to my attention that many users are having _serious_ connectivi
 
 [Download](https://github.com/winemug/omnipy/releases/tag/v1.4.1) the latest version here.
 
-Please refer to the [Setup documentation](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) on the wiki for information on how to set up the latest version of omnipy and the [Release Notes](https://github.com/winemug/omnipy/wiki/Release-Notes) for more information on release contents.
+Please refer to the [Setup documentation](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) on the wiki for information on how to set up the latest version of omnipy.
 
 ## Important information from the author
 
