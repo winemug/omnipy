@@ -321,7 +321,7 @@ class Pdm:
                 if not self.debug_status_skip:
                     self._assert_pod_address_assigned()
                     self._assert_can_generate_nonce()
-					self._internal_update_status()
+                    self._internal_update_status()
                     self._assert_immediate_bolus_not_active()
                     self._assert_not_faulted()
                     self._assert_status_running()
@@ -359,7 +359,7 @@ class Pdm:
                 if not self.debug_status_skip:
                     self._assert_pod_address_assigned()
                     self._assert_can_generate_nonce()
-					self._internal_update_status()
+                    self._internal_update_status()
                     self._assert_immediate_bolus_not_active()
                     self._assert_not_faulted()
                     self._assert_status_running()
@@ -409,7 +409,7 @@ class Pdm:
                                          "success": False}
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
-				self._internal_update_status()
+                self._internal_update_status()
                 self._assert_immediate_bolus_not_active()
                 self._assert_not_faulted()
                 self._assert_status_running()
@@ -499,8 +499,8 @@ class Pdm:
                     response_parse(response, self.pod)
 
                     self._assert_pod_can_activate()
-				else:
-					self._internal_update_status()
+                else:
+                    self._internal_update_status()
 
                 if self.pod.state_progress == PodProgress.TankFillCompleted:
 
@@ -545,7 +545,7 @@ class Pdm:
                 self.logger.debug("Activating pod")
                 self.pod.last_command = {"command": "ACTIVATE",
                                          "success": False}
-				self._internal_update_status()
+                self._internal_update_status()
                 if self.pod.state_progress > PodProgress.ReadyForInjection:
                     raise PdmError("Pod is already activated")
 
@@ -621,7 +621,7 @@ class Pdm:
                 self.pod.last_command = {"command": "START",
                                          "hourly_rates": basal_schedule,
                                          "success": False}
-				self._internal_update_status()
+                self._internal_update_status()
                 if self.pod.state_progress >= PodProgress.Running:
                     raise PdmError("Pod has passed the injection stage")
 
