@@ -285,15 +285,6 @@ class PdmRadio:
                             continue
                         else:
                             self.logger.debug("Failed recovery")
-                            if packet_count == 1:
-                                self.logger.debug("Calming pod down in case of reception problem on our end")
-                                ack_packet = self._final_ack(self.ack_address_override, 1)
-                                try:
-                                    self.packet_radio.set_tx_power(TxPower.Highest)
-                                    self._send_packet(ack_packet)
-                                except Exception:
-                                    self.logger.exception("Ignored.")
-                            self._reset_sequences()
                             raise
                     elif part < packet_count - 1:
                         if repeat_count < 2:
@@ -322,7 +313,6 @@ class PdmRadio:
                             continue
                         else:
                             self.logger.debug("Failed recovery")
-                            self._reset_sequences()
                             raise
                     elif part < packet_count - 1:
                         if repeat_count < 6:
@@ -333,7 +323,6 @@ class PdmRadio:
                             continue
                         else:
                             self.logger.debug("Failed recovery")
-                            self._reset_sequences()
                             raise
                     else:
                         if repeat_count < 10:
@@ -344,7 +333,6 @@ class PdmRadio:
                             continue
                         else:
                             self.logger.debug("Failed recovery")
-                            self._reset_sequences()
                             raise
                 except RecoverableProtocolError as rpe:
                     self.logger.debug("Trying to recover from protocol error")
