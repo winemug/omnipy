@@ -8,8 +8,13 @@ Omnipy evolved from my initial efforts on working with OmniPod and is released t
 
 Read the [introduction](https://github.com/winemug/omnipy/wiki) page on the wiki for more information.
 
-## May the 4th, omnipy be with you
-### Released update v1.4.1
+### May 6th, Update v1.4.2
+
+https://github.com/winemug/omnipy/releases/tag/v1.4.2
+
+This update fixes an issue introduced with the latest update, which again due to flaky communications could result in pod failures. Please update as soon as possible, especially if coming from v1.4.1.
+
+### May 4th, Update v1.4.1
 
 This update fixes an issue in the communication recovery process and is _strongly suggested if you are experiencing frequent disconnection issues_ either between Pod-RileyLink or RileyLink-Raspberry Pi. Note that this does NOT fix connection issues. Instead it fixes one of the several workarounds in omnipy, which try to prevent pod failures due to connection issues.
 
