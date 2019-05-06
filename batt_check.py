@@ -19,7 +19,7 @@ class SpiBatteryVoltageChecker:
         self.res1 = 180  # resistor connected to VBATT (/1000)
         self.res2 = 100  # resistor connected to GND (/1000)
         self.reps = 10  # how many times to take each measurement for averaging
-        self.pcround = 5  # round % battery to nearest
+        self.pcround = 1  # round % battery to nearest
 
         # Define Pins/Ports on ADC
         self.SPICLK = 16
