@@ -545,16 +545,16 @@ class Pdm:
                 self.logger.debug("Activating pod")
                 self.pod.last_command = {"command": "ACTIVATE",
                                          "success": False}
+                radio = self.get_radio(new=True)
                 self._internal_update_status()
                 if self.pod.state_progress > PodProgress.ReadyForInjection:
                     raise PdmError("Pod is already activated")
 
-                radio = None
                 if self.pod.state_progress == PodProgress.PairingSuccess:
                     if radio is not None:
                         self.pod.radio_packet_sequence = radio.packet_sequence
 
-                    radio = self.get_radio(new=True)
+                    
                     radio.radio_address = self.pod.radio_address
                     radio.message_sequence = 2
 
