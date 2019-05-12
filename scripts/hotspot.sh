@@ -140,15 +140,16 @@ do
 
         fi
     elif [[ ${ACTIVE_MODE} == "client-only" ]]; then
+        sleep 120
         if ! IsWifiConnected; then
             echo "Wi-fi disconnected, retrying"
             CreateWifiClient
             if ! IsWifiConnected; then
-                    echo "Wi-fi connection failed, waiting to retry"
-                    sleep 120
+                echo "Wi-fi connection failed, waiting to retry"
             fi
         fi
     else
+        sleep 20
         echo "Checking current network state"
         if ! IsWifiConnected; then
             echo "Wi-fi not connected, scanning"

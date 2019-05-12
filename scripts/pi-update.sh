@@ -21,7 +21,6 @@ echo "Stopping omnipy services"
 sudo systemctl stop omnipy.service
 sudo systemctl stop omnipy-beacon.service
 sudo systemctl stop omnipy-pan.service
-sudo systemctl stop omnipy-hotspot.service
 
 
 /bin/bash /home/pi/omnipy/scripts/pi-update-finalize.sh

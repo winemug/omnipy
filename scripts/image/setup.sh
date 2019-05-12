@@ -5,7 +5,6 @@ sudo passwd pi
 sudo raspi-config
 
 # hostname: omnipy
-# wifi: NO, noway, omnipyway
 # adv, memory split, 16
 # enable predictive intf names
 # timezone other/utc
@@ -18,20 +17,20 @@ sudo apt install -y screen git python3 python3-pip vim jq bluez-tools libglib2.0
 #reboot
 
 
-sudo apt install -y hostapd dnsmasq
-sudo systemctl disable hostapd
-sudo systemctl unmask hostapd
-sudo systemctl disable dnsmasq
-sudo systemctl enable hostapd
-sudo systemctl enable dnsmasq
-sudo systemctl start hostapd
-sudo systemctl stop hostapd
-sudo systemctl stop dnsmasq
-sudo cp /home/pi/omnipy/scripts/image/default.dnsmasq /etc/default/dnsmasq
-sudo cp /home/pi/omnipy/scripts/image/default.hostapd /etc/default/hostapd
-sudo cp /home/pi/omnipy/scripts/image/hostapd.conf /etc/hostapd/
-sudo cp /home/pi/omnipy/scripts/image/dnsmasq.conf /etc/dnsmasq.d/
-sudo cp /home/pi/omnipy/scripts/image/dhcpcd.conf /etc/
+# sudo apt install -y hostapd dnsmasq
+# sudo systemctl disable hostapd
+# sudo systemctl unmask hostapd
+# sudo systemctl disable dnsmasq
+# sudo systemctl enable hostapd
+# sudo systemctl enable dnsmasq
+# sudo systemctl start hostapd
+# sudo systemctl stop hostapd
+# sudo systemctl stop dnsmasq
+# sudo cp /home/pi/omnipy/scripts/image/default.dnsmasq /etc/default/dnsmasq
+# sudo cp /home/pi/omnipy/scripts/image/default.hostapd /etc/default/hostapd
+# sudo cp /home/pi/omnipy/scripts/image/hostapd.conf /etc/hostapd/
+# sudo cp /home/pi/omnipy/scripts/image/dnsmasq.conf /etc/dnsmasq.d/
+# sudo cp /home/pi/omnipy/scripts/image/dhcpcd.conf /etc/
 sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
 
 git config --global user.email "omnipy@balya.net"
@@ -107,6 +106,7 @@ sudo touch /boot/omnipy-expandfs
 sudo touch /boot/omnipy-btreset
 sudo touch /boot/omnipy-hotspot
 
+rm /etc/wpa_supplicant/wpa_supplicant.conf
 rm /home/pi/.bash_history
 #wpa?
 sudo halt

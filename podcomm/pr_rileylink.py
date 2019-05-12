@@ -79,15 +79,13 @@ class Encoding(IntEnum):
     FOURBSIXB = 2
 
 
-PA_LEVELS = [0x12,
-             0x0E, 0x0E,
-             0x1D, 0x1D,
-             0x34, 0x34, 0x34,
-             0x2C, 0x2C, 0x2C, 0x2C,
-             0x60, 0x60, 0x60, 0x60,
-             0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84, 0x84,
-             0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8, 0xC8,
-             0xC0, 0xC0]
+PA_LEVELS = [0x0E, 
+             0x1D,
+             0x34,
+             0x2C,
+             0x60,
+             0x84, 0x84,
+             0xC8]
 
 g_rl_address = None
 g_rl_version = None
@@ -346,7 +344,7 @@ class RileyLink(PacketRadio):
             elif tx_power == TxPower.High:
                 self._set_amp(PA_LEVELS.index(0xC8))
             elif tx_power == TxPower.Highest:
-                self._set_amp(PA_LEVELS.index(0xC0))
+                self._set_amp(PA_LEVELS.index(0xC8))
         except Exception as e:
             raise PacketRadioError("Error while setting tx level") from e
 
