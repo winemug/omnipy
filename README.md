@@ -8,28 +8,15 @@ Omnipy evolved from my initial efforts on working with OmniPod and is released t
 
 Read the [introduction](https://github.com/winemug/omnipy/wiki) page on the wiki for more information.
 
-### May 6th, Update v1.4.2
+### May 12th, Update v1.4.3 available (while stocks last!)
 
-https://github.com/winemug/omnipy/releases/tag/v1.4.2 (Link updated with sd-card image)
+https://github.com/winemug/omnipy/releases/tag/v1.4.3
 
-This update fixes an issue introduced with the latest update, which again due to flaky communications could result in pod failures. Please update as soon as possible, especially if coming from v1.4.1.
-
-### May 4th, Update v1.4.1
-
-This update fixes an issue in the communication recovery process and is _strongly suggested if you are experiencing frequent disconnection issues_ either between Pod-RileyLink or RileyLink-Raspberry Pi. Note that this does NOT fix connection issues. Instead it fixes one of the several workarounds in omnipy, which try to prevent pod failures due to connection issues.
+This update fixes various issues from previous 1.4.x releases. Upgrading via image installation is strongly recommended.
 
 See [Release Notes](https://github.com/winemug/omnipy/wiki/Release-Notes) for more information on what's new and what's changed in this release.
 
-It has also come to my attention that many users are having _serious_ connectivity problems; but are simply _not realizing_ it due to the workarounds mentioned above. Please consider the following points for stable communications:
-
-* Make sure your RileyLink is not on running on low battery, whether the leds are blinking or it seems to be working, is not good enough.
-* Make sure your Raspberry Pi and RileyLink are not farther away from each other. Try to keep them as close as possible. Some raspberry pi's apparently have BLE range issues and the RileyLink does not have the best BLE reception either.
-* Make sure your RileyLink's 433 MHz antenna is performing. One way to measure that is to look into the packet logs and omnipy.log to check if there is a significant number of repeats during message exchange.
-* If you suspect that the communication between the Pod and RileyLink is not optimal, have a look at the wire antenna option. I cannot overstate the amazing range of the simple wire antenna.
-* If you cannot afford to build the custom antenna, don't let the RL sit far away from the Pod. If you're frequently going away from the RL, put it on a high place. 
-
-
-[Download](https://github.com/winemug/omnipy/releases/tag/v1.4.1) the latest version here.
+See also [Tips & Tricks](https://github.com/winemug/omnipy/wiki/Tips-and-Tricks) with respect to communication stability.
 
 Please refer to the [Setup documentation](https://github.com/winemug/omnipy/wiki/Setup-and-Configuration) on the wiki for information on how to set up the latest version of omnipy.
 
