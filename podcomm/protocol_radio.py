@@ -274,17 +274,16 @@ class PdmRadio:
                             timeout = 15
                             continue
                         elif repeat_count == 1:
-                            self._reset_sequences()
                             timeout = 10
                             time.sleep(2)
                             continue
                         elif repeat_count == 2:
-                            self._reset_sequences()
                             self._radio_init()
                             timeout = 15
                             continue
                         else:
                             self.logger.debug("Failed recovery")
+                            self._reset_sequences()
                             raise
                     elif part < packet_count - 1:
                         if repeat_count < 2:
@@ -337,6 +336,7 @@ class PdmRadio:
                 except RecoverableProtocolError as rpe:
                     self.logger.debug("Trying to recover from protocol error")
                     self.packet_sequence = (rpe.packet.sequence + 1) % 32
+                    self.message_sequence = (self.message_sequence + 1) % 32
                     if expected_type == RadioPacketType.POD and rpe.packet.type == RadioPacketType.ACK:
                         raise StatusUpdateRequired()
                     continue
