@@ -31,13 +31,13 @@ sudo apt install -y screen git python3 python3-pip vim jq bluez-tools libglib2.0
 # sudo cp /home/pi/omnipy/scripts/image/hostapd.conf /etc/hostapd/
 # sudo cp /home/pi/omnipy/scripts/image/dnsmasq.conf /etc/dnsmasq.d/
 # sudo cp /home/pi/omnipy/scripts/image/dhcpcd.conf /etc/
-sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
 
 git config --global user.email "omnipy@balya.net"
 git config --global user.name "Omnipy Setup"
 git clone https://github.com/winemug/omnipy.git
 #switch to dev
 git clone https://github.com/winemug/bluepy.git
+sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
 
 
 #sudo /bin/rm /boot/.firmware_revision
@@ -104,19 +104,41 @@ sudo systemctl start omnipy-pan.service
 sudo touch /boot/omnipy-pwreset
 sudo touch /boot/omnipy-expandfs
 sudo touch /boot/omnipy-btreset
-sudo touch /boot/omnipy-hotspot
 
-rm /etc/wpa_supplicant/wpa_supplicant.conf
+
 rm /home/pi/.bash_history
-#wpa?
+sudo rm /etc/wpa_supplicant/wpa_supplicant.conf
 sudo halt
 
 ######
 
 sudo umount /dev/sdh1
 sudo umount /dev/sdh2
-sudo gparted /dev/sdh
+
+#sudo gparted /dev/sdh
 #shrink with /g/parted 3192MiB
+
+sudo e2fsck -f /dev/sdh2
+sudo resize2fs /dev/sdh2 3G
+
+sudo fdisk /dev/sdh
+
+-p
+#The filesystem on /dev/sdh2 is now 786432 (4k) blocks long.
+
+#Device     Boot Start      End  Sectors  Size Id Type
+#/dev/sdh1        8192    96042    87851 42.9M  c W95 FAT32 (LBA)
+#/dev/sdh2       98304 62333951 62235648 29.7G 83 Linux
+-d 2
+-n p 2 98304 +3145728K -N
+-p
+#Device     Boot Start     End Sectors  Size Id Type
+#/dev/sdh1        8192   96042   87851 42.9M  c W95 FAT32 (LBA)
+#/dev/sdh2       98304 6389759 6291456    3G 83 Linux
+-w
+
+sudo e2fsck -f /dev/sdh2
+
 sudo mount /dev/sdh2 /mnt/piroot/
 sudo dcfldd if=/dev/zero of=/mnt/piroot/zero.txt
 sudo rm /mnt/piroot/zero.txt
@@ -124,5 +146,5 @@ sudo sync
 sudo umount /dev/sdh2
 sudo sync
 
-sudo dcfldd if=/dev/sdh of=omnipy.img bs=512 count=6635520
+sudo dcfldd if=/dev/sdh of=omnipy.img bs=512 count=6389760
 zip -9 omnipy.zip omnipy.img
