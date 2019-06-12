@@ -478,8 +478,8 @@ class Pdm:
                                          "utc_offset": utc_offset,
                                          "success": False}
 
-                if self.pod.state_progress > PodProgress.PairingSuccess:
-                    raise PdmError("Pod is already paired")
+                # if self.pod.state_progress > PodProgress.PairingSuccess:
+                #     raise PdmError("Pod is already paired")
 
                 self.pod.var_utc_offset = utc_offset
                 radio = None
@@ -547,8 +547,9 @@ class Pdm:
                                          "success": False}
                 radio = self.get_radio(new=True)
                 self._internal_update_status()
-                if self.pod.state_progress > PodProgress.ReadyForInjection:
-                    raise PdmError("Pod is already activated")
+
+                # if self.pod.state_progress > PodProgress.ReadyForInjection:
+                #     raise PdmError("Pod is already activated")
 
                 if self.pod.state_progress == PodProgress.PairingSuccess:
                     if radio is not None:
@@ -591,7 +592,7 @@ class Pdm:
                     time.sleep(55)
 
                 self._internal_update_status()
-                while self.pod.state_progress != PodProgress.ReadyForInjection:
+                while self.pod.state_progress < PodProgress.ReadyForInjection:
                     time.sleep(5)
                     self._internal_update_status()
 
