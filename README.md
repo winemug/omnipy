@@ -8,6 +8,16 @@ Omnipy evolved from my initial efforts on working with OmniPod and is released t
 
 Read the [introduction](https://github.com/winemug/omnipy/wiki) page on the wiki for more information.
 
+## November 25th, 2019
+## Important update regarding Android APS version updates
+As of today, omnipy users of Android APS have started receiving a warning message in the application about a grace period for certain features shutting down - unless the application is upgraded.
+
+Since omnipy is no longer receiving feature updates, the current Android APS version 2.3 for omnipy will not be upgraded as long as there is no critical issue that affects omnipy users.
+
+Omnipy users are strongly encouraged to follow announcements of the [OmniCore](https://github.com/winemug/OmniCore) project and switch to the first public release as soon as it is made available.
+
+If you are unable to make the transition to OmniCore before January 1st 2020, please build and compile [this release of Android APS for omnipy](https://github.com/winemug/AndroidAPS/releases/tag/omnipy_v1.4.3_aaps_v2.3.0_build_3) in order to prevent being shut off.
+
 ### May 12th, Update v1.4.3 available (while stocks last!)
 
 https://github.com/winemug/omnipy/releases/tag/v1.4.3
@@ -32,11 +42,11 @@ I will focus all development efforts related to Omnipod and Omnipod Dash on [**O
 
 Today, I'm excited to announce that the very first milestone of OmniCore is going to _replace omnipy completely_ to address one particular complaint all omnipy users (including myself) have had so far: Having to carry a raspberry pi and a power supply.
 
-**All of the omnipy functionality has already been ported** and the first release is scheduled to arrive _very_ soon. Keep an eye on the [OmniCore](https://github.com/winemug/OmniCore) github page for a status update in the coming days.
+Keep an eye on the [OmniCore](https://github.com/winemug/OmniCore) github page.
 
 ## Join us
 
-For questions, updates and support join us in the [omnicore-pdm slack](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtNTk2MzYxOTAwNDUyLWNkZTBlYjk0ZWU1YTA1ZjA4OGVlOWQ3YWZkNmNkNzk0YjdhMWM0NmQ3ZTRiM2I3ZDVkNGYyYWJiYTM5Yjc2YjM).
+For questions, updates and support join us in the [omnicore-pdm slack](https://join.slack.com/t/omnicore-pdm/shared_invite/enQtODM0MzAxMDkzNzI5LWQ5MjEwNWNhOGNlZDI1YTcxNDhmYmNjNDE3YTU2MWY3OGNkMzZlMTc5MTFhYmI5MDBjNTk5YmQ1NGRhZGNlZDM).
 
 # Wiki Links
 
