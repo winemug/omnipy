@@ -30,6 +30,8 @@ class MessageExchange:
 
 class PdmRadio:
     def __init__(self, radio_address, msg_sequence=0, pkt_sequence=0, packet_radio=None):
+        self.rssi_total = 0
+        self.rssi_count = 0
         self.radio_address = radio_address
         self.message_sequence = msg_sequence
         self.packet_sequence = pkt_sequence
@@ -42,7 +44,7 @@ class PdmRadio:
             self.packet_radio = packet_radio
 
         self.last_packet_received = None
-        self.last_packet_timestamp = None
+        self.last_sync_timestamp = None
 
         self.request_arrived = Event()
         self.response_received = Event()
@@ -173,7 +175,6 @@ class PdmRadio:
                     self.message_sequence = (self.message_sequence - self.debug_cut_message_seq) % 16
                     self.packet_sequence = (self.packet_sequence - self.debug_cut_packet_seq) % 16
                     self.last_packet_received = None
-                    self.last_packet_timestamp = None
             else:
                 self.current_exchange.ended = time.time()
                 self.response_received.set()
@@ -218,7 +219,6 @@ class PdmRadio:
 
     def _reset_sequences(self):
         self.packet_sequence = 0
-        self.message_sequence = (self.message_sequence + 1) % 16
 
     def _send_and_get(self, pdm_message, pdm_message_address, ack_address_override=None,
                       tx_power=None, double_take=False, expect_critical_follow_up=False):
@@ -336,7 +336,6 @@ class PdmRadio:
                 except RecoverableProtocolError as rpe:
                     self.logger.debug("Trying to recover from protocol error")
                     self.packet_sequence = (rpe.packet.sequence + 1) % 32
-                    self.message_sequence = (self.message_sequence + 1) % 16
                     if expected_type == RadioPacketType.POD and rpe.packet.type == RadioPacketType.ACK:
                         raise StatusUpdateRequired()
                     continue
@@ -366,7 +365,30 @@ class PdmRadio:
         self.packet_sequence = (received.sequence + 1) % 32
         return pod_response
 
+    def _send_get(self, send_data):
+        if self.last_sync_timestamp is None or time.time() - self.last_sync_timestamp > 5:
+            received = self._send_get_with_ext(send_data)
+        else:
+            received = self._send_get_no_ext(send_data)
+
+        if received is None:
+            self.last_sync_timestamp = None
+        else:
+            self.last_sync_timestamp = time.time()
+
+        return received
+
+    def _send_get_with_ext(self, send_data):
+        received = self.packet_radio.send_and_receive_packet(send_data, 0, 0, 110, 0, 300)
+        if received is None:
+            return self._send_get_no_ext(send_data)
+        return received
+
+    def _send_get_no_ext(self, send_data):
+        return self.packet_radio.send_and_receive_packet(send_data, 3, 0, 660, 0, 80)
+
     def _exchange_packets(self, packet_to_send, expected_type, timeout=10):
+        #self.packet_radio.channel += 1
         start_time = None
         first = True
         while start_time is None or time.time() - start_time < timeout:
@@ -374,10 +396,9 @@ class PdmRadio:
                 first = False
             else:
                 self.current_exchange.repeated_sends += 1
-            if self.last_packet_timestamp is None or time.time() - self.last_packet_timestamp > 4:
-                received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 0, 0, 300, 1, 300)
-            else:
-                received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 0, 0, 120, 0, 40)
+
+            received = self._send_get(packet_to_send.get_data())
+
             if start_time is None:
                 start_time = time.time()
 
@@ -401,8 +422,6 @@ class PdmRadio:
                 self.packet_logger.debug("RECV PKT ADDR MISMATCH")
                 self.packet_radio.tx_down()
                 continue
-
-            self.last_packet_timestamp = time.time()
 
             if self.last_packet_received is not None and \
                         p.sequence == self.last_packet_received.sequence and \
@@ -437,8 +456,7 @@ class PdmRadio:
         while start_time is None or time.time() - start_time < timeout:
             try:
                 self.packet_logger.info("SEND PKT %s" % packet_to_send)
-
-                received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 0, 0, 300, 0, 40)
+                received = self._send_get(packet_to_send.get_data())
                 if start_time is None:
                     start_time = time.time()
 
@@ -467,7 +485,6 @@ class PdmRadio:
                     self.packet_radio.tx_down()
                     continue
 
-                self.last_packet_timestamp = time.time()
                 if self.last_packet_received is not None:
                     self.current_exchange.repeated_receives += 1
                     if p.type == self.last_packet_received.type and p.sequence == self.last_packet_received.sequence:
@@ -497,9 +514,21 @@ class PdmRadio:
     def _get_packet(self, data):
         rssi = None
         if data is not None and len(data) > 2:
-            rssi = data[0]
+            rssi = (255 - data[0]) / -2 - 73
+            getLogger().debug("RSSI: %d" % (rssi))
+            self.rssi_total += rssi
+            self.rssi_count += 1
             try:
                 return RadioPacket.parse(data[2:]), rssi
             except:
                 getLogger().exception("RECEIVED DATA: %s RSSI: %d" % (binascii.hexlify(data[2:]), rssi))
         return None, rssi
+
+    def start_rssi_averaging(self):
+        self.rssi_total = 0
+        self.rssi_count = 0
+
+    def get_rssi_average(self):
+        if self.rssi_count > 0:
+            return self.rssi_total / self.rssi_count
+        return 0
