@@ -20,10 +20,10 @@ pair_bt_device() {
     sleep 15
 }
 
+sudo btmgmt power off
+sudo btmgmt power on
 while true;
 do
-    sudo btmgmt power off
-    sudo btmgmt power on
     paired_devices=`bt-device -l | grep -e \(.*\) --color=never -o| cut -d'(' -f2 | cut -d')' -f1`
     if [[ ! -z "${paired_devices}" ]]; then
         while read -r mac_address;
