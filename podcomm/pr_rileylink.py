@@ -79,13 +79,15 @@ class Encoding(IntEnum):
     FOURBSIXB = 2
 
 
-PA_LEVELS = [0x0E, 
-             0x1D,
-             0x34,
-             0x2C,
-             0x60,
-             0x84, 0x84,
-             0xC8]
+PA_LEVELS = [
+                 0x0E,
+                 0x1D,
+                 0x34, 0x34,
+                 0x2C, 0x2C, 0x2C,
+                 0x60, 0x60, 0x60, 0x60, 0x60, 0x60,
+                 0x84, 0x84, 0x84, 0x84, 0x84, 0x84,
+                 0xC8, 0xC8, 0xC8
+             ]
 
 g_rl_address = None
 g_rl_version = None
@@ -124,6 +126,8 @@ class RileyLink(PacketRadio):
             self._connect_retry(3)
 
             self.service = self.peripheral.getServiceByUUID(RILEYLINK_SERVICE_UUID)
+            self.peripheral = self.service.peripheral
+
             data_char = self.service.getCharacteristics(RILEYLINK_DATA_CHAR_UUID)[0]
             self.data_handle = data_char.getHandle()
 
@@ -248,6 +252,7 @@ class RileyLink(PacketRadio):
             #self._command(Command.SET_PREAMBLE, bytes([0, 0]))
 
             frequency = int(433910000 / (24000000 / pow(2, 16)))
+            frequency += 60
             self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, frequency & 0xff]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ1, (frequency >> 8) & 0xff]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, (frequency >> 16) & 0xff]))
@@ -336,13 +341,15 @@ class RileyLink(PacketRadio):
             if tx_power is None:
                 return
             elif tx_power == TxPower.Lowest:
-                self._set_amp(0)
+                self._set_amp(0x1D)
             elif tx_power == TxPower.Low:
-                self._set_amp(PA_LEVELS.index(0x1D))
+                self._set_amp(PA_LEVELS.index(0x34))
+            elif tx_power == TxPower.Lower:
+                self._set_amp(PA_LEVELS.index(0x2C))
             elif tx_power == TxPower.Normal:
-                self._set_amp(PA_LEVELS.index(0x84))
+                self._set_amp(PA_LEVELS.index(0x60))
             elif tx_power == TxPower.High:
-                self._set_amp(PA_LEVELS.index(0xC8))
+                self._set_amp(PA_LEVELS.index(0x84))
             elif tx_power == TxPower.Highest:
                 self._set_amp(PA_LEVELS.index(0xC8))
         except Exception as e:
