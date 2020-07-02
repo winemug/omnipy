@@ -92,6 +92,8 @@ class Pod:
         except:
             pass
 
+    def GetString(self):
+        return json.dumps(self.__dict__, indent=4, sort_keys=True)
     @staticmethod
     def Load(path, db_path=None):
 
@@ -184,7 +186,7 @@ class Pod:
             sql = """ CREATE TABLE IF NOT EXISTS pod_history (
                       timestamp real, 
                       pod_state integer, pod_minutes integer, pod_last_command text,
-                      insulin_delivered real, insulin_canceled real, insulin_reservoir real
+                      insulin_delivered real, insulin_canceled real, insulin_reservoir real, pod_json text
                       ) """
 
             c = conn.cursor()
@@ -195,17 +197,22 @@ class Pod:
             self._ensure_db_structure()
             with self._get_conn() as conn:
                 sql = """ INSERT INTO pod_history (timestamp, pod_state, pod_minutes, pod_last_command,
-                          insulin_delivered, insulin_canceled, insulin_reservoir)
-                          VALUES(?,?,?,?,?,?,?) """
+                          insulin_delivered, insulin_canceled, insulin_reservoir, pod_json)
+                          VALUES(?,?,?,?,?,?,?,?) """
 
                 values = (time.time(), self.state_progress, self.state_active_minutes,
-                        str(self.last_command), self.insulin_delivered, self.insulin_canceled, self.insulin_reservoir)
+                        str(self.last_command), self.insulin_delivered, self.insulin_canceled, self.insulin_reservoir,
+                          json.dumps(self.__dict__, indent=4, sort_keys=True))
 
                 c = conn.cursor()
                 c.execute(sql, values)
                 return c.lastrowid
         except:
             getLogger().exception("Error while writing to database")
+
+    def get_bolus_total(self):
+        self._ensure_db_structure()
+        pass
 
     def get_history(self):
         try:
