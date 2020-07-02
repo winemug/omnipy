@@ -5,9 +5,10 @@ from enum import IntEnum
 class TxPower(IntEnum):
     Lowest = 0
     Low = 1
-    Normal = 2
-    High = 3
-    Highest = 4
+    Lower = 2
+    Normal = 3
+    High = 4
+    Highest = 5
 
 
 class PacketRadio(abc.ABC):
