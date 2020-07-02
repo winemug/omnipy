@@ -82,6 +82,7 @@ class Pdm:
             request.set_nonce(nonce_val)
             self.pod.nonce_syncword = None
 
+        self.get_radio().start_rssi_averaging()
         response = self.get_radio().send_message_get_message(request, double_take=double_take,
                                                              expect_critical_follow_up=expect_critical_follow_up,
                                                              tx_power=tx_power)
@@ -101,28 +102,32 @@ class Pdm:
                 self.get_nonce().reset()
                 raise PdmError("Nonce sync failed")
 
+        return self.get_radio().get_rssi_average()
 
     def _internal_update_status(self, update_type=0):
         if self.debug_status_skip:
             return
         self._assert_pod_address_assigned()
-        self.send_request(request_status(update_type))
+        return self.send_request(request_status(update_type), tx_power=TxPower.Highest)
 
     def update_status(self, update_type=0):
+        rssi = 0
         try:
             with PdmLock():
                 self.logger.info("Updating pod status, request type %d" % update_type)
                 self.pod.last_command = { "command": "STATUS", "type": update_type, "success": False }
-                self._internal_update_status(update_type)
+                rssi = self._internal_update_status(update_type)
                 self.pod.last_command["success"] = True
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            rssi = self._internal_update_status()
             self.update_status(update_type=update_type)
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
             self._savePod()
+
+        return rssi
 
     def acknowledge_alerts(self, alert_mask):
         try:
@@ -256,8 +261,8 @@ class Pdm:
                 if self._is_bolus_running():
                     raise PdmError("A previous bolus is already running")
 
-                if bolus_amount > self.pod.insulin_reservoir:
-                    raise PdmError("Cannot bolus %.2f units, insulin_reservoir capacity is at: %.2f")
+                #if bolus_amount > self.pod.insulin_reservoir:
+                #    raise PdmError("Cannot bolus %.2f units, insulin_reservoir capacity is at: %.2f")
 
                 self.logger.debug("Bolusing %0.2f" % float(bolus_amount))
                 request = request_bolus(bolus_amount)
@@ -370,7 +375,7 @@ class Pdm:
                     if self.pod.var_maximum_temp_basal_rate is not None and \
                             basalRate > Decimal(self.pod.var_maximum_temp_basal_rate):
                         raise PdmError("Requested rate exceeds maximum temp basal setting")
-                    if basalRate > Decimal(30):
+                    if basalRate > Decimal(45):
                         raise PdmError("Requested rate exceeds maximum temp basal capability")
 
                     if self._is_temp_basal_active():
