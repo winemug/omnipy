@@ -47,6 +47,7 @@ class Register(IntEnum):
     PKTLEN = 0x02
     PKTCTRL1 = 0x03
     PKTCTRL0 = 0x04
+    FSCTRL0 = 0x08
     FSCTRL1 = 0x07
     FREQ2 = 0x09
     FREQ1 = 0x0a
@@ -58,6 +59,8 @@ class Register(IntEnum):
     MDMCFG0 = 0x10
     DEVIATN = 0x11
     MCSM0 = 0x14
+    MCSM1 = 0x13
+    MCSM2 = 0x12
     FOCCFG = 0x15
     AGCCTRL2 = 0x17
     AGCCTRL1 = 0x18
@@ -110,6 +113,22 @@ class RileyLink(PacketRadio):
 
     def connect(self, force_initialize=False):
         try:
+
+            self._connect_internal()
+
+            if self.initialized:
+                self.init_radio(force_initialize)
+            else:
+                self.init_radio(True)
+        except BTLEException as be:
+            if self.peripheral is not None:
+                self.disconnect()
+            raise PacketRadioError("Error while connecting") from be
+        except Exception as e:
+            raise PacketRadioError("Error while connecting") from e
+
+    def _connect_internal(self):
+        try:
             if self.address is None:
                 self.address = self._findRileyLink()
 
@@ -138,13 +157,6 @@ class RileyLink(PacketRadio):
             notify_setup = b"\x01\x00"
             self.peripheral.writeCharacteristic(response_notify_handle, notify_setup)
 
-            while self.peripheral.waitForNotifications(0.05):
-                self.peripheral.readCharacteristic(self.data_handle)
-
-            if self.initialized:
-                self.init_radio(force_initialize)
-            else:
-                self.init_radio(True)
         except BTLEException as be:
             if self.peripheral is not None:
                 self.disconnect()
@@ -231,6 +243,15 @@ class RileyLink(PacketRadio):
 
     def init_radio(self, force_init=False):
         try:
+            if force_init:
+                self.logger.debug("force initialize, resetting RL")
+                self.peripheral.writeCharacteristic(self.data_handle, bytes([1, Command.RESET]), withResponse=False)
+                self.logger.debug("disconnecting")
+                self.disconnect()
+                time.sleep(3)
+                self.logger.debug("reconnecting")
+                self._connect_internal()
+
             version, v_major, v_minor = self._read_version()
 
             if v_major < 2:
@@ -249,67 +270,48 @@ class RileyLink(PacketRadio):
             self._command(Command.RADIO_RESET_CONFIG)
             self._command(Command.SET_SW_ENCODING, bytes([Encoding.NONE]))
             self._command(Command.SET_PREAMBLE, bytes([0x66, 0x65]))
-            #self._command(Command.SET_PREAMBLE, bytes([0, 0]))
 
-            frequency = int(433910000 / (24000000 / pow(2, 16)))
-            frequency += 60
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, frequency & 0xff]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ1, (frequency >> 8) & 0xff]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, (frequency >> 16) & 0xff]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, 0x5f]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ1, 0x14]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, 0x12]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
 
-            self._command(Command.UPDATE_REGISTER, bytes([Register.DEVIATN, 0x44]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.DEVIATN, 0x44]))
-
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTLEN, 0x50]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL1, 0x20]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL0, 0x00]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTLEN, 0x50]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL1, 0x60]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL0, 0x04]))
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL1, 0x06]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL1, 0x06]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL0, 0x00]))
+
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, 0x12]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ1, 0x14]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, 0x9C]))
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG4, 0xCA]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG3, 0xBC]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG2, 0x06]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG1, 0x70]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG3, 0xBC])) #AE #BC
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG2, 0x06])) #02 #06
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG1, 0x70])) #40 #70
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG1, 0x40]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG0, 0x11]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM0, 0x18]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG4, 0xDA]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG3, 0xB5]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG2, 0x12]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG1, 0x23]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG0, 0x11]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM0, 0x18]))
+
+            self._command(Command.UPDATE_REGISTER, bytes([Register.DEVIATN, 0x44]))
+
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM2, 0x07]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM1, 0x30]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM0, 0x19]))
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.FOCCFG, 0x17]))
+
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
+
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL3, 0xE9]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL2, 0x2A]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL1, 0x00]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))
+
+            #self._command(Command.UPDATE_REGISTER, bytes([Register.TEST2, 0x81]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 0x35]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.TEST0, 0x09]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.FOCCFG, 0x17]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL3, 0xE9]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL2, 0x2A]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL1, 0x00]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.TEST2, 0x81])) ## register not defined on RL
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 0x35]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.TEST0, 0x09]))
-
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
-            #self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
-            #self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
-            # self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
 
             response = self._command(Command.GET_STATE)
             if response != b"OK":
