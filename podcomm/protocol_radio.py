@@ -168,7 +168,7 @@ class PdmRadio:
 
                 if not self.debug_cut_last_ack:
                     try:
-                        self._send_packet(ack_packet, allow_premature_exit_after=3.5)
+                        self._send_packet(ack_packet)
                     except Exception:
                         self.logger.exception("Error during ending conversation, ignored.")
                 else:

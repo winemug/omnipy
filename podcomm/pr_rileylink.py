@@ -278,7 +278,7 @@ class RileyLink(PacketRadio):
             self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL1, 0x20]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL0, 0x00]))
 
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL1, 0x06]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL1, 0x0F]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL0, 0x00]))
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, 0x12]))
