@@ -379,13 +379,13 @@ class PdmRadio:
         return received
 
     def _send_get_with_ext(self, send_data):
-        received = self.packet_radio.send_and_receive_packet(send_data, 0, 0, 110, 0, 300)
+        received = self.packet_radio.send_and_receive_packet(send_data, 0, 0, 150, 4, 150)
         if received is None:
             return self._send_get_no_ext(send_data)
         return received
 
     def _send_get_no_ext(self, send_data):
-        return self.packet_radio.send_and_receive_packet(send_data, 3, 0, 660, 0, 80)
+        return self.packet_radio.send_and_receive_packet(send_data, 0, 0, 145, 4, 5)
 
     def _exchange_packets(self, packet_to_send, expected_type, timeout=10):
         #self.packet_radio.channel += 1
