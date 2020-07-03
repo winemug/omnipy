@@ -212,16 +212,18 @@ class Pod:
 
     def get_bolus_total(self):
         total_bolus = 0.0
+        last_bolus_time = 0.0
         self._ensure_db_structure()
         with self._get_conn() as conn:
-            cursor = conn.execute("SELECT pod_json FROM pod_history WHERE pod_json IS NOT NULL AND pod_state >= 8 ORDER BY timestamp")
+            cursor = conn.execute("SELECT pod_json, timestamp FROM pod_history WHERE pod_json IS NOT NULL AND pod_state >= 8 ORDER BY timestamp")
             for row in cursor:
                 js = json.loads(row[0])
-                if js["last_command"] == "BOLUS":
+                if js["last_command"]["command"] == "BOLUS":
                     if js["last_command"]["success"]:
                         total_bolus += float(js["insulin_canceled"])
+                        last_bolus_time = float(row[1])
             cursor.close()
-        return total_bolus
+        return total_bolus, last_bolus_time
 
     def get_history(self):
         try:
