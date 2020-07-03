@@ -201,17 +201,20 @@ class MqOperator(object):
             self.send_result(pod)
 
     def bolus_check(self, requested, pod, pdm):
-        if pod.last_enacted_bolus_start:
-            boluswait = time.time() - pod.last_enacted_bolus_start
+
+        current_total, last_bolus_time = pod.get_bolus_total()
+        current_total = self.fix_decimal(current_total)
+        bolus_remain = self.fix_decimal(requested) - current_total
+        self.send_msg(
+            "current bolus total: %03.2fU requested total: %03.2fU" % (current_total, requested))
+
+        if bolus_remain >= Decimal("0.05"):
+            boluswait = time.time() - last_bolus_time
             if boluswait < 180:
+                self.send_msg("bolus cool-down remaining %d seconds" % int(boluswait))
                 self.check_wait = boluswait
                 return
 
-        current_total = pod.get_bolus_total()
-        bolus_remain = self.fix_decimal(float(requested) - current_total)
-        self.send_msg(
-            "current bolus total: %03.2fU requested total: %03.2fU" % (current_total, requested))
-        if bolus_remain >= Decimal("0.05"):
             to_bolus = Decimal(0)
             if bolus_remain > Decimal("0.5"):
                 to_bolus = Decimal("0.5")
