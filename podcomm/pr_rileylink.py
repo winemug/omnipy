@@ -283,7 +283,7 @@ class RileyLink(PacketRadio):
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, 0x12]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ1, 0x14]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, 0x9C]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, 0x66]))
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG4, 0xCA]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG3, 0xBC])) #AE #BC
@@ -291,7 +291,7 @@ class RileyLink(PacketRadio):
             self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG1, 0x40])) #40 #70
             self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG0, 0x11]))
 
-            self._command(Command.UPDATE_REGISTER, bytes([Register.DEVIATN, 0x44]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.DEVIATN, 0x54]))
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM2, 0x07]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM1, 0x30]))
@@ -301,7 +301,7 @@ class RileyLink(PacketRadio):
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
 
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL3, 0xE9]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL3, 0xEA]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL2, 0x2A]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL1, 0x00]))
             self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))

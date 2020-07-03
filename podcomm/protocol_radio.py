@@ -456,7 +456,7 @@ class PdmRadio:
         while start_time is None or time.time() - start_time < timeout:
             try:
                 self.packet_logger.info("SEND PKT %s" % packet_to_send)
-                received = self._send_get(packet_to_send.get_data())
+                received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 4, 145, 600, 0, 5)
                 if start_time is None:
                     start_time = time.time()
 
@@ -467,11 +467,9 @@ class PdmRadio:
                         self.packet_sequence = (self.packet_sequence + 1) % 32
                         break
                 if received is None:
-                    received = self.packet_radio.get_packet(0.6)
-                    if received is None:
-                        self.packet_logger.debug("Silence")
-                        self.packet_sequence = (self.packet_sequence + 1) % 32
-                        break
+                    self.packet_logger.debug("Silence")
+                    self.packet_sequence = (self.packet_sequence + 1) % 32
+                    break
                 p, rssi = self._get_packet(received)
                 if p is None:
                     self.current_exchange.bad_packets += 1

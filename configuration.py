@@ -5,5 +5,4 @@ class OmnipyConfiguration(object):
         self.mqtt_clientid = ""
         self.mqtt_command_topic = ""
         self.mqtt_response_topic = ""
-        self.mqtt_rate_topic = ""
-        self.mqtt_bolus_topic = ""
+        self.mqtt_json_topic = ""
