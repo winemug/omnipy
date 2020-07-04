@@ -43,13 +43,27 @@ class MqOperator(object):
         self.i_pod = None
         self.g_pdm = None
         self.g_pod = None
+
+        self.decimal_zero = Decimal("0")
         self.i_rate_requested = None
-        self.i_bolus_requested = None
+        self.i_bolus_requested = self.decimal_zero
         self.g_rate_requested = None
-        self.g_bolus_requested = None
+        self.g_bolus_requested = self.decimal_zero
         self.pod_request_lock = Lock()
         self.pod_check_event = Event()
+
         self.started = time.time()
+        self.insulin_max_bolus_at_once = Decimal("1.00")
+        self.insulin_bolus_interval = 180
+
+        self.insulin_long_temp_rate_threshold = Decimal("1.6")
+        self.insulin_long_temp_duration = Decimal("3.0")
+        self.insulin_short_temp_duration = Decimal("1.0")
+
+        self.glucagon_long_temp_rate_threshold = Decimal("4.0")
+        self.glucagon_long_temp_duration = Decimal("6.0")
+        self.glucagon_short_temp_duration = Decimal("1.0")
+
 
     def run(self):
         t = Thread(target=self.pdm_loop)
@@ -76,11 +90,14 @@ class MqOperator(object):
                 cmd_str = message.payload.decode()
                 cmd_split = cmd_str.split(' ')
                 if cmd_split[0] == "temp":
-                    temp_rate = Decimal(cmd_split[1])
-                    self.set_rate(temp_rate, Decimal("0"))
+                    temp_rate = self.fix_decimal(cmd_split[1])
+                    self.set_insulin_rate(temp_rate)
                 elif cmd_split[0] == "bolus":
-                    bolus = Decimal(cmd_split[1])
-                    self.set_bolus(bolus, Decimal("0"))
+                    bolus = self.fix_decimal(cmd_split[1])
+                    self.set_insulin_bolus(bolus)
+                elif cmd_split[0] == "reboot":
+                    self.send_msg("sir yes sir")
+                    os.system('sudo shutdown -r now')
                 else:
                     self.send_msg("lol what?")
             except:
@@ -89,18 +106,21 @@ class MqOperator(object):
     def on_disconnect(self, client, userdata, rc):
         self.logger.info("Disconnected from mqtt server")
 
-    def set_rate(self, rate1: Decimal, rate2: Decimal):
-        self.send_msg("Rate request: Insulin %02.2fU/h Glucagon %02.2fU/h" % (rate1, rate2))
+    def set_insulin_rate(self, rate: Decimal):
+        self.send_msg("Rate request: Insulin %02.2fU/h" % rate)
         with self.pod_request_lock:
-            self.i_rate_requested = rate1
-            self.g_rate_requested = rate2
+            self.i_rate_requested = rate
+        self.send_msg("Rate request submitted")
         self.pod_check_event.set()
 
-    def set_bolus(self, bolus1: Decimal, bolus2: Decimal):
-        self.send_msg("Bolus request: Insulin %02.2fU Glucagon %02.2fU" % (bolus1, bolus2))
+    def set_insulin_bolus(self, bolus: Decimal):
+        self.send_msg("Bolus request: Insulin %02.2fU" % bolus)
         with self.pod_request_lock:
-            self.i_bolus_requested = bolus1
-            self.g_bolus_requested = bolus2
+            previous = self.i_bolus_requested
+            self.i_bolus_requested = bolus
+        if previous > self.decimal_zero:
+            self.send_msg("Warning: %03.2fU bolus remains undelivered from previous requested" % previous)
+        self.send_msg("Bolus request submitted")
         self.pod_check_event.set()
 
     def pdm_loop(self):
@@ -114,151 +134,125 @@ class MqOperator(object):
         #self.g_pdm.start_radio()
         #time.sleep(10)
 
-        self.check_wait = 3600
-        while True:
-            if self.pod_check_event.wait(self.check_wait):
-                time.sleep(10)
-                self.pod_check_event.clear()
-
-            wait1 = 3600
-            wait2 = 3600
-            wait3 = 3600
-            wait4 = 3600
-
-            if self.i_pod.state_progress == 8 or self.i_pod.state_progress == 9:
-                req = self.get_i_rate_request()
-                if req is not None:
-                    self.rate_check(req, 1.6, self.i_pod, self.i_pdm)
-                    wait1 = self.check_wait
-
-                req = self.get_i_bolus_request()
-                if req is not None:
-                    self.bolus_check(req, self.i_pod, self.i_pdm)
-                    wait3 = self.check_wait
-
-            if self.g_pod.state_progress == 8 or self.g_pod.state_progress == 9:
-                time.sleep(5)
-                req = self.get_g_rate_request()
-                if req is not None:
-                    self.rate_check(req, 0.3, self.g_pod, self.g_pdm)
-                    wait1 = self.check_wait
-
-                req = self.get_g_bolus_request()
-                if req is not None:
-                    self.bolus_check(req, self.g_pod, self.g_pdm)
-                    wait3 = self.check_wait
-
-            self.check_wait = min(wait1, wait2, wait3, wait4)
-            if self.started is None or time.time() - self.started > 45 * 60:
-                self.send_msg("rebooting for fun")
-                os.system('sudo shutdown -r now')
-
-    def get_i_rate_request(self):
-        with self.pod_request_lock:
-            req = self.i_rate_requested
-            self.i_rate_requested = None
-            return req
-
-    def get_i_bolus_request(self):
-        with self.pod_request_lock:
-            return self.i_bolus_requested
-
-    def get_g_rate_request(self):
-        with self.pod_request_lock:
-            req = self.g_rate_requested
-            self.g_rate_requested = None
-            return req
-
-    def get_g_bolus_request(self):
-        with self.pod_request_lock:
-            return self.g_bolus_requested
-
-    def rate_check(self, requested, scheduled, pod, pdm):
-        requested_hours = Decimal("0")
-        if requested < scheduled:
-            requested_hours = Decimal("3.0")
-        elif requested > scheduled:
-            requested_hours = Decimal("1.0")
-        else:
-            self.send_msg("cancelling temp basal, if any")
-            try:
-                pdm.cancel_temp_basal()
-            except:
-                self.send_msg("nope, not good")
-            finally:
-                self.send_result(pod)
-            return
-
-        requested_rate = self.fix_decimal(requested)
-
-        self.send_msg("setting temp %02.2fU/h for %02.2f hours" % (requested, requested_hours))
-
         try:
-            pdm.set_temp_basal(requested_rate, requested_hours)
+            self.pdm_loop_main()
         except:
-            self.send_msg("nope, not good")
-        finally:
-            self.send_result(pod)
+            os.system('sudo shutdown -r now')
 
-    def bolus_check(self, requested, pod, pdm):
+    def pdm_loop_main(self):
+        check_wait = 1
+        while True:
+            if self.pod_check_event.wait(check_wait):
+                self.pod_check_event.clear()
+                time.sleep(5)
 
-        current_total, last_bolus_time = pod.get_bolus_total()
-        current_total = self.fix_decimal(current_total)
-        bolus_remain = self.fix_decimal(requested) - current_total
-        self.send_msg(
-            "current bolus total: %03.2fU requested total: %03.2fU" % (current_total, requested))
+            progress = self.i_pod.state_progress
 
-        if bolus_remain >= Decimal("0.05"):
-            boluswait = time.time() - last_bolus_time
-            if boluswait < 180:
-                self.send_msg("bolus cool-down remaining %d seconds" % int(boluswait))
-                self.check_wait = boluswait
-                return
+            if 0 <= progress < 8 or progress == 15:
+                check_wait = 3600
+                continue
 
-            to_bolus = Decimal(0)
-            if bolus_remain > Decimal("0.5"):
-                to_bolus = Decimal("0.5")
-                self.check_wait = 180
-            else:
-                to_bolus = bolus_remain
-
-            self.send_msg(
-                "Pending to bolus: %03.2fU, bolusing %02.2fU" % (bolus_remain, to_bolus))
+            if progress > 9:
+                self.send_msg("deactivating pod")
+                try:
+                    self.i_pdm.deactivate_pod()
+                    self.send_msg("all is well, all is good")
+                    self.send_result(self.i_pod)
+                    check_wait = 3600
+                except:
+                    self.send_msg("deactivation failed")
+                    check_wait = 1
+                continue
 
             try:
-                pdm.bolus(to_bolus)
+                self.send_msg("checking pod status")
+                self.i_pdm.update_status()
+                if self.i_pod.state_faulted:
+                    self.send_msg("pod is faulted! oh my")
+                    check_wait = 1
+                    continue
+                self.send_msg("pod reservoir remaining: %02.2fU" % self.i_pod.insulin_reservoir)
+
+                if self.i_pod.insulin_reservoir > 20:
+                    check_wait = 1800
+                elif self.i_pod.insulin_reservoir > 10:
+                    check_wait = 600
+                else:
+                    check_wait = 300
             except:
-                self.send_msg("nope, not good")
-            finally:
-                self.send_result(pod)
+                self.send_msg("couldn't reach pod I guess?")
+                check_wait = 300
 
-    def get_current_rate_state(self, pod, scheduled):
-        if pod.last_enacted_temp_basal_start is not None \
-                and pod.last_enacted_temp_basal_duration is not None:
-            if pod.last_enacted_temp_basal_amount >= 0:
-                now = time.time()
-                temp_basal_end = pod.last_enacted_temp_basal_start + \
-                                 (pod.last_enacted_temp_basal_duration * 3600)
-                if now <= temp_basal_end:
-                    return self.fix_decimal(pod.last_enacted_temp_basal_amount), int(temp_basal_end - now)
+            with self.pod_request_lock:
+                if self.i_rate_requested:
+                    rate = self.i_rate_requested
+                    if rate <= self.insulin_long_temp_rate_threshold:
+                        duration = self.insulin_long_temp_duration
+                    else:
+                        duration = self.insulin_short_temp_duration
 
-        return scheduled, 7 * 24 * 60
+                    self.send_msg("setting temp %02.2fU/h for %02.2f hours" % (rate, duration))
+                    try:
+                        self.i_pdm.set_temp_basal(rate, duration)
+                    except:
+                        self.send_msg("failed to set tb")
+                        check_wait = 1
+                        continue
+                    finally:
+                        self.send_result(self.i_pod)
+
+                    self.send_msg("temp set")
+                    self.i_rate_requested = None
+
+            time.sleep(5)
+            with self.pod_request_lock:
+                bolus_request = self.i_bolus_requested
+                if bolus_request > self.decimal_zero:
+                    _, last_bolus_time = self.i_pod.get_bolus_total()
+                    time_since_last_bolus = time.time() - last_bolus_time
+                    self.send_msg("Active bolus request of %02.2fU" % bolus_request)
+                    if time_since_last_bolus < self.insulin_bolus_interval:
+                        check_wait = self.insulin_bolus_interval - time_since_last_bolus
+                        self.send_msg("Postponing bolus request for %d seconds" % check_wait)
+                    else:
+                        if bolus_request > self.insulin_max_bolus_at_once:
+                            to_bolus = self.insulin_max_bolus_at_once
+                        else:
+                            to_bolus = bolus_request
+
+                        self.send_msg("Bolusing %02.2fU" % to_bolus)
+                        self.i_bolus_requested -= to_bolus
+                        try:
+                            self.i_pdm.bolus(to_bolus)
+                        except:
+                            self.i_bolus_requested += to_bolus
+                            self.send_msg("failed to execute bolus")
+                            check_wait = 1
+                            continue
+                        finally:
+                            self.send_result(self.i_pod)
+
+                        if self.i_bolus_requested > self.decimal_zero:
+                            check_wait = self.insulin_bolus_interval
+                            self.send_msg("donesies, remaining to bolus: %03.2fU" % self.i_bolus_requested)
+                        else:
+                            self.send_msg("bolus is bolus")
 
     def fix_decimal(self, f):
-        f = Decimal(int(f * 20))
-        f = f / Decimal("20")
-        return f
+        i_ticks = round(float(f) * 20.0)
+        d_val = Decimal(i_ticks) / Decimal("20")
+        return d_val
 
     def send_result(self, pod):
         msg = pod.GetString()
         self.logger.info(msg)
         self.client.publish(self.configuration.mqtt_json_topic,
-                            payload="%s %s" % (datetime.utcnow(), msg), qos=2)
+                            payload=msg, qos=2)
 
     def send_msg(self, msg):
         self.logger.info(msg)
         self.client.publish(self.configuration.mqtt_response_topic,
-                            payload="%s %s" % (datetime.utcnow(), msg), qos=2)
+                            payload="%s (%s UTC)" % (msg, datetime.utcnow().strftime("%H:%M:%S")), qos=2)
 
 
 if __name__ == '__main__':
