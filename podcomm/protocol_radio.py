@@ -139,7 +139,7 @@ class PdmRadio:
 
     def _radio_loop(self):
         while True:
-            if not self.request_arrived.wait(timeout=5.0):
+            if not self.request_arrived.wait(timeout=900.0):
                 self._disconnect()
             self.request_arrived.wait()
             self.request_arrived.clear()
@@ -207,13 +207,14 @@ class PdmRadio:
 
     def _kill_btle_subprocess(self):
         try:
-            p = subprocess.Popen(["ps", "-A"], stdout=subprocess.PIPE)
-            out, err = p.communicate()
-            for line in out.splitlines():
-                if "bluepy-helper" in line:
-                    pid = int(line.split(None, 1)[0])
-                    os.kill(pid, 9)
-                    break
+            os.system("sudo killall -9 bluepy-helper")
+            # p = subprocess.Popen(["ps", "-A"], stdout=subprocess.PIPE)
+            # out, err = p.communicate()
+            # for line in out.splitlines():
+            #     if "bluepy-helper" in line:
+            #         pid = int(line.split(None, 1)[0])
+            #         os.kill(pid, 9)
+            #         break
         except:
             self.logger.warning("Failed to kill bluepy-helper")
 

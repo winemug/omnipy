@@ -110,16 +110,14 @@ class RileyLink(PacketRadio):
         self.notify_event = Event()
         self.initialized = False
         self.manchester = ManchesterCodec()
+        self.version = None
 
     def connect(self, force_initialize=False):
         try:
-
-            self._connect_internal()
-
-            if self.initialized:
+            already_connected = self._connect_internal()
+            if not already_connected or force_initialize:
                 self.init_radio(force_initialize)
-            else:
-                self.init_radio(True)
+
         except BTLEException as be:
             if self.peripheral is not None:
                 self.disconnect()
@@ -129,19 +127,19 @@ class RileyLink(PacketRadio):
 
     def _connect_internal(self):
         try:
+            if self.peripheral is not None:
+                try:
+                    state = self.peripheral.getState()
+                    if state == "conn":
+                        return True
+                except BTLEException:
+                    pass
+
             if self.address is None:
+                self.initialized = False
                 self.address = self._findRileyLink()
 
-            if self.peripheral is None:
-                self.peripheral = Peripheral()
-
-            try:
-                state = self.peripheral.getState()
-                if state == "conn":
-                    return
-            except BTLEException:
-                pass
-
+            self.peripheral = Peripheral()
             self._connect_retry(3)
 
             self.service = self.peripheral.getServiceByUUID(RILEYLINK_SERVICE_UUID)
@@ -156,6 +154,7 @@ class RileyLink(PacketRadio):
             response_notify_handle = self.response_handle + 1
             notify_setup = b"\x01\x00"
             self.peripheral.writeCharacteristic(response_notify_handle, notify_setup)
+            return False
 
         except BTLEException as be:
             if self.peripheral is not None:
@@ -244,6 +243,7 @@ class RileyLink(PacketRadio):
     def init_radio(self, force_init=False):
         try:
             if force_init:
+                self.initialized = False
                 self.logger.debug("force initialize, resetting RL")
                 self.peripheral.writeCharacteristic(self.data_handle, bytes([1, Command.RESET]), withResponse=False)
                 self.logger.debug("disconnecting")
@@ -252,20 +252,22 @@ class RileyLink(PacketRadio):
                 self.logger.debug("reconnecting")
                 self._connect_internal()
 
-            version, v_major, v_minor = self._read_version()
+            if self.version is None:
+                self.version = self._read_version()
 
+            v_str, v_major, v_minor = self.version
             if v_major < 2:
                 self.logger.error("Firmware version is below 2.0")
-                raise PacketRadioError("Unsupported RileyLink firmware %d.%d (%s)" %
-                                        (v_major, v_minor, version))
+                raise PacketRadioError("Unsupported RileyLink firmware %s" % v_str)
 
             if not force_init:
                 if v_major == 2 and v_minor < 3:
                     response = self._command(Command.READ_REGISTER, bytes([Register.PKTLEN, 0x00]))
                 else:
                     response = self._command(Command.READ_REGISTER, bytes([Register.PKTLEN]))
-                if response is not None and len(response) > 0 and response[0] == 0x50:
-                    return
+                    if response is not None and len(response) > 0 and response[0] == 0x50:
+                        self.initialized = True
+                        return
 
             self._command(Command.RADIO_RESET_CONFIG)
             self._command(Command.SET_SW_ENCODING, bytes([Encoding.NONE]))
@@ -446,13 +448,14 @@ class RileyLink(PacketRadio):
             except BTLEException as btlee:
                 self.logger.warning("BTLE exception trying to connect: %s" % btlee)
                 try:
-                    p = subprocess.Popen(["ps", "-A"], stdout=subprocess.PIPE)
-                    out, err = p.communicate()
-                    for line in out.splitlines():
-                        if "bluepy-helper" in line:
-                            pid = int(line.split(None, 1)[0])
-                            os.kill(pid, 9)
-                            break
+                    os.system("sudo killall -9 bluepy-helper")
+                    # p = subprocess.Popen(["ps", "-A"], stdout=subprocess.PIPE)
+                    # out, err = p.communicate()
+                    # for line in out.splitlines():
+                    #     if "bluepy-helper" in line:
+                    #         pid = int(line.split(None, 1)[0])
+                    #         os.kill(pid, 9)
+                    #         break
                 except:
                     self.logger.warning("Failed to kill bluepy-helper")
                 time.sleep(1)
