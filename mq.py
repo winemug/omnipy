@@ -184,7 +184,7 @@ class MqOperator(object):
                 check_wait = 300
 
             with self.pod_request_lock:
-                if self.i_rate_requested:
+                if self.i_rate_requested is not None:
                     rate = self.i_rate_requested
                     if rate <= self.insulin_long_temp_rate_threshold:
                         duration = self.insulin_long_temp_duration
