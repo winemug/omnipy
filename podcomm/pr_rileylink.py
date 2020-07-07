@@ -324,6 +324,7 @@ class RileyLink(PacketRadio):
             raise PacketRadioError("Error while initializing rileylink radio: %s", e)
 
     def tx_up(self):
+        return
         try:
             if self.pa_level_index < len(PA_LEVELS) - 1:
                 self.pa_level_index += 1
@@ -332,6 +333,7 @@ class RileyLink(PacketRadio):
             raise PacketRadioError("Error while setting tx up") from e
 
     def tx_down(self):
+        return
         try:
             if self.pa_level_index > 0:
                 self.pa_level_index -= 1
@@ -340,6 +342,7 @@ class RileyLink(PacketRadio):
             raise PacketRadioError("Error while setting tx down") from e
 
     def set_tx_power(self, tx_power):
+        return
         try:
             if tx_power is None:
                 return

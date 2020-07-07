@@ -84,8 +84,7 @@ class Pdm:
 
         self.get_radio().start_rssi_averaging()
         response = self.get_radio().send_message_get_message(request, double_take=double_take,
-                                                             expect_critical_follow_up=expect_critical_follow_up,
-                                                             tx_power=tx_power)
+                                                             expect_critical_follow_up=expect_critical_follow_up)
         response_parse(response, self.pod)
 
         if with_nonce and self.pod.nonce_syncword is not None:
@@ -108,7 +107,7 @@ class Pdm:
         if self.debug_status_skip:
             return
         self._assert_pod_address_assigned()
-        return self.send_request(request_status(update_type), tx_power=TxPower.Highest)
+        return self.send_request(request_status(update_type))
 
     def update_status(self, update_type=0):
         rssi = 0
@@ -499,8 +498,7 @@ class Pdm:
 
                     request = request_assign_address(candidate_address)
                     response = self.get_radio().send_message_get_message(request, message_address=0xffffffff,
-                                                                         ack_address_override=candidate_address,
-                                                                         tx_power=TxPower.Low)
+                                                                         ack_address_override=candidate_address)
                     response_parse(response, self.pod)
 
                     self._assert_pod_can_activate()
