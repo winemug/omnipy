@@ -252,6 +252,7 @@ def response_parse(response, pod):
             parse_status_response(response_body, pod)
         else:
             raise ProtocolError("Unknown response type %02X" % response_type)
+        pod.Save()
 
 
 def parse_information_response(response, pod):
