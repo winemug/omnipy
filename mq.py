@@ -46,6 +46,7 @@ class MqOperator(object):
 
         self.decimal_zero = Decimal("0")
         self.i_rate_requested = None
+        self.i_rate_duration_requested = None
         self.i_bolus_requested = self.decimal_zero
         self.g_rate_requested = None
         self.g_bolus_requested = self.decimal_zero
@@ -91,7 +92,10 @@ class MqOperator(object):
                 cmd_split = cmd_str.split(' ')
                 if cmd_split[0] == "temp":
                     temp_rate = self.fix_decimal(cmd_split[1])
-                    self.set_insulin_rate(temp_rate)
+                    temp_duration = None
+                    if len(cmd_split) > 2:
+                        temp_duration = self.fix_decimal(cmd_split[2])
+                    self.set_insulin_rate(temp_rate, temp_duration)
                 elif cmd_split[0] == "bolus":
                     bolus = self.fix_decimal(cmd_split[1])
                     self.set_insulin_bolus(bolus)
@@ -106,10 +110,14 @@ class MqOperator(object):
     def on_disconnect(self, client, userdata, rc):
         self.logger.info("Disconnected from mqtt server")
 
-    def set_insulin_rate(self, rate: Decimal):
-        self.send_msg("Rate request: Insulin %02.2fU/h" % rate)
+    def set_insulin_rate(self, rate: Decimal, duration_hours: Decimal):
+        if duration_hours is None:
+            self.send_msg("Rate request: Insulin %02.2fU/h" % rate)
+        else:
+            self.send_msg("Rate request: Insulin {:02.2f}U/h Duration: {:02.2f}h".format(rate, duration_hours))
         with self.pod_request_lock:
             self.i_rate_requested = rate
+            self.i_rate_duration_requested = duration_hours
         self.send_msg("Rate request submitted")
         self.pod_check_event.set()
 
@@ -186,10 +194,12 @@ class MqOperator(object):
             with self.pod_request_lock:
                 if self.i_rate_requested is not None:
                     rate = self.i_rate_requested
-                    if rate <= self.insulin_long_temp_rate_threshold:
-                        duration = self.insulin_long_temp_duration
-                    else:
-                        duration = self.insulin_short_temp_duration
+                    duration = self.i_rate_duration_requested
+                    if duration is None:
+                        if rate <= self.insulin_long_temp_rate_threshold:
+                            duration = self.insulin_long_temp_duration
+                        else:
+                            duration = self.insulin_short_temp_duration
 
                     self.send_msg("setting temp %02.2fU/h for %02.2f hours" % (rate, duration))
                     try:
