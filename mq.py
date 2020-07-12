@@ -67,6 +67,7 @@ class MqOperator(object):
 
 
     def run(self):
+        self.ntp_update()
         t = Thread(target=self.pdm_loop)
         t.start()
         time.sleep(5)
@@ -84,6 +85,7 @@ class MqOperator(object):
     def on_connect(self, client: mqtt.Client, userdata, flags, rc):
         self.send_msg("Well hello there")
         client.subscribe(self.configuration.mqtt_command_topic, qos=2)
+        self.ntp_update()
 
     def on_message(self, client, userdata, message: mqtt.MQTTMessage):
         if message.topic == self.configuration.mqtt_command_topic:
@@ -264,6 +266,15 @@ class MqOperator(object):
         self.client.publish(self.configuration.mqtt_response_topic,
                             payload="%s (%s UTC)" % (msg, datetime.utcnow().strftime("%H:%M:%S")), qos=2)
 
+    def ntp_update(self):
+        self.logger.info("Synchronizing clock with network time")
+        try:
+            os.system('sudo systemctl stop ntp')
+            os.system('sudo ntpd -gq')
+            os.system('sudo systemctl start ntp')
+            self.logger.info("update successful")
+        except:
+            self.logger.info("update failed")
 
 if __name__ == '__main__':
     operator = MqOperator()
