@@ -56,6 +56,7 @@ class MqOperator(object):
         self.started = time.time()
         self.insulin_max_bolus_at_once = Decimal("1.00")
         self.insulin_bolus_interval = 180
+        self.insulin_bolus_pulse_interval = 4
 
         self.insulin_long_temp_rate_threshold = Decimal("1.6")
         self.insulin_long_temp_duration = Decimal("3.0")
@@ -99,8 +100,11 @@ class MqOperator(object):
                         temp_duration = self.fix_decimal(cmd_split[2])
                     self.set_insulin_rate(temp_rate, temp_duration)
                 elif cmd_split[0] == "bolus":
+                    pulse_interval = None
                     bolus = self.fix_decimal(cmd_split[1])
-                    self.set_insulin_bolus(bolus)
+                    if len(cmd_split) > 2:
+                        pulse_interval = int(cmd_split[2])
+                    self.set_insulin_bolus(bolus, pulse_interval)
                 elif cmd_split[0] == "reboot":
                     self.send_msg("sir yes sir")
                     os.system('sudo shutdown -r now')
@@ -123,11 +127,14 @@ class MqOperator(object):
         self.send_msg("Rate request submitted")
         self.pod_check_event.set()
 
-    def set_insulin_bolus(self, bolus: Decimal):
+    def set_insulin_bolus(self, bolus: Decimal, pulse_interval: int):
         self.send_msg("Bolus request: Insulin %02.2fU" % bolus)
         with self.pod_request_lock:
             previous = self.i_bolus_requested
             self.i_bolus_requested = bolus
+            if pulse_interval is not None:
+                self.send_msg("Pulse interval set: %d" % pulse_interval)
+                self.insulin_bolus_pulse_interval = pulse_interval
         if previous > self.decimal_zero:
             self.send_msg("Warning: %03.2fU bolus remains undelivered from previous requested" % previous)
         self.send_msg("Bolus request submitted")
@@ -235,7 +242,7 @@ class MqOperator(object):
                         self.send_msg("Bolusing %02.2fU" % to_bolus)
                         self.i_bolus_requested -= to_bolus
                         try:
-                            self.i_pdm.bolus(to_bolus)
+                            self.i_pdm.bolus(to_bolus, self.insulin_bolus_pulse_interval)
                         except:
                             self.i_bolus_requested += to_bolus
                             self.send_msg("failed to execute bolus")
