@@ -239,10 +239,10 @@ class Pdm:
         except Exception as e:
             raise PdmError("Unexpected error") from e
 
-    def bolus(self, bolus_amount):
+    def bolus(self, bolus_amount, pulse_interval=2):
         try:
             with PdmLock():
-                self.pod.last_command = {"command": "BOLUS", "units": bolus_amount, "success": False}
+                self.pod.last_command = {"command": "BOLUS", "units": bolus_amount, "interval": pulse_interval, "success": False}
 
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
@@ -260,11 +260,12 @@ class Pdm:
                 if self._is_bolus_running():
                     raise PdmError("A previous bolus is already running")
 
-                #if bolus_amount > self.pod.insulin_reservoir:
-                #    raise PdmError("Cannot bolus %.2f units, insulin_reservoir capacity is at: %.2f")
+                pulse_interval = int(pulse_interval)
+                if pulse_interval < 2 or pulse_interval * 20 * bolus_amount > 1800:
+                    raise PdmError("Cannot bolus at this interval for this amount")
 
                 self.logger.debug("Bolusing %0.2f" % float(bolus_amount))
-                request = request_bolus(bolus_amount)
+                request = request_bolus(bolus_amount, pulse_interval)
                 self.send_request(request, with_nonce=True)
 
                 if self.pod.state_bolus != BolusState.Immediate:

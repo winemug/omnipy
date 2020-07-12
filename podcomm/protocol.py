@@ -172,8 +172,8 @@ def request_purge_insulin(iu_to_purge):
                           delivery_delay=1)
 
 
-def request_bolus(iu_bolus):
-    return _bolus_message(pulse_count=int(iu_bolus / DECIMAL_0_05))
+def request_bolus(iu_bolus, pulse_interval):
+    return _bolus_message(pulse_count=int(iu_bolus / DECIMAL_0_05), pulse_speed=8*pulse_interval, delivery_delay=pulse_interval)
 
 
 def request_cancel_bolus():
