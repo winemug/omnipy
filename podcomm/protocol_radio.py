@@ -386,9 +386,9 @@ class PdmRadio:
         return received
 
     def _send_get_no_ext(self, send_data):
-        return self.packet_radio.send_and_receive_packet(send_data, 0, 0, 145, 4, 5)
+        return self.packet_radio.send_and_receive_packet(send_data, 5, 15, 145, 2, 5)
 
-    def _exchange_packets(self, packet_to_send, expected_type, timeout=10):
+    def _exchange_packets(self, packet_to_send, expected_type, timeout=30):
         #self.packet_radio.channel += 1
         start_time = None
         first = True
@@ -457,7 +457,7 @@ class PdmRadio:
         while start_time is None or time.time() - start_time < timeout:
             try:
                 self.packet_logger.info("SEND PKT %s" % packet_to_send)
-                received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 4, 145, 600, 0, 5)
+                received = self.packet_radio.send_and_receive_packet(packet_to_send.get_data(), 5, 15, 145, 0, 5)
                 if start_time is None:
                     start_time = time.time()
 
