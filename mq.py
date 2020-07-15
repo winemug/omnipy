@@ -20,6 +20,7 @@ import paho.mqtt.client as mqtt
 
 
 class MqOperator(object):
+    client: mqtt.Client
     pdm = ...  # type: Pdm
 
     def __init__(self):
@@ -54,7 +55,7 @@ class MqOperator(object):
         self.pod_check_event = Event()
 
         self.started = time.time()
-        self.insulin_max_bolus_at_once = Decimal("1.00")
+        self.insulin_max_bolus_at_once = Decimal("20.00")
         self.insulin_bolus_interval = 180
         self.insulin_bolus_pulse_interval = 4
 
@@ -65,6 +66,7 @@ class MqOperator(object):
         self.glucagon_long_temp_rate_threshold = Decimal("4.0")
         self.glucagon_long_temp_duration = Decimal("6.0")
         self.glucagon_short_temp_duration = Decimal("1.0")
+        self.dry_run = False
 
 
     def run(self):
@@ -76,7 +78,8 @@ class MqOperator(object):
         connected = False
         while not connected:
             try:
-                self.client.connect(self.configuration.mqtt_host, self.configuration.mqtt_port)
+                self.client.connect(self.configuration.mqtt_host,
+                                    self.configuration.mqtt_port, clean_start=mqtt.MQTT_CLEAN_START_FIRST_ONLY)
                 connected = True
             except:
                 time.sleep(30)
@@ -143,13 +146,10 @@ class MqOperator(object):
     def pdm_loop(self):
         self.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
         self.i_pdm = Pdm(self.i_pod)
-        self.g_pod = Pod.Load("/home/pi/glucopy/data/pod.json", "/home/pi/glucopy/data/pod.db")
-        self.g_pdm = Pdm(self.g_pod)
 
-        self.i_pdm.start_radio()
+        if not self.dry_run:
+            self.i_pdm.start_radio()
         time.sleep(2)
-        #self.g_pdm.start_radio()
-        #time.sleep(10)
 
         try:
             self.pdm_loop_main()
@@ -172,7 +172,8 @@ class MqOperator(object):
             if progress > 9:
                 self.send_msg("deactivating pod")
                 try:
-                    self.i_pdm.deactivate_pod()
+                    if not self.dry_run:
+                        self.i_pdm.deactivate_pod()
                     self.send_msg("all is well, all is good")
                     self.send_result(self.i_pod)
                     check_wait = 3600
@@ -183,7 +184,8 @@ class MqOperator(object):
 
             try:
                 self.send_msg("checking pod status")
-                self.i_pdm.update_status()
+                if not self.dry_run:
+                    self.i_pdm.update_status()
                 if self.i_pod.state_faulted:
                     self.send_msg("pod is faulted! oh my")
                     check_wait = 1
@@ -212,7 +214,8 @@ class MqOperator(object):
 
                     self.send_msg("setting temp %02.2fU/h for %02.2f hours" % (rate, duration))
                     try:
-                        self.i_pdm.set_temp_basal(rate, duration)
+                        if not self.dry_run:
+                            self.i_pdm.set_temp_basal(rate, duration)
                     except:
                         self.send_msg("failed to set tb")
                         check_wait = 1
@@ -242,7 +245,8 @@ class MqOperator(object):
                         self.send_msg("Bolusing %02.2fU" % to_bolus)
                         self.i_bolus_requested -= to_bolus
                         try:
-                            self.i_pdm.bolus(to_bolus, self.insulin_bolus_pulse_interval)
+                            if not self.dry_run:
+                                self.i_pdm.bolus(to_bolus, self.insulin_bolus_pulse_interval)
                         except:
                             self.i_bolus_requested += to_bolus
                             self.send_msg("failed to execute bolus")
@@ -274,6 +278,8 @@ class MqOperator(object):
                             payload="%s (%s UTC)" % (msg, datetime.utcnow().strftime("%H:%M:%S")), qos=2)
 
     def ntp_update(self):
+        if self.dry_run:
+            return
         self.logger.info("Synchronizing clock with network time")
         try:
             os.system('sudo systemctl stop ntp')

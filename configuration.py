@@ -6,3 +6,5 @@ class OmnipyConfiguration(object):
         self.mqtt_command_topic = ""
         self.mqtt_response_topic = ""
         self.mqtt_json_topic = ""
+        self.mongo_url = ""
+        self.mongo_collection = ""

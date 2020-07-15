@@ -744,9 +744,12 @@ if __name__ == '__main__':
         raise
 
     try:
-        os.system("sudo systemctl restart systemd-timesyncd && sudo systemctl daemon-reload")
+        logger.info("Updating clock")
+        os.system('sudo systemctl stop ntp')
+        os.system('sudo ntpd -gq')
+        os.system('sudo systemctl start ntp')
     except:
-        logger.exception("Error while reloading timesync daemon")
+        pass
 
     signal.signal(signal.SIGTERM, _exit_with_grace)
 

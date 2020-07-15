@@ -5,6 +5,8 @@ import sqlite3
 
 class Pod:
     def __init__(self):
+        self.db_migrated = False
+
         self.id_lot = None
         self.id_t = None
         self.id_version_pm = None
@@ -182,15 +184,27 @@ class Pod:
         return sqlite3.connect(self.path_db)
 
     def _ensure_db_structure(self):
-        with self._get_conn() as conn:
-            sql = """ CREATE TABLE IF NOT EXISTS pod_history (
-                      timestamp real, 
-                      pod_state integer, pod_minutes integer, pod_last_command text,
-                      insulin_delivered real, insulin_canceled real, insulin_reservoir real, pod_json text
-                      ) """
+        if self.db_migrated:
+            return
 
-            c = conn.cursor()
-            c.execute(sql)
+        with self._get_conn() as conn:
+            try:
+                sql = """ CREATE TABLE IF NOT EXISTS pod_history (
+                          timestamp real, 
+                          pod_state integer, pod_minutes integer, pod_last_command text,
+                          insulin_delivered real, insulin_canceled real, insulin_reservoir real, pod_json text
+                          ) """
+                c = conn.cursor()
+                c.execute(sql)
+                sql = "ALTER TABLE pod_history ADD COLUMN pod_json text"
+                c.execute(sql)
+            except:
+                pass
+            finally:
+                if c:
+                    c.close()
+
+        self.db_migrated = True
 
     def log(self):
         try:
