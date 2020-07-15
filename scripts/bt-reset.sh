@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-sudo systemctl disable omnipy-pan.service
 sudo systemctl stop omnipy-pan.service
 
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hciconfig`
@@ -22,5 +21,4 @@ do
         fi
 done
 
-sudo systemctl enable omnipy-pan.service
 sudo systemctl start omnipy-pan.service

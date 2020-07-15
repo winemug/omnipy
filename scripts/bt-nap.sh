@@ -24,13 +24,13 @@ sudo btmgmt power off
 sudo btmgmt power on
 while true;
 do
-    paired_devices=`bt-device -l | grep -e \(.*\) --color=never -o| cut -d'(' -f2 | cut -d')' -f1`
+    paired_devices=`sudo bt-device -l | grep -e \(.*\) --color=never -o| cut -d'(' -f2 | cut -d')' -f1`
     if [[ ! -z "${paired_devices}" ]]; then
         while read -r mac_address;
         do
             echo "Connecting to ${mac_address}"
-            killall -9 bt-network > /dev/null 2>&1
-            /usr/bin/bt-network -c ${mac_address} nap
+            sudo killall -9 bt-network > /dev/null 2>&1
+            sudo /usr/bin/bt-network -c ${mac_address} nap
             echo "Disconnected from ${mac_address} (or connection failed)"
         done <<< "${paired_devices}"
         sleep 15

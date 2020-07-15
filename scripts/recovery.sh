@@ -22,7 +22,7 @@ fi
 if [[ -f ${PW_RESET_FILE} ]]; then
 
         echo "pi:omnipy" | chpasswd
-    	mkdir -p /home/pi/omnipy/data
+      	mkdir -p /home/pi/omnipy/data
         rm /home/pi/omnipy/data/key
         cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
         chown -R pi.pi /home/pi

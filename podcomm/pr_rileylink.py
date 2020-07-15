@@ -314,6 +314,74 @@ class RileyLink(PacketRadio):
 
             self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
 
+# -----------------------------------
+# -----------------------------------
+# -----------------------------------
+            tx_mode = bytes([0x01,
+                             Register.SYNC1, 0xA5,
+                             Register.SYNC0, 0x5A,
+#                             Register.PKTLEN, 0x50,
+                             Register.PKTCTRL1, 0x20,
+                             Register.PKTCTRL0, 0x00,
+                             Register.FSCTRL1, 0x1E,
+                             Register.FSCTRL0, 0x00,
+                             Register.FREQ2, 0x12,
+                             Register.FREQ1, 0x14,
+                             Register.FREQ0, 0x66,
+                             Register.MDMCFG4, 0x3A,
+                             Register.MDMCFG3, 0xBC,
+                             Register.MDMCFG2, 0x12,
+                             Register.MDMCFG1, 0x43,
+                             Register.MDMCFG0, 0x46,
+                             Register.DEVIATN, 0x50,
+                             Register.MCSM2, 0x07,
+                             Register.MCSM1, 0x30,
+                             Register.MCSM0, 0x19,
+                             Register.FOCCFG, 0x17,
+                             Register.FREND0, 0x00,
+                             Register.FSCAL3, 0xE9,
+                             Register.FSCAL2, 0x2A,
+                             Register.FSCAL1, 0x00,
+                             Register.FSCAL0, 0x1F,
+                             Register.TEST1, 0x31,
+                             Register.TEST0, 0x09,
+                             Register.PATABLE0, 0x84
+                             ])
+
+            rx_mode = bytes([0x02,
+                             Register.SYNC1, 0xA5,
+                             Register.SYNC0, 0x5A,
+ #                            Register.PKTLEN, 0x50,
+                             Register.PKTCTRL1, 0x20,
+                             Register.PKTCTRL0, 0x00,
+                             Register.FSCTRL1, 0x1E,
+                             Register.FSCTRL0, 0x00,
+                             Register.FREQ2, 0x12,
+                             Register.FREQ1, 0x14,
+                             Register.FREQ0, 0x66,
+                             Register.MDMCFG4, 0x3A,
+                             Register.MDMCFG3, 0xBC,
+                             Register.MDMCFG2, 0x12,
+                             Register.MDMCFG1, 0x43,
+                             Register.MDMCFG0, 0x46,
+                             Register.DEVIATN, 0x50,
+                             Register.MCSM2, 0x07,
+                             Register.MCSM1, 0x30,
+                             Register.MCSM0, 0x19,
+                             Register.FOCCFG, 0x17,
+                             Register.FREND0, 0x00,
+                             Register.FSCAL3, 0xE9,
+                             Register.FSCAL2, 0x2A,
+                             Register.FSCAL1, 0x00,
+                             Register.FSCAL0, 0x1F,
+                             Register.TEST1, 0x31,
+                             Register.TEST0, 0x09,
+                             Register.PATABLE0, 0x84
+                             ])
+
+            # self._command(Command.SET_MODE_REGISTERS, tx_mode)
+            # self._command(Command.SET_MODE_REGISTERS, rx_mode)
+
             response = self._command(Command.GET_STATE)
             if response != b"OK":
                 raise PacketRadioError("Rileylink state is not OK. Response returned: %s" % response)
