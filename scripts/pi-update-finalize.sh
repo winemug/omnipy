@@ -28,15 +28,17 @@ sudo rm -rf /usr/local/lib/python2.7/dist-packages/bluepy-1.3.0-py2.7.egg
 cd /home/pi/omnipy
 python3 -m pip install --user pip --upgrade
 python3 -m pip install --user virtualenv
-if [[ -d "/home/pi/v" ]]; then
-  python3 -m venv --upgrade /home/pi/v
-else
-  python3 -m venv /home/pi/v
-fi
+
+#if [[ -d "/home/pi/v" ]]; then
+#  python3 -m venv --upgrade /home/pi/v
+#else
+#  python3 -m venv /home/pi/v
+#fi
+python3 -m venv /home/pi/v
 
 source /home/pi/v/bin/activate
-python3 -m pip install --user pip --upgrade
-python3 -m pip install --user -r /home/pi/omnipy/requirements.txt
+python3 -m pip install pip --upgrade
+python3 -m pip install -r /home/pi/omnipy/requirements.txt
 
 cd /home/pi/bluepy
 git stash
