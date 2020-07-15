@@ -36,7 +36,6 @@ python3 -m pip install -r /home/pi/omnipy/requirements.txt
 cd /home/pi/bluepy
 git stash
 git pull
-python3 setup.py build
 python3 setup.py install
 
 
