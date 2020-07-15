@@ -44,7 +44,7 @@ git stash
 git pull
 python3 setup.py install
 
-
+deactivate
 
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hciconfig`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
