@@ -23,7 +23,7 @@ sudo rm /usr/local/bin/thingy52
 sudo rm /home/pi/bluepy/bluepy/bluepy-helper
 sudo rm -rf /usr/local/lib/python3.5/dist-packages/bluepy-1.3.0-py3.5.egg
 sudo rm -rf /usr/local/lib/python2.7/dist-packages/bluepy-1.3.0-py2.7.egg
-
+sudo rm -rf /home/pi/.local/lib
 
 cd /home/pi/omnipy
 python3 -m pip install --user pip --upgrade
