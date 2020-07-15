@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-sudo systemctl stop omnipy-pan.service
-
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hciconfig`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which btmgmt`
@@ -20,5 +18,3 @@ do
                 sudo bt-device -r ${mac}
         fi
 done
-
-sudo systemctl start omnipy-pan.service
