@@ -36,7 +36,7 @@ fi
 
 source /home/pi/v/bin/activate
 python3 -m pip install --user pip --upgrade
-python3 -m pip install --user -r /home/pi/omnipy/requirements.txt
+python3 -m pip install -r /home/pi/omnipy/requirements.txt
 
 cd /home/pi/bluepy
 git stash

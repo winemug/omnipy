@@ -30,4 +30,4 @@ six==1.15.0
 ssh-import-id==5.10
 urllib3==1.25.9
 virtualenv==20.0.26
-zipp==3.1.0
+zipp==1.2.0
