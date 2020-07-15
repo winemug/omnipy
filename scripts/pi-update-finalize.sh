@@ -14,6 +14,7 @@ sudo apt install -y python3-rpi.gpio ntp fake-hwclock bluez-tools python3-pip py
 sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
 
 # bluepy cleanup
+sudo pip uninstall bluepy -y
 sudo pip2 uninstall bluepy -y
 sudo pip3 uninstall bluepy -y
 sudo rm /usr/local/bin/blescan
