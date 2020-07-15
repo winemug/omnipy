@@ -2,26 +2,23 @@
 
 pair_bt_device() {
     echo "Enabling bluetooth discovery"
-    sudo btmgmt power off
-    sudo btmgmt ssp on
-    sudo btmgmt connectable on
-    sudo btmgmt pairable on
     sudo btmgmt discov on
-    sudo btmgmt power on
     echo "Waiting for a connection"
     while : ; do
-        sleep 2
+        sleep 15
         sudo bt-device -l > /dev/null 2>&1
         [[ ! $? -eq 0 ]] || break
     done
 
     echo "Pairing completed"
     sudo btmgmt discov off
-    sleep 15
 }
 
 sudo btmgmt power off
 sudo btmgmt power on
+sudo btmgmt ssp on
+sudo btmgmt connectable on
+sudo btmgmt pairable on
 while true;
 do
     paired_devices=`sudo bt-device -l | grep -e \(.*\) --color=never -o| cut -d'(' -f2 | cut -d')' -f1`

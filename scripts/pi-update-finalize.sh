@@ -9,7 +9,7 @@ sudo apt remove hostapd dnsmasq -y > /dev/null 2>&1
 
 echo Ensure installation of packages needed in v1.4.1+
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3-rpi.gpio ntp fake-hwclock bluez-tools python3-pip python3-venv
+sudo apt install -y python3-rpi.gpio ntp fake-hwclock bluez-tools python3-pip python3-venv gobject-introspection libgirepository1.0-dev libcairo2-dev
 
 sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
 
@@ -29,16 +29,15 @@ cd /home/pi/omnipy
 python3 -m pip install --user pip --upgrade
 python3 -m pip install --user virtualenv
 
-#if [[ -d "/home/pi/v" ]]; then
-#  python3 -m venv --upgrade /home/pi/v
-#else
-#  python3 -m venv /home/pi/v
-#fi
-python3 -m venv /home/pi/v
-
-source /home/pi/v/bin/activate
-python3 -m pip install pip --upgrade
-python3 -m pip install -r /home/pi/omnipy/requirements.txt
+if [[ -d "/home/pi/v" ]]; then
+  python3 -m venv --upgrade /home/pi/v
+  source /home/pi/v/bin/activate
+else
+  python3 -m venv /home/pi/v
+  source /home/pi/v/bin/activate
+  python3 -m pip install -r /home/pi/omnipy/requirements.txt
+  python3 -m pip install pip --upgrade
+fi
 
 cd /home/pi/bluepy
 git stash
