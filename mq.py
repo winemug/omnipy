@@ -20,9 +20,6 @@ import paho.mqtt.client as mqtt
 
 
 class MqOperator(object):
-    client: mqtt.Client
-    pdm = ...  # type: Pdm
-
     def __init__(self):
         configureLogging()
         self.logger = getLogger(with_console=True)

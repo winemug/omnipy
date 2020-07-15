@@ -32,3 +32,4 @@ ssh-import-id==5.10
 urllib3==1.25.9
 virtualenv==20.0.26
 zipp==1.2.0
+rpi-gpio==0.7.0
