@@ -46,6 +46,8 @@ python3 setup.py install
 
 deactivate
 
+sudo chown -R pi.pi /home/pi
+chmod -R 755 /home/pi/omnipy/scripts/*.sh
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hciconfig`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which btmgmt`
@@ -53,8 +55,6 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-agent`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-network`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
 sudo find /home/pi -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
-sudo chown -R pi.pi /home/pi
-chmod -R 755 /home/pi/omnipy/scripts/*.sh
 
 sudo systemctl disable omnipy-mq.service
 sudo systemctl disable omnipy.service
