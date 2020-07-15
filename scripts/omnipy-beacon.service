@@ -3,7 +3,7 @@ Description=Omnipy UDP broadcast receiver
 After=network.target
 
 [Service]
-ExecStart=/home/pi/v/bin/python3 -u /home/pi/omnipy/omnipy_beacon.py
+ExecStart=/home/pi/omnipy/scripts/start-beacon.sh
 WorkingDirectory=/home/pi/omnipy
 StandardOutput=inherit
 StandardError=inherit
