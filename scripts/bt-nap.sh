@@ -18,7 +18,7 @@ try_pair()
 
         echo "Waiting for remote request"
         counter=1
-        while [ $counter -le 19 ]
+        while [ $counter -le 12 ]
         do
                 ((counter++))
                 sleep 10
@@ -38,7 +38,7 @@ try_pair()
 try_connect_bt() {
   get_paired_devices
 
-  if [[ -z "${paired_devices}" ]] || [[ $bt_connection_retries -ge 4 ]]; then
+  if [[ -z "${paired_devices}" ]] || [[ $bt_connection_retries -ge 6 ]]; then
     echo "starting remote initiated pairing procedure"
     bt_connection_retries=0
     try_pair
@@ -75,6 +75,8 @@ do
   if [[ -z "${wlan_config}" ]]; then
     echo "no wlan connection, trying bt"
     try_connect_bt
+    sleep 10
+  else
+    sleep 120
   fi
-  sleep 60
 done
