@@ -1,5 +1,10 @@
 #!/usr/bin/env bash
 
+
+get_wlan_connection() {
+  wlan_config=`iwconfig 2>&1 | grep ESSID`
+}
+
 get_paired_devices() {
         paired_devices=`sudo bt-device -l | grep -e \(.*\) --color=never -o| cut -d'(' -f2 | cut -d')' -f1`
 }
@@ -30,44 +35,46 @@ try_pair()
         sudo btmgmt ssp off
 }
 
-sudo btmgmt power off
+try_connect_bt() {
+  get_paired_devices
+
+  if [[ -z "${paired_devices}" ]] || [[ $bt_connection_retries -ge 4 ]]; then
+    echo "starting remote initiated pairing procedure"
+    bt_connection_retries=0
+    try_pair
+  fi
+
+  get_paired_devices
+
+  if [[ -z "${paired_devices}" ]]; then
+    echo "no paired devices"
+  else
+    while read -r mac_address;
+    do
+      echo "Connecting to ${mac_address}"
+      sudo killall -9 bt-network > /dev/null 2>&1
+      sudo /usr/bin/bt-network -c ${mac_address} nap > /home/pi/omnipy/data/bt-nap.log
+      if grep -q "connected" /home/pi/omnipy/data/bt-nap.log; then
+              echo "Disconnected"
+              bt_connection_retries=0
+      else
+              echo "Connection failed"
+              ((bt_connection_retries++))
+      fi
+    done <<< "${paired_devices}"
+  fi
+}
+
 sudo btmgmt power on
-
-get_paired_devices
-if [[ -z "${paired_devices}" ]]; then
-        echo "no paired bluetooth devices, starting remote initiated pairing procedure"
-        try_pair
-fi
-
-get_paired_devices
-
-if [[ -z "${paired_devices}" ]]; then
-        echo "Timed out waiting for connection, registration attempt will resume after restart"
-        exit 0
-fi
-
-ever_connected=false
-connection_retries=0
+sleep 10
+bt_connection_retries=0
+wlan_config=
 while true;
 do
-        while read -r mac_address;
-        do
-            echo "Connecting to ${mac_address}"
-            sudo killall -9 bt-network > /dev/null 2>&1
-            sudo /usr/bin/bt-network -c ${mac_address} nap > /home/pi/omnipy/data/bt-nap.log
-            if grep -q "connected" /home/pi/omnipy/data/bt-nap.log; then
-                    echo "Disconnected"
-                    connection_retries=0
-            else
-                    echo "Connection failed"
-                    ((connection_retries++))
-            fi
-        done <<< "${paired_devices}"
-
-        if [ $connection_retries -ge 19 ]; then
-                echo "too many unsuccessful connection attempts, looking to pair additional devices"
-                try_pair
-        else
-                sleep 10
-        fi
+  get_wlan_connection
+  if [[ -z "${wlan_config}" ]]; then
+    echo "no wlan connection, trying bt"
+    try_connect_bt
+  fi
+  sleep 60
 done
