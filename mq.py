@@ -64,7 +64,7 @@ class MqOperator(object):
         self.glucagon_long_temp_duration = Decimal("6.0")
         self.glucagon_short_temp_duration = Decimal("1.0")
         self.dry_run = False
-
+        self.clock_updated = None
 
     def run(self):
         self.ntp_update()
@@ -277,12 +277,18 @@ class MqOperator(object):
     def ntp_update(self):
         if self.dry_run:
             return
+
+        if self.clock_updated is not None:
+            if time.time() - self.clock_updated < 3600:
+                return
+
         self.logger.info("Synchronizing clock with network time")
         try:
             os.system('sudo systemctl stop ntp')
             os.system('sudo ntpd -gq')
             os.system('sudo systemctl start ntp')
             self.logger.info("update successful")
+            self.clock_updated = time.time()
         except:
             self.logger.info("update failed")
 

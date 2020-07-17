@@ -1,4 +1,3 @@
-#!/usr/bin/python3
 from threading import Thread
 import signal
 import base64
