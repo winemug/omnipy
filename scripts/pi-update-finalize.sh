@@ -56,19 +56,10 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-network`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
 sudo find /home/pi -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
-sudo systemctl disable omnipy-mq.service
-sudo systemctl disable omnipy.service
-sudo systemctl disable omnipy-beacon.service
-sudo systemctl disable omnipy-pan.service
-
 sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-mq.service /etc/systemd/system/
-
-sudo systemctl enable omnipy.service
-sudo systemctl enable omnipy-beacon.service
-sudo systemctl enable omnipy-pan.service
 
 echo
 echo Configuration updated.
