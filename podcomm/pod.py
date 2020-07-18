@@ -7,6 +7,7 @@ class Pod:
     def __init__(self):
         self.db_migrated = False
 
+        self.pod_id = None
         self.id_lot = None
         self.id_t = None
         self.id_version_pm = None
@@ -67,6 +68,7 @@ class Pod:
 
         self.last_command = None
         self.last_command_db_id = None
+        self.last_command_db_ts = None
         self.last_enacted_temp_basal_start = None
         self.last_enacted_temp_basal_duration = None
         self.last_enacted_temp_basal_amount = None
@@ -75,6 +77,8 @@ class Pod:
 
 
     def Save(self, save_as = None):
+        self._fix_pod_id()
+
         if save_as is not None:
             self.path = save_as + POD_FILE_SUFFIX
             self.path_db = save_as + POD_DB_SUFFIX
@@ -84,7 +88,7 @@ class Pod:
             self.path_db = POD_FILE + POD_DB_SUFFIX
 
         try:
-            self.last_command_db_id = self.log()
+            self.last_command_db_id, self.last_command_db_ts = self.log()
         except:
             pass
 
@@ -110,6 +114,9 @@ class Pod:
 
             p.id_lot = d.get("id_lot", None)
             p.id_t = d.get("id_t", None)
+            p.pod_id = d.get("pod_id", None)
+            p._fix_pod_id()
+
             p.id_version_pm = d.get("id_version_pm", None)
             p.id_version_pi = d.get("id_version_pi", None)
             p.id_version_unknown_byte = d.get("id_version_unknown_byte", None)
@@ -178,6 +185,7 @@ class Pod:
 
 
     def __str__(self):
+        self._fix_pod_id()
         return json.dumps(self.__dict__, indent=4, sort_keys=True)
 
     def _get_conn(self):
@@ -208,19 +216,21 @@ class Pod:
 
     def log(self):
         try:
+            self._fix_pod_id()
             self._ensure_db_structure()
             with self._get_conn() as conn:
                 sql = """ INSERT INTO pod_history (timestamp, pod_state, pod_minutes, pod_last_command,
                           insulin_delivered, insulin_canceled, insulin_reservoir, pod_json)
                           VALUES(?,?,?,?,?,?,?,?) """
 
-                values = (time.time(), self.state_progress, self.state_active_minutes,
+                ts = time.time()
+                values = (ts, self.state_progress, self.state_active_minutes,
                         str(self.last_command), self.insulin_delivered, self.insulin_canceled, self.insulin_reservoir,
                           json.dumps(self.__dict__, indent=4, sort_keys=True))
 
                 c = conn.cursor()
                 c.execute(sql, values)
-                return c.lastrowid
+                return c.lastrowid, ts
         except:
             getLogger().exception("Error while writing to database")
 
@@ -251,3 +261,8 @@ class Pod:
             #             print(row[4])
         except:
             getLogger().exception("Error while writing to database")
+
+    def _fix_pod_id(self):
+        if self.pod_id is None:
+            if self.id_t is not None and self.id_lot is not None:
+                self.pod_id = "L" + str(self.id_lot) + "T" + str(self.id_t)

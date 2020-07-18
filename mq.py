@@ -1,3 +1,5 @@
+import glob
+import sqlite3
 import time
 import os
 from datetime import datetime
@@ -86,12 +88,13 @@ class MqOperator(object):
     def on_connect(self, client: mqtt.Client, userdata, flags, rc):
         self.send_msg("Well hello there")
         client.subscribe(self.configuration.mqtt_command_topic, qos=2)
+        client.subscribe(self.configuration.mqtt_sync_request_topic, qos=1)
         self.ntp_update()
 
     def on_message(self, client, userdata, message: mqtt.MQTTMessage):
-        if message.topic == self.configuration.mqtt_command_topic:
-            try:
-                cmd_str = message.payload.decode()
+        try:
+            cmd_str = message.payload.decode()
+            if message.topic == self.configuration.mqtt_command_topic:
                 cmd_split = cmd_str.split(' ')
                 if cmd_split[0] == "temp":
                     temp_rate = self.fix_decimal(cmd_split[1])
@@ -105,13 +108,23 @@ class MqOperator(object):
                     if len(cmd_split) > 2:
                         pulse_interval = int(cmd_split[2])
                     self.set_insulin_bolus(bolus, pulse_interval)
+                elif cmd_split[0] == "status":
+                    self.pod_check_event.set()
                 elif cmd_split[0] == "reboot":
                     self.send_msg("sir yes sir")
                     os.system('sudo shutdown -r now')
                 else:
                     self.send_msg("lol what?")
-            except:
-                self.send_msg("that didn't seem right")
+            elif message.topic == self.configuration.mqtt_sync_request_topic:
+                if cmd_str == "latest":
+                    self.send_result(self.i_pod)
+                else:
+                    spl = cmd_str.split(' ')
+                    pod_id = spl[0]
+                    req_ids = spl[1:]
+                    self.fill_request(pod_id, req_ids)
+        except:
+            self.send_msg("that didn't seem right")
 
     def on_disconnect(self, client, userdata, rc):
         self.logger.info("Disconnected from mqtt server")
@@ -172,17 +185,26 @@ class MqOperator(object):
                     if not self.dry_run:
                         self.i_pdm.deactivate_pod()
                     self.send_msg("all is well, all is good")
-                    self.send_result(self.i_pod)
                     check_wait = 3600
                 except:
                     self.send_msg("deactivation failed")
                     check_wait = 1
+                finally:
+                    self.send_result(self.i_pod)
                 continue
 
             try:
                 self.send_msg("checking pod status")
                 if not self.dry_run:
-                    self.i_pdm.update_status()
+                    try:
+                        self.i_pdm.update_status()
+                    except:
+                        self.send_msg("failed to get pod status")
+                        check_wait = 60
+                        continue
+                    finally:
+                        self.send_result(self.i_pod)
+
                 if self.i_pod.state_faulted:
                     self.send_msg("pod is faulted! oh my")
                     check_wait = 1
@@ -198,6 +220,8 @@ class MqOperator(object):
             except:
                 self.send_msg("couldn't reach pod I guess?")
                 check_wait = 300
+            finally:
+                self.send_result(self.i_pod)
 
             with self.pod_request_lock:
                 if self.i_rate_requested is not None:
@@ -265,14 +289,15 @@ class MqOperator(object):
 
     def send_result(self, pod):
         msg = pod.GetString()
-        self.logger.info(msg)
+        if pod.pod_id is None:
+            return
         self.client.publish(self.configuration.mqtt_json_topic,
-                            payload=msg, qos=2)
+                            payload=msg, qos=1)
 
     def send_msg(self, msg):
         self.logger.info(msg)
         self.client.publish(self.configuration.mqtt_response_topic,
-                            payload="%s (%s UTC)" % (msg, datetime.utcnow().strftime("%H:%M:%S")), qos=2)
+                            payload=msg, qos=1)
 
     def ntp_update(self):
         if self.dry_run:
@@ -291,6 +316,50 @@ class MqOperator(object):
             self.clock_updated = time.time()
         except:
             self.logger.info("update failed")
+
+    def fill_request(self, pod_id, req_ids):
+        db_path = self.find_db_path(pod_id)
+        if db_path is None:
+            self.send_msg("but I can't?")
+            return
+
+        with sqlite3.connect(db_path) as conn:
+            for req_id in req_ids:
+                req_id = int(req_id)
+                cursor = conn.execute("SELECT rowid, timestamp, pod_json FROM pod_history WHERE rowid = " + str(req_id))
+                row = cursor.fetchone()
+                if row is not None:
+                    js = json.loads(row[2])
+                    js["pod_id"] = pod_id
+                    js["last_command_db_id"] = row[0]
+                    js["last_command_db_ts"] = row[1]
+
+                    self.client.publish(self.configuration.mqtt_json_topic,
+                                        payload=json.dumps(js), qos=0)
+                cursor.close()
+
+    def find_db_path(self, pod_id):
+        self.i_pod._fix_pod_id()
+        if self.i_pod.pod_id == pod_id:
+            return "/home/pi/omnipy/data/pod.db"
+
+        found_db_path=None
+        for db_path in glob.glob("/home/pi/omnipy/data/*.db"):
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.execute("SELECT pod_json FROM pod_history WHERE pod_state > 0 LIMIT 1")
+                row = cursor.fetchone()
+                if row is not None:
+                    js = json.loads(row[0])
+                    if "pod_id" not in js or js["pod_id"] is None:
+                        found_id = "L" + str(js["id_lot"]) + "T" + str(js["id_t"])
+                    else:
+                        found_id = js["pod_id"]
+
+                    if found_id == pod_id:
+                        found_db_path = db_path
+                        break
+            cursor.close()
+        return found_db_path
 
 if __name__ == '__main__':
     operator = MqOperator()
