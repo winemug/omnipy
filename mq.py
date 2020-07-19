@@ -1,12 +1,6 @@
 import glob
 import sqlite3
 import time
-import os
-from datetime import datetime
-
-import jsonpickle
-
-from configuration import OmnipyConfiguration
 from podcomm.pdm import Pdm, PdmLock
 from podcomm.pod import Pod
 from podcomm.pr_rileylink import RileyLink
@@ -29,11 +23,7 @@ class MqOperator(object):
         self.logger.info("mq operator is starting")
 
         with open("settings.json", "r") as stream:
-            lines = stream.read()
-            txt = ""
-            for line in lines:
-                txt = txt + line
-        self.configuration = jsonpickle.decode(txt)
+            self.settings = json.load(stream)
         self.client = mqtt.Client(client_id=self.configuration.mqtt_clientid, protocol=mqtt.MQTTv311)
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
@@ -77,8 +67,8 @@ class MqOperator(object):
         connected = False
         while not connected:
             try:
-                self.client.connect(self.configuration.mqtt_host,
-                                    self.configuration.mqtt_port, clean_start=mqtt.MQTT_CLEAN_START_FIRST_ONLY)
+                self.client.connect(self.settings["mqtt_host"],
+                                    self.settings["mqtt_port"], clean_start=mqtt.MQTT_CLEAN_START_FIRST_ONLY)
                 connected = True
             except:
                 time.sleep(30)
@@ -87,14 +77,14 @@ class MqOperator(object):
 
     def on_connect(self, client: mqtt.Client, userdata, flags, rc):
         self.send_msg("Well hello there")
-        client.subscribe(self.configuration.mqtt_command_topic, qos=2)
-        client.subscribe(self.configuration.mqtt_sync_request_topic, qos=1)
+        client.subscribe(self.settings["mqtt_command_topic"], qos=2)
+        client.subscribe(self.settings["mqtt_sync_request_topic"], qos=1)
         self.ntp_update()
 
     def on_message(self, client, userdata, message: mqtt.MQTTMessage):
         try:
             cmd_str = message.payload.decode()
-            if message.topic == self.configuration.mqtt_command_topic:
+            if message.topic == self.settings["mqtt_command_topic"]:
                 cmd_split = cmd_str.split(' ')
                 if cmd_split[0] == "temp":
                     temp_rate = self.fix_decimal(cmd_split[1])
@@ -115,7 +105,7 @@ class MqOperator(object):
                     os.system('sudo shutdown -r now')
                 else:
                     self.send_msg("lol what?")
-            elif message.topic == self.configuration.mqtt_sync_request_topic:
+            elif message.topic == self.settings["mqtt_sync_request_topic"]:
                 if cmd_str == "latest":
                     self.send_result(self.i_pod)
                 else:
@@ -291,12 +281,13 @@ class MqOperator(object):
         msg = pod.GetString()
         if pod.pod_id is None:
             return
-        self.client.publish(self.configuration.mqtt_json_topic,
+        self.client.publish(self.settings["mqtt_json_topic"],
                             payload=msg, qos=1)
+        self.client.publish(self.settings["mqtt_status_topic"], payload=msg, qos=1, retain=True)
 
     def send_msg(self, msg):
         self.logger.info(msg)
-        self.client.publish(self.configuration.mqtt_response_topic,
+        self.client.publish(self.settings["mqtt_response_topic"],
                             payload=msg, qos=1)
 
     def ntp_update(self):
@@ -334,7 +325,7 @@ class MqOperator(object):
                     js["last_command_db_id"] = row[0]
                     js["last_command_db_ts"] = row[1]
 
-                    self.client.publish(self.configuration.mqtt_json_topic,
+                    self.client.publish(self.settings["mqtt_json_topic"],
                                         payload=json.dumps(js), qos=0)
                 cursor.close()
 

@@ -25,55 +25,18 @@ sudo apt install -y screen git python3 python3-pip vim jq bluez-tools libglib2.0
 bluez-tools python3-pip python3-venv gobject-introspection libgirepository1.0-dev libcairo2-dev expect build-essential \
 libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update
 
-
-
-# sudo apt install -y hostapd dnsmasq
-# sudo systemctl disable hostapd
-# sudo systemctl unmask hostapd
-# sudo systemctl disable dnsmasq
-# sudo systemctl enable hostapd
-# sudo systemctl enable dnsmasq
-# sudo systemctl start hostapd
-# sudo systemctl stop hostapd
-# sudo systemctl stop dnsmasq
-# sudo cp /home/pi/omnipy/scripts/image/default.dnsmasq /etc/default/dnsmasq
-# sudo cp /home/pi/omnipy/scripts/image/default.hostapd /etc/default/hostapd
-# sudo cp /home/pi/omnipy/scripts/image/hostapd.conf /etc/hostapd/
-# sudo cp /home/pi/omnipy/scripts/image/dnsmasq.conf /etc/dnsmasq.d/
-# sudo cp /home/pi/omnipy/scripts/image/dhcpcd.conf /etc/
-
 git config --global user.email "omnipy@balya.net"
 git config --global user.name "Omnipy Setup"
 git clone https://github.com/winemug/omnipy.git
-#switch to dev
 git clone https://github.com/winemug/bluepy.git
+
+mkdir -p /home/pi/omnipy/data
+rm /home/pi/omnipy/data/key
+cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
+
+### omnipy-base image end
+
 sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
-
-
-#sudo /bin/rm /boot/.firmware_revision
-#sudo cp /home/pi/omnipy/scripts/image/rpiupdate.sh /usr/bin/rpiupdate
-#sudo git clone https://github.com/Hexxeh/rpi-firmware.git /root/.rpi-firmware
-#sudo ROOT_PATH=/ BOOT_PATH=/boot SKIP_DOWNLOAD=0 SKIP_REPODELETE=1 SKIP_BACKUP=1 UPDATE_SELF=0 RPI_REBOOT=1 BRANCH=next rpi-update 502a515156eebbfd3cc199de8f38a975c321f20d
-#reboot
-#wget https://github.com/Hexxeh/rpi-firmware/archive/master.zip
-#unzip master.zip
-#sudo mv rpi-firmware-master /root/.rpi-firmware
-
-
-#https://raspberrypi.stackexchange.com/questions/66540/installing-bluez-5-44-onto-raspbian
-#wget https://mirrors.edge.kernel.org/pub/linux/bluetooth/bluez-5.50.tar.gz
-#tar xzf bluez-5.50.tar.gz
-#cd bluez-5.50
-#./configure --prefix=/usr --mandir=/usr/share/man --sysconfdir=/etc --localstatedir=/var --disable-cups --disable-a2dp --disable-avrcp --disable-hid --disable-hog --enable-experimental
-#make -j4
-#sudo make install
-
-#cd /usr/lib/bluetooth/
-#sudo mv bluetoothd bluetoothd.old
-#sudo mv obexd obexd.old
-#sudo ln -s /usr/libexec/bluetooth/bluetoothd /usr/lib/bluetooth/bluetoothd
-#sudo ln -s /usr/libexec/bluetooth/obexd /usr/lib/bluetooth/obexd
-#sudo systemctl daemon-reload
 
 sudo pip3 install simplejson Flask cryptography requests
 
@@ -93,12 +56,6 @@ sudo find /usr/local -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin
 sudo find /home/pi -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
 sudo apt autoremove
-
-
-
-mkdir -p /home/pi/omnipy/data
-rm /home/pi/omnipy/data/key
-cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
 
 sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
