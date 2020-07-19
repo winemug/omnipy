@@ -18,7 +18,7 @@ try_pair()
 
         echo "Waiting for remote request"
         counter=1
-        while [ $counter -le 12 ]
+        while [ $counter -le 19 ]
         do
                 ((counter++))
                 sleep 10
@@ -75,8 +75,7 @@ do
   if [[ -z "${wlan_config}" ]]; then
     echo "no wlan connection, trying bt"
     try_connect_bt
-    sleep 10
   else
-    sleep 120
+    sleep 60
   fi
 done

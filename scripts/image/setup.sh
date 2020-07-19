@@ -6,7 +6,7 @@ sudo touch /boot/ssh
 sudo passwd pi
 sudo raspi-config
 
-# hostname: omnipy
+# hostname: omnipy-dev
 #? adv, memory split, 16
 # enable predictive intf names
 # timezone other/utc
@@ -40,7 +40,6 @@ cp /home/pi/omnipy/scripts/image/recovery.key /home/pi/omnipy/data/key
 ### omnipy-sw image start
 python3 -m pip install --user pip --upgrade
 python3 -m pip install --user virtualenv --upgrade
-sudo apt install mc
 
 python3 -m venv /home/pi/v
 source /home/pi/v/bin/activate
@@ -74,6 +73,10 @@ python3 -m pip install rpi-gpio simplejson paho-mqtt requests crypto flask pycry
 
 # services
 
+cd /home/pi/omnipy
+git stash
+git pull
+
 chmod -R 755 /home/pi/omnipy/scripts/*.sh
 chmod -R 755 /home/pi/omnipy/*.py
 sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
@@ -85,13 +88,23 @@ sudo cp /home/pi/omnipy/scripts/image/omnipy-pan.service /etc/systemd/system/
 sudo systemctl enable omnipy-rest.service
 sudo systemctl enable omnipy-beacon.service
 sudo systemctl enable omnipy-pan.service
-sudo systemctl start omnipy-rest.service
-sudo systemctl start omnipy-beacon.service
-sudo systemctl start omnipy-pan.service
 
-sudo touch /boot/omnipy-pwreset
-sudo touch /boot/omnipy-expandfs
-sudo touch /boot/omnipy-btreset
+#sudo systemctl start omnipy-rest.service
+#sudo systemctl start omnipy-beacon.service
+#sudo systemctl start omnipy-pan.service
+
+#sudo touch /boot/omnipy-pwreset
+#sudo touch /boot/omnipy-expandfs
+#sudo touch /boot/omnipy-btreset
+
+sudo raspi-config
+# hostname omnipy
+exit
+
+# version update
+# halt
+
+### clean-up via scp
 
 #fin
 
@@ -108,27 +121,29 @@ sudo resize2fs /dev/sdh2 3G
 sudo fdisk /dev/sdh
 
 -p
-#The filesystem on /dev/sdh2 is now 786432 (4k) blocks long.
 
-#Device     Boot Start      End  Sectors  Size Id Type
-#/dev/sdh1        8192    96042    87851 42.9M  c W95 FAT32 (LBA)
-#/dev/sdh2       98304 62333951 62235648 29.7G 83 Linux
+#Device     Boot  Start       End   Sectors  Size Id Type
+#/dev/sdh1         8192    532479    524288  256M  c W95 FAT32 (LBA)
+#/dev/sdh2       532480 124735487 124203008 59.2G 83 Linux
+
 -d 2
--n p 2 98304 +3145728K -N
+-n p 2 532480 +3145728K -N
 -p
-#Device     Boot Start     End Sectors  Size Id Type
-#/dev/sdh1        8192   96042   87851 42.9M  c W95 FAT32 (LBA)
-#/dev/sdh2       98304 6389759 6291456    3G 83 Linux
+
+#Device     Boot  Start     End Sectors  Size Id Type
+#/dev/sdh1         8192  532479  524288  256M  c W95 FAT32 (LBA)
+#/dev/sdh2       532480 6823935 6291456    3G 83 Linux
+
 -w
 
 sudo e2fsck -f /dev/sdh2
 
-sudo mount /dev/sdh2 /mnt/piroot/
-sudo dcfldd if=/dev/zero of=/mnt/piroot/zero.txt
-sudo rm /mnt/piroot/zero.txt
+sudo mount /dev/sdh2 /mnt
+sudo dcfldd if=/dev/zero of=/mnt/zero.txt
+sudo rm /mnt/zero.txt
 sudo sync
 sudo umount /dev/sdh2
 sudo sync
 
 sudo dcfldd if=/dev/sdh of=omnipy.img bs=512 count=6389760
-zip -9 omnipy.zip omnipy.img
+zip -9 omnipy.img.zip omnipy.img
