@@ -1,3 +1,5 @@
+#qemu-system-arm -kernel c:\dev\qemu-rpi-kernel\kernel-qemu-4.19.50-buster -cpu arm1176 -m 256 -M versatilepb -dtb c:\dev\qemu-rpi-kernel\versatile-pb-buster.dtb -no-reboot -serial stdio -append "root=/dev/sda2 panic=1 rootfstype=ext4 rw" -drive "file=c:\dev\omnipy.img,index=0,media=disk,format=raw" -net user,hostfwd=tcp::5022-:22 -net nic
+
 #!/usr/bin/env bash
 sudo touch /boot/ssh
 
@@ -5,16 +7,24 @@ sudo passwd pi
 sudo raspi-config
 
 # hostname: omnipy
-# adv, memory split, 16
+#? adv, memory split, 16
 # enable predictive intf names
 # timezone other/utc
-#reboot
+# adv resize fs
+# reboot
 
 
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y screen git python3 python3-pip vim jq bluez-tools libglib2.0-dev python3-rpi.gpio
-#expect build-essential libglib2.0-dev libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update
-#reboot
+sudo apt autoremove
+
+### omnipy-bare image end
+
+### omnipy-base image start
+
+sudo apt install -y screen git python3 python3-pip vim jq bluez-tools libglib2.0-dev python3-rpi.gpio ntp fake-hwclock \
+bluez-tools python3-pip python3-venv gobject-introspection libgirepository1.0-dev libcairo2-dev expect build-essential \
+libdbus-1-dev libudev-dev libical-dev libreadline-dev rpi-update
+
 
 
 # sudo apt install -y hostapd dnsmasq
