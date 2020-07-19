@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/home/pi/v/bin/python3
 
 from podcomm.definitions import *
 import requests

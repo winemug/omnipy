@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/home/pi/v/bin/python3
 from podcomm.definitions import API_VERSION_MAJOR, API_VERSION_MINOR, API_VERSION_REVISION, API_VERSION_BUILD
 
 

@@ -10,6 +10,7 @@ MarkupSafe==1.1.1
 Naked==0.1.31
 paho-mqtt==1.5.0
 pkg-resources==0.0.0
+pycrypto==2.6.1
 PyYAML==5.3.1
 requests==2.24.0
 RPi.GPIO==0.7.0

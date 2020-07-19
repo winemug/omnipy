@@ -32,7 +32,7 @@ git clone https://github.com/winemug/bluepy.git
 
 mkdir -p /home/pi/omnipy/data
 rm /home/pi/omnipy/data/key
-cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
+cp /home/pi/omnipy/scripts/image/recovery.key /home/pi/omnipy/data/key
 
 ### omnipy-base image end
 
@@ -69,13 +69,14 @@ sudo find /home/pi -name blescan -exec setcap 'cap_net_raw,cap_net_admin+eip' {}
 sudo find /home/pi -name sensortag -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 sudo find /home/pi -name thingy52 -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
-python3 -m pip install rpi-gpio simplejson paho-mqtt requests crypto flask
+python3 -m pip install rpi-gpio simplejson paho-mqtt requests crypto flask pycrypto
 
 
 # services
 
+chmod -R 755 /home/pi/omnipy/scripts/*.sh
+chmod -R 755 /home/pi/omnipy/*.py
 sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
-
 sudo cp /home/pi/omnipy/scripts/image/omnipy-rest.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/image/omnipy-mq.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/image/omnipy-beacon.service /etc/systemd/system/
@@ -92,9 +93,8 @@ sudo touch /boot/omnipy-pwreset
 sudo touch /boot/omnipy-expandfs
 sudo touch /boot/omnipy-btreset
 
-sudo halt
+#fin
 
-######
 
 sudo umount /dev/sdh1
 sudo umount /dev/sdh2

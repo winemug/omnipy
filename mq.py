@@ -1,3 +1,5 @@
+#!/home/pi/v/bin/python3
+
 import glob
 import sqlite3
 import time

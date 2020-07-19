@@ -24,7 +24,7 @@ if [[ -f ${PW_RESET_FILE} ]]; then
         echo "pi:omnipy" | chpasswd
       	mkdir -p /home/pi/omnipy/data
         rm /home/pi/omnipy/data/key
-        cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
+        cp /home/pi/omnipy/scripts/image/recovery.key /home/pi/omnipy/data/key
         /bin/rm ${PW_RESET_FILE}
         /sbin/shutdown -r now
 fi
@@ -37,4 +37,5 @@ fi
 
 if [[ -f ${UPGRADE_FILE} ]]; then
         su -c "/bin/bash /home/pi/omnipy/scripts/update.sh &" pi
+        /sbin/shutdown -r now
 fi
