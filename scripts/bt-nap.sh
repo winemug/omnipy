@@ -2,7 +2,7 @@
 
 
 get_wlan_connection() {
-  wlan_config=`iwconfig 2>&1 | grep ESSID`
+  wlan_config=`iwconfig 2>&1 | grep ESSID:off/any`
 }
 
 get_paired_devices() {
@@ -72,7 +72,7 @@ wlan_config=
 while true;
 do
   get_wlan_connection
-  if [[ -z "${wlan_config}" ]]; then
+  if [[ ! -z "${wlan_config}" ]]; then
     echo "no wlan connection, trying bt"
     try_connect_bt
   else
