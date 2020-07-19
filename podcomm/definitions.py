@@ -1,7 +1,6 @@
-from enum import IntEnum
-import os
 import logging
-from logging.handlers import MemoryHandler
+import os
+from enum import IntEnum
 
 DATA_PATH = "./data/"
 

@@ -222,13 +222,13 @@ function DeveloperMenu(){
 
 			4)
 				echo "Stop services"
-				sudo systemctl stop omnipy.service
+				sudo systemctl stop omnipy-rest.service
 				sudo systemctl stop omnipy-beacon.service
 				sudo systemctl stop omnipy-pan.service
 				
 				Services_Status=
 
-				if $(systemctl -q is-active omnipy.service)
+				if $(systemctl -q is-active omnipy-rest.service)
 				then
  					Services_Status="Failed: Omnipy Service has not been stopped\n"
 				else
@@ -257,14 +257,14 @@ function DeveloperMenu(){
 
 			5)
 				echo "Restart services"
-				sudo systemctl restart omnipy.service
+				sudo systemctl restart omnipy-rest.service
 				sudo systemctl restart omnipy-beacon.service
 				sudo systemctl restart omnipy-pan.service
 
 
 				Services_Status=
 
-                                if $(systemctl -q is-active omnipy.service)
+                                if $(systemctl -q is-active omnipy-rest.service)
                                 then
                                         Services_Status="Success: Omnipy Service has been restarted successfully\n"
                                 else

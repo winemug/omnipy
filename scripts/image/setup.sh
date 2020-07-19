@@ -36,15 +36,27 @@ cp /home/pi/omnipy/scripts/recovery.key /home/pi/omnipy/data/key
 
 ### omnipy-base image end
 
-sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
 
-sudo pip3 install simplejson Flask cryptography requests
+### omnipy-sw image start
+python3 -m pip install --user pip --upgrade
+python3 -m pip install --user virtualenv --upgrade
+sudo apt install mc
+
+python3 -m venv /home/pi/v
+source /home/pi/v/bin/activate
+python3 -m pip install pip --upgrade
+python3 -m pip install setuptools --upgrade
 
 cd /home/pi/bluepy
-python3 ./setup.py build
-sudo python3 ./setup.py install
+python3 setup.py build
+python3 setup.py install
 
-sudo chown -R pi.pi /home/pi
+#creating /home/pi/v/lib/python3.7/site-packages/bluepy-1.3.0-py3.7.egg
+#Extracting bluepy-1.3.0-py3.7.egg to /home/pi/v/lib/python3.7/site-packages
+#Adding bluepy 1.3.0 to easy-install.pth file
+#Installing blescan script to /home/pi/v/bin
+#Installing sensortag script to /home/pi/v/bin
+#Installing thingy52 script to /home/pi/v/bin
 
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hciconfig`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which hcitool`
@@ -52,19 +64,27 @@ sudo setcap 'cap_net_raw,cap_net_admin+eip' `which btmgmt`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-agent`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-network`
 sudo setcap 'cap_net_raw,cap_net_admin+eip' `which bt-device`
-sudo find /usr/local -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 sudo find /home/pi -name bluepy-helper -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
+sudo find /home/pi -name blescan -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
+sudo find /home/pi -name sensortag -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
+sudo find /home/pi -name thingy52 -exec setcap 'cap_net_raw,cap_net_admin+eip' {} \;
 
-sudo apt autoremove
+python3 -m pip install rpi-gpio simplejson paho-mqtt requests crypto flask
 
-sudo cp /home/pi/omnipy/scripts/omnipy.service /etc/systemd/system/
-sudo cp /home/pi/omnipy/scripts/omnipy-beacon.service /etc/systemd/system/
-sudo cp /home/pi/omnipy/scripts/omnipy-pan.service /etc/systemd/system/
 
-sudo systemctl enable omnipy.service
+# services
+
+sudo cp /home/pi/omnipy/scripts/image/rc.local /etc/
+
+sudo cp /home/pi/omnipy/scripts/image/omnipy-rest.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/scripts/image/omnipy-mq.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/scripts/image/omnipy-beacon.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/scripts/image/omnipy-pan.service /etc/systemd/system/
+
+sudo systemctl enable omnipy-rest.service
 sudo systemctl enable omnipy-beacon.service
 sudo systemctl enable omnipy-pan.service
-sudo systemctl start omnipy.service
+sudo systemctl start omnipy-rest.service
 sudo systemctl start omnipy-beacon.service
 sudo systemctl start omnipy-pan.service
 
@@ -72,9 +92,6 @@ sudo touch /boot/omnipy-pwreset
 sudo touch /boot/omnipy-expandfs
 sudo touch /boot/omnipy-btreset
 
-
-rm /home/pi/.bash_history
-sudo rm /etc/wpa_supplicant/wpa_supplicant.conf
 sudo halt
 
 ######

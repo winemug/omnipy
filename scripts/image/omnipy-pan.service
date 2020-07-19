@@ -7,7 +7,6 @@ ExecStart=/bin/bash /home/pi/omnipy/scripts/bt-nap.sh
 WorkingDirectory=/home/pi/omnipy/scripts/
 StandardOutput=inherit
 StandardError=inherit
-TimeoutStopSec=5
 Restart=on-abort
 User=root
 

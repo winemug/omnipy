@@ -557,7 +557,7 @@ def update_omnipy():
     pdm = _get_pdm()
     while pdm.is_busy():
         time.sleep(1)
-    os.system("/bin/bash /home/pi/omnipy/scripts/pi-update.sh")
+    os.system("/bin/bash /home/pi/omnipy/scripts/update.sh")
     return {"update started": time.time()}
 
 

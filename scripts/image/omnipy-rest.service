@@ -7,7 +7,7 @@ ExecStart=/home/pi/omnipy/scripts/start-restapi.sh
 WorkingDirectory=/home/pi/omnipy
 StandardOutput=inherit
 StandardError=inherit
-TimeoutStopSec=10
+TimeoutStopSec=15
 Restart=on-abort
 User=pi
 

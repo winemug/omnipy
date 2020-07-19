@@ -24,7 +24,7 @@ class MqOperator(object):
 
         with open("settings.json", "r") as stream:
             self.settings = json.load(stream)
-        self.client = mqtt.Client(client_id=self.configuration.mqtt_clientid, protocol=mqtt.MQTTv311)
+        self.client = mqtt.Client(client_id=self.settings["mqtt_clientid"], protocol=mqtt.MQTTv311)
         self.client.on_connect = self.on_connect
         self.client.on_disconnect = self.on_disconnect
         self.client.on_message = self.on_message
