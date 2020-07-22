@@ -1,20 +1,15 @@
 #!/home/pi/v/bin/python3
-
+import asyncio
 import glob
 import sqlite3
 import time
-from podcomm.pdm import Pdm, PdmLock
+from podcomm.pdm import Pdm
 from podcomm.pod import Pod
-from podcomm.pr_rileylink import RileyLink
 from podcomm.definitions import *
-from logging import FileHandler
 import simplejson as json
-from threading import Thread
-import signal
-import base64
 from decimal import *
-from threading import Lock, Event
-import paho.mqtt.client as mqtt
+from hbmqtt.client import MQTTClient, ClientException
+from hbmqtt.mqtt.constants import QOS_1, QOS_2
 
 
 class MqOperator(object):
@@ -26,11 +21,18 @@ class MqOperator(object):
 
         with open("settings.json", "r") as stream:
             self.settings = json.load(stream)
-        self.client = mqtt.Client(client_id=self.settings["mqtt_clientid"], protocol=mqtt.MQTTv311)
-        self.client.on_connect = self.on_connect
-        self.client.on_disconnect = self.on_disconnect
-        self.client.on_message = self.on_message
-        self.client.tls_set(ca_certs="/etc/ssl/certs/DST_Root_CA_X3.pem")
+
+        config = {
+            'keep_alive': 10,
+            'ping_delay': 2,
+            'default_qos': 1,
+            'default_retain': False,
+            'auto_reconnect': True,
+            'reconnect_max_interval': 5,
+            'reconnect_retries': 10000
+        }
+        self.mqtt_client = MQTTClient(config=config, client_id=self.settings["mqtt_clientid"])
+
         self.i_pdm = None
         self.i_pod = None
         self.g_pdm = None
@@ -42,260 +44,225 @@ class MqOperator(object):
         self.i_bolus_requested = self.decimal_zero
         self.g_rate_requested = None
         self.g_bolus_requested = self.decimal_zero
-        self.pod_request_lock = Lock()
-        self.pod_check_event = Event()
 
         self.started = time.time()
-        self.insulin_max_bolus_at_once = Decimal("20.00")
-        self.insulin_bolus_interval = 180
         self.insulin_bolus_pulse_interval = 4
+        self.clock_updated = time.time()
+        self.next_pdm_run = time.time()
 
-        self.insulin_long_temp_rate_threshold = Decimal("1.6")
-        self.insulin_long_temp_duration = Decimal("3.0")
-        self.insulin_short_temp_duration = Decimal("1.0")
+    async def run(self):
+        self.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
+        self.i_pdm = Pdm(self.i_pod)
 
-        self.glucagon_long_temp_rate_threshold = Decimal("4.0")
-        self.glucagon_long_temp_duration = Decimal("6.0")
-        self.glucagon_short_temp_duration = Decimal("1.0")
-        self.dry_run = False
-        self.clock_updated = None
-
-    def run(self):
-        self.ntp_update()
-        t = Thread(target=self.pdm_loop)
-        t.start()
-        time.sleep(5)
-
-        connected = False
-        while not connected:
+        self.i_pdm.start_radio()
+        time.sleep(10)
+        not_yet_connected = True
+        while True:
             try:
-                self.client.connect(self.settings["mqtt_host"],
-                                    self.settings["mqtt_port"], clean_start=mqtt.MQTT_CLEAN_START_FIRST_ONLY)
-                connected = True
-            except:
-                time.sleep(30)
+                await self.mqtt_client.connect(f'mqtts://{self.settings["mqtt_host"]}:{self.settings["mqtt_port"]}'
+                                               , cleansession=not_yet_connected)
+                not_yet_connected = False
+                self.ntp_update()
+                await self.mqtt_client.subscribe([
+                    (self.settings['mqtt_command_topic'], QOS_1),
+                    (self.settings['mqtt_sync_request_topic'], QOS_1),
 
-        self.client.loop_forever(retry_first_connection=True)
+                ])
+                self.logger.info("Subscribed")
 
-    def on_connect(self, client: mqtt.Client, userdata, flags, rc):
-        self.send_msg("Well hello there")
-        client.subscribe(self.settings["mqtt_command_topic"], qos=2)
-        client.subscribe(self.settings["mqtt_sync_request_topic"], qos=1)
-        self.ntp_update()
+                while True:
+                    if self.next_pdm_run <= time.time():
+                        await self.run_pdm()
+                    else:
+                        while True:
+                            try:
+                                message = await self.mqtt_client.deliver_message(timeout=5)
+                                packet = message.publish_packet
+                                topic = packet.variable_header.topic_name
+                                payload = packet.payload.data.decode()
+                                self.logger.info(f"Incoming message on topic: {topic}")
+                                await self.on_message(topic, payload)
+                            except asyncio.TimeoutError:
+                                break
+            except Exception as e:
+                self.logger.error("Erol", e)
 
-    def on_message(self, client, userdata, message: mqtt.MQTTMessage):
+    async def on_message(self, topic, message):
         try:
-            cmd_str = message.payload.decode()
-            if message.topic == self.settings["mqtt_command_topic"]:
-                cmd_split = cmd_str.split(' ')
+            if topic == self.settings["mqtt_command_topic"]:
+                cmd_split = message.split(' ')
                 if cmd_split[0] == "temp":
                     temp_rate = self.fix_decimal(cmd_split[1])
                     temp_duration = None
                     if len(cmd_split) > 2:
                         temp_duration = self.fix_decimal(cmd_split[2])
-                    self.set_insulin_rate(temp_rate, temp_duration)
+                    await self.set_insulin_rate(temp_rate, temp_duration)
+                    self.next_pdm_run = time.time()
                 elif cmd_split[0] == "bolus":
                     pulse_interval = None
                     bolus = self.fix_decimal(cmd_split[1])
                     if len(cmd_split) > 2:
                         pulse_interval = int(cmd_split[2])
-                    self.set_insulin_bolus(bolus, pulse_interval)
+                    await self.set_insulin_bolus(bolus, pulse_interval)
+                    self.next_pdm_run = time.time()
                 elif cmd_split[0] == "status":
-                    self.pod_check_event.set()
+                    self.next_pdm_run = time.time()
                 elif cmd_split[0] == "reboot":
-                    self.send_msg("sir yes sir")
+                    await self.send_msg("sir yes sir")
                     os.system('sudo shutdown -r now')
                 else:
-                    self.send_msg("lol what?")
-            elif message.topic == self.settings["mqtt_sync_request_topic"]:
-                if cmd_str == "latest":
-                    self.send_result(self.i_pod)
+                    await self.send_msg("lol what?")
+            elif topic == self.settings["mqtt_sync_request_topic"]:
+                if message == "latest":
+                    await self.send_result(self.i_pod)
                 else:
-                    spl = cmd_str.split(' ')
+                    spl = message.split(' ')
                     pod_id = spl[0]
                     req_ids = spl[1:]
-                    self.fill_request(pod_id, req_ids)
+                    await self.fill_request(pod_id, req_ids)
         except:
-            self.send_msg("that didn't seem right")
+            await self.send_msg("that didn't seem right")
 
-    def on_disconnect(self, client, userdata, rc):
-        self.logger.info("Disconnected from mqtt server")
-
-    def set_insulin_rate(self, rate: Decimal, duration_hours: Decimal):
+    async def set_insulin_rate(self, rate: Decimal, duration_hours: Decimal):
         if duration_hours is None:
-            self.send_msg("Rate request: Insulin %02.2fU/h" % rate)
+            await self.send_msg("Rate request: Insulin %02.2fU/h" % rate)
         else:
-            self.send_msg("Rate request: Insulin {:02.2f}U/h Duration: {:02.2f}h".format(rate, duration_hours))
-        with self.pod_request_lock:
-            self.i_rate_requested = rate
-            self.i_rate_duration_requested = duration_hours
-        self.send_msg("Rate request submitted")
-        self.pod_check_event.set()
+            await self.send_msg("Rate request: Insulin {:02.2f}U/h Duration: {:02.2f}h".format(rate, duration_hours))
+        self.i_rate_requested = rate
+        self.i_rate_duration_requested = duration_hours
+        await self.send_msg("Rate request submitted")
 
-    def set_insulin_bolus(self, bolus: Decimal, pulse_interval: int):
-        self.send_msg("Bolus request: Insulin %02.2fU" % bolus)
-        with self.pod_request_lock:
-            previous = self.i_bolus_requested
-            self.i_bolus_requested = bolus
-            if pulse_interval is not None:
-                self.send_msg("Pulse interval set: %d" % pulse_interval)
-                self.insulin_bolus_pulse_interval = pulse_interval
+    async def set_insulin_bolus(self, bolus: Decimal, pulse_interval: int):
+        await self.send_msg("Bolus request: Insulin %02.2fU" % bolus)
+        previous = self.i_bolus_requested
+        self.i_bolus_requested = bolus
+        if pulse_interval is not None:
+            await self.send_msg("Pulse interval set: %d" % pulse_interval)
+            self.insulin_bolus_pulse_interval = pulse_interval
         if previous > self.decimal_zero:
-            self.send_msg("Warning: %03.2fU bolus remains undelivered from previous requested" % previous)
-        self.send_msg("Bolus request submitted")
-        self.pod_check_event.set()
+            await self.send_msg("Warning: %03.2fU bolus remains undelivered from previous requested" % previous)
+        await self.send_msg("Bolus request submitted")
 
-    def pdm_loop(self):
-        self.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
-        self.i_pdm = Pdm(self.i_pod)
+    async def run_pdm(self):
+        if not await self.check_running():
+            return
 
-        if not self.dry_run:
-            self.i_pdm.start_radio()
-        time.sleep(2)
+        if not await self.deactivate_on_err():
+            return
 
-        try:
-            self.pdm_loop_main()
-        except:
-            os.system('sudo shutdown -r now')
+        if not await self.update_status():
+            return
 
-    def pdm_loop_main(self):
-        check_wait = 1
-        while True:
-            if self.pod_check_event.wait(check_wait):
-                self.pod_check_event.clear()
-                time.sleep(5)
+        if not await self.schedule_request():
+            return
 
-            progress = self.i_pod.state_progress
+        if not await self.bolus_request():
+            return
 
-            if 0 <= progress < 8 or progress == 15:
-                check_wait = 3600
-                continue
+    async def check_running(self):
+        progress = self.i_pod.state_progress
+        if 0 <= progress < 8 or progress == 15:
+            self.next_pdm_run = time.time() + 300
+            return False
+        return True
 
-            if progress > 9:
-                self.send_msg("deactivating pod")
-                try:
-                    if not self.dry_run:
-                        self.i_pdm.deactivate_pod()
-                    self.send_msg("all is well, all is good")
-                    check_wait = 3600
-                except:
-                    self.send_msg("deactivation failed")
-                    check_wait = 1
-                finally:
-                    self.send_result(self.i_pod)
-                continue
-
+    async def deactivate_on_err(self):
+        if self.i_pod.state_faulted:
+            await self.send_msg("deactivating pod")
             try:
-                self.send_msg("checking pod status")
-                if not self.dry_run:
-                    try:
-                        self.i_pdm.update_status()
-                    except:
-                        self.send_msg("failed to get pod status")
-                        check_wait = 60
-                        continue
-                    finally:
-                        self.send_result(self.i_pod)
-
-                if self.i_pod.state_faulted:
-                    self.send_msg("pod is faulted! oh my")
-                    check_wait = 1
-                    continue
-                self.send_msg("pod reservoir remaining: %02.2fU" % self.i_pod.insulin_reservoir)
-
-                if self.i_pod.insulin_reservoir > 20:
-                    check_wait = 1800
-                elif self.i_pod.insulin_reservoir > 10:
-                    check_wait = 600
-                else:
-                    check_wait = 300
+                self.i_pdm.deactivate_pod()
+                self.send_msg("all is well, all is good")
+                self.next_pdm_run = time.time() + 300
+                return False
             except:
-                self.send_msg("couldn't reach pod I guess?")
-                check_wait = 300
+                await self.send_msg("deactivation failed")
+                self.next_pdm_run = time.time()
+                return False
             finally:
-                self.send_result(self.i_pod)
+                await self.send_result(self.i_pod)
+        return True
 
-            with self.pod_request_lock:
-                if self.i_rate_requested is not None:
-                    rate = self.i_rate_requested
-                    duration = self.i_rate_duration_requested
-                    if duration is None:
-                        if rate <= self.insulin_long_temp_rate_threshold:
-                            duration = self.insulin_long_temp_duration
-                        else:
-                            duration = self.insulin_short_temp_duration
+    async def update_status(self):
+        await self.send_msg("checking pod status")
+        try:
+            self.i_pdm.update_status()
+            await self.send_msg("pod reservoir remaining: %02.2fU" % self.i_pod.insulin_reservoir)
 
-                    self.send_msg("setting temp %02.2fU/h for %02.2f hours" % (rate, duration))
-                    try:
-                        if not self.dry_run:
-                            self.i_pdm.set_temp_basal(rate, duration)
-                    except:
-                        self.send_msg("failed to set tb")
-                        check_wait = 1
-                        continue
-                    finally:
-                        self.send_result(self.i_pod)
+            if self.i_pod.insulin_reservoir > 20:
+                self.next_pdm_run = time.time() + 1800
+            elif self.i_pod.insulin_reservoir > 10:
+                self.next_pdm_run = time.time() + 600
+            else:
+                self.next_pdm_run = time.time() + 300
+            return True
+        except:
+            await self.send_msg("failed to get pod status")
+            self.next_pdm_run = time.time() + 90
+            return False
+        finally:
+            await self.send_result(self.i_pod)
 
-                    self.send_msg("temp set")
-                    self.i_rate_requested = None
+    async def schedule_request(self):
+        if self.i_rate_requested is not None:
+            rate = self.i_rate_requested
+            duration = self.i_rate_duration_requested
+            if duration is None:
+                if rate <= self.insulin_long_temp_rate_threshold:
+                    duration = self.insulin_long_temp_duration
+                else:
+                    duration = self.insulin_short_temp_duration
 
-            time.sleep(5)
-            with self.pod_request_lock:
-                bolus_request = self.i_bolus_requested
-                if bolus_request > self.decimal_zero:
-                    _, last_bolus_time = self.i_pod.get_bolus_total()
-                    time_since_last_bolus = time.time() - last_bolus_time
-                    self.send_msg("Active bolus request of %02.2fU" % bolus_request)
-                    if time_since_last_bolus < self.insulin_bolus_interval:
-                        check_wait = self.insulin_bolus_interval - time_since_last_bolus
-                        self.send_msg("Postponing bolus request for %d seconds" % check_wait)
-                    else:
-                        if bolus_request > self.insulin_max_bolus_at_once:
-                            to_bolus = self.insulin_max_bolus_at_once
-                        else:
-                            to_bolus = bolus_request
+            await self.send_msg("setting temp %02.2fU/h for %02.2f hours" % (rate, duration))
+            try:
+                self.i_pdm.set_temp_basal(rate, duration)
+            except:
+                await self.send_msg("failed to set tb")
+                self.next_pdm_run = time.time()
+                return False
+            finally:
+                await self.send_result(self.i_pod)
 
-                        self.send_msg("Bolusing %02.2fU" % to_bolus)
-                        self.i_bolus_requested -= to_bolus
-                        try:
-                            if not self.dry_run:
-                                self.i_pdm.bolus(to_bolus, self.insulin_bolus_pulse_interval)
-                        except:
-                            self.i_bolus_requested += to_bolus
-                            self.send_msg("failed to execute bolus")
-                            check_wait = 1
-                            continue
-                        finally:
-                            self.send_result(self.i_pod)
+            await self.send_msg("temp set")
+            self.i_rate_requested = None
+        return True
 
-                        if self.i_bolus_requested > self.decimal_zero:
-                            check_wait = self.insulin_bolus_interval
-                            self.send_msg("donesies, remaining to bolus: %03.2fU" % self.i_bolus_requested)
-                        else:
-                            self.send_msg("bolus is bolus")
+    async def bolus_request(self):
+        if self.i_bolus_requested is not None and self.i_bolus_requested > self.decimal_zero:
+            await self.send_msg("Bolusing %02.2fU" % self.i_bolus_requested)
+            try:
+                self.i_pdm.bolus(self.i_bolus_requested, self.insulin_bolus_pulse_interval)
+                self.i_bolus_requested = None
+            except:
+                await self.send_msg("failed to execute bolus")
+                self.next_pdm_run = time.time()
+                return False
+            finally:
+                await self.send_result(self.i_pod)
+
+            self.i_bolus_requested = None
+            await self.send_msg("bolus is bolus")
+        return True
 
     def fix_decimal(self, f):
         i_ticks = round(float(f) * 20.0)
         d_val = Decimal(i_ticks) / Decimal("20")
         return d_val
 
-    def send_result(self, pod):
+    async def send_result(self, pod):
         msg = pod.GetString()
         if pod.pod_id is None:
             return
-        self.client.publish(self.settings["mqtt_json_topic"],
-                            payload=msg, qos=1)
-        self.client.publish(self.settings["mqtt_status_topic"], payload=msg, qos=1, retain=True)
+        await self.mqtt_client.publish(self.settings["mqtt_json_topic"],
+                            bytearray(msg, encoding='ascii'), QOS_1)
+        await self.mqtt_client.publish(self.settings["mqtt_status_topic"],
+                                  bytearray(msg, encoding='ascii'), QOS_1, retain=True)
 
-    def send_msg(self, msg):
+    async def send_msg(self, msg):
         self.logger.info(msg)
-        self.client.publish(self.settings["mqtt_response_topic"],
-                            payload=msg, qos=1)
+        await self.mqtt_client.publish(self.settings["mqtt_response_topic"],
+                            bytearray(msg, encoding='ascii'), QOS_1)
 
     def ntp_update(self):
-        if self.dry_run:
-            return
-
         if self.clock_updated is not None:
             if time.time() - self.clock_updated < 3600:
                 return
@@ -310,10 +277,10 @@ class MqOperator(object):
         except:
             self.logger.info("update failed")
 
-    def fill_request(self, pod_id, req_ids):
+    async def fill_request(self, pod_id, req_ids):
         db_path = self.find_db_path(pod_id)
         if db_path is None:
-            self.send_msg("but I can't?")
+            await self.send_msg("but I can't?")
             return
 
         with sqlite3.connect(db_path) as conn:
@@ -327,8 +294,8 @@ class MqOperator(object):
                     js["last_command_db_id"] = row[0]
                     js["last_command_db_ts"] = row[1]
 
-                    self.client.publish(self.settings["mqtt_json_topic"],
-                                        payload=json.dumps(js), qos=0)
+                    await self.mqtt_client.publish(self.settings["mqtt_json_topic"],
+                                        bytearray(json.dumps(js), encoding='ascii'), QOS_1)
                 cursor.close()
 
     def find_db_path(self, pod_id):
@@ -356,4 +323,9 @@ class MqOperator(object):
 
 if __name__ == '__main__':
     operator = MqOperator()
-    operator.run()
+    loop = asyncio.get_event_loop()
+    try:
+        loop.run_until_complete(operator.run())
+    finally:
+        loop.run_until_complete(loop.shutdown_asyncgens())
+        loop.close()
