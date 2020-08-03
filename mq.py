@@ -22,16 +22,7 @@ class MqOperator(object):
         with open("settings.json", "r") as stream:
             self.settings = json.load(stream)
 
-        config = {
-            'keep_alive': 10,
-            'ping_delay': 2,
-            'default_qos': 1,
-            'default_retain': False,
-            'auto_reconnect': True,
-            'reconnect_max_interval': 5,
-            'reconnect_retries': 10000
-        }
-        self.mqtt_client = MQTTClient(config=config, client_id=self.settings["mqtt_clientid"])
+        self.mqtt_client = None
 
         self.i_pdm = None
         self.i_pod = None
@@ -55,8 +46,19 @@ class MqOperator(object):
         self.i_pdm = Pdm(self.i_pod)
 
         self.i_pdm.start_radio()
-        time.sleep(10)
+        #time.sleep(10)
         not_yet_connected = True
+
+        config = {
+            'keep_alive': 15,
+            'ping_delay': 5,
+            'default_qos': 1,
+            'default_retain': False,
+            'auto_reconnect': False,
+            'reconnect_max_interval': 5,
+            'reconnect_retries': 10000
+        }
+        self.mqtt_client = MQTTClient(config=config, client_id=self.settings["mqtt_client_id"])
         while True:
             try:
                 await self.mqtt_client.connect(f'mqtts://{self.settings["mqtt_host"]}:{self.settings["mqtt_port"]}'
@@ -85,7 +87,8 @@ class MqOperator(object):
                             except asyncio.TimeoutError:
                                 break
             except Exception as e:
-                self.logger.error("Erol", e)
+                self.logger.error("Connection error", e)
+                time.sleep(5)
 
     async def on_message(self, topic, message):
         try:
@@ -120,7 +123,8 @@ class MqOperator(object):
                     pod_id = spl[0]
                     req_ids = spl[1:]
                     await self.fill_request(pod_id, req_ids)
-        except:
+        except Exception as e:
+            self.logger.error(e)
             await self.send_msg("that didn't seem right")
 
     async def set_insulin_rate(self, rate: Decimal, duration_hours: Decimal):
@@ -129,21 +133,25 @@ class MqOperator(object):
         else:
             await self.send_msg("Rate request: Insulin {:02.2f}U/h Duration: {:02.2f}h".format(rate, duration_hours))
         self.i_rate_requested = rate
-        self.i_rate_duration_requested = duration_hours
+        if duration_hours is not None:
+            self.i_rate_duration_requested = duration_hours
+        else:
+            self.i_rate_duration_requested = Decimal("3.0")
+
         await self.send_msg("Rate request submitted")
 
     async def set_insulin_bolus(self, bolus: Decimal, pulse_interval: int):
         await self.send_msg("Bolus request: Insulin %02.2fU" % bolus)
-        previous = self.i_bolus_requested
         self.i_bolus_requested = bolus
         if pulse_interval is not None:
             await self.send_msg("Pulse interval set: %d" % pulse_interval)
             self.insulin_bolus_pulse_interval = pulse_interval
-        if previous > self.decimal_zero:
-            await self.send_msg("Warning: %03.2fU bolus remains undelivered from previous requested" % previous)
+        else:
+            self.insulin_bolus_pulse_interval = 6
         await self.send_msg("Bolus request submitted")
 
     async def run_pdm(self):
+        self.next_pdm_run = time.time() + 1800
         if not await self.check_running():
             return
 
@@ -171,7 +179,7 @@ class MqOperator(object):
             await self.send_msg("deactivating pod")
             try:
                 self.i_pdm.deactivate_pod()
-                self.send_msg("all is well, all is good")
+                await self.send_msg("all is well, all is good")
                 self.next_pdm_run = time.time() + 300
                 return False
             except:
@@ -197,7 +205,7 @@ class MqOperator(object):
             return True
         except:
             await self.send_msg("failed to get pod status")
-            self.next_pdm_run = time.time() + 90
+            self.next_pdm_run = time.time() + 60
             return False
         finally:
             await self.send_result(self.i_pod)
@@ -206,11 +214,6 @@ class MqOperator(object):
         if self.i_rate_requested is not None:
             rate = self.i_rate_requested
             duration = self.i_rate_duration_requested
-            if duration is None:
-                if rate <= self.insulin_long_temp_rate_threshold:
-                    duration = self.insulin_long_temp_duration
-                else:
-                    duration = self.insulin_short_temp_duration
 
             await self.send_msg("setting temp %02.2fU/h for %02.2f hours" % (rate, duration))
             try:
@@ -234,7 +237,7 @@ class MqOperator(object):
                 self.i_bolus_requested = None
             except:
                 await self.send_msg("failed to execute bolus")
-                self.next_pdm_run = time.time()
+                self.next_pdm_run = time.time() + 60
                 return False
             finally:
                 await self.send_result(self.i_pod)
@@ -252,15 +255,21 @@ class MqOperator(object):
         msg = pod.GetString()
         if pod.pod_id is None:
             return
-        await self.mqtt_client.publish(self.settings["mqtt_json_topic"],
-                            bytearray(msg, encoding='ascii'), QOS_1)
-        await self.mqtt_client.publish(self.settings["mqtt_status_topic"],
-                                  bytearray(msg, encoding='ascii'), QOS_1, retain=True)
+        try:
+            await self.mqtt_client.publish(self.settings["mqtt_json_topic"],
+                                bytearray(msg, encoding='ascii'), QOS_1)
+            await self.mqtt_client.publish(self.settings["mqtt_status_topic"],
+                                      bytearray(msg, encoding='ascii'), QOS_1, retain=True)
+        except:
+            pass
 
     async def send_msg(self, msg):
         self.logger.info(msg)
-        await self.mqtt_client.publish(self.settings["mqtt_response_topic"],
-                            bytearray(msg, encoding='ascii'), QOS_1)
+        try:
+            await self.mqtt_client.publish(self.settings["mqtt_response_topic"],
+                                bytearray(msg, encoding='ascii'), QOS_1)
+        except:
+            pass
 
     def ntp_update(self):
         if self.clock_updated is not None:
@@ -321,11 +330,15 @@ class MqOperator(object):
             cursor.close()
         return found_db_path
 
+
 if __name__ == '__main__':
-    operator = MqOperator()
-    loop = asyncio.get_event_loop()
-    try:
-        loop.run_until_complete(operator.run())
-    finally:
-        loop.run_until_complete(loop.shutdown_asyncgens())
-        loop.close()
+    while True:
+        operator = MqOperator()
+        loop = asyncio.get_event_loop()
+        try:
+            loop.run_until_complete(operator.run())
+        except Exception as e:
+            print("force stopping async io loop due error: %s" % e)
+        finally:
+            loop.run_until_complete(loop.shutdown_asyncgens())
+            #loop.close()
