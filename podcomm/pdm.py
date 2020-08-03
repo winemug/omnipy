@@ -273,6 +273,7 @@ class Pdm:
 
                 self.pod.last_enacted_bolus_start = self.get_time()
                 self.pod.last_enacted_bolus_amount = float(bolus_amount)
+                self.pod.last_enacted_bolus_pulse_interval = pulse_interval
                 self.pod.last_command["success"] = True
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
@@ -713,25 +714,28 @@ class Pdm:
             raise PdmError("Pod status was not saved") from e
 
     def _is_bolus_running(self, no_live_check=False):
-        if self.pod.state_last_updated is not None and self.pod.state_bolus != BolusState.Immediate:
-            return False
+        # if self.pod.state_last_updated is not None and self.pod.state_bolus != BolusState.Immediate:
+        #     return False
 
-        if self.pod.last_enacted_bolus_amount is not None \
-                and self.pod.last_enacted_bolus_start is not None:
-
-            if self.pod.last_enacted_bolus_amount < 0:
-                return False
-
-            now = self.get_time()
-            bolus_end_earliest = (self.pod.last_enacted_bolus_amount * 39) + 1 + self.pod.last_enacted_bolus_start
-            bolus_end_latest = (self.pod.last_enacted_bolus_amount * 41) + 3 + self.pod.last_enacted_bolus_start
-            if now > bolus_end_latest:
-                return False
-            elif now < bolus_end_earliest:
-                return True
-
-        if no_live_check:
-            return True
+        # if self.pod.last_enacted_bolus_amount is not None \
+        #         and self.pod.last_enacted_bolus_start is not None:
+        #
+        #     if self.pod.last_enacted_bolus_amount < 0:
+        #         return False
+        #
+        #     now = self.get_time()
+        #     pi = self.pod.last_enacted_bolus_pulse_interval
+        #     if pi is None:
+        #         pi = 8
+        #     bolus_end_earliest = (self.pod.last_enacted_bolus_amount * (20*pi)-1) + 1 + self.pod.last_enacted_bolus_start
+        #     bolus_end_latest = (self.pod.last_enacted_bolus_amount * (20*pi)+1) + 3 + self.pod.last_enacted_bolus_start
+        #     if now > bolus_end_latest:
+        #         return False
+        #     elif now < bolus_end_earliest:
+        #         return True
+        #
+        # if no_live_check:
+        #     return True
 
         self._internal_update_status()
         return self.pod.state_bolus == BolusState.Immediate
@@ -744,22 +748,22 @@ class Pdm:
         return self.pod.state_basal == BasalState.Program
 
     def _is_temp_basal_active(self):
-        if self.pod.state_last_updated is not None and self.pod.state_basal != BasalState.TempBasal:
-            return False
+        # if self.pod.state_last_updated is not None and self.pod.state_basal != BasalState.TempBasal:
+        #     return False
 
-        if self.pod.last_enacted_temp_basal_start is not None \
-                and self.pod.last_enacted_temp_basal_duration is not None:
-            if self.pod.last_enacted_temp_basal_amount < 0:
-                return False
-            now = self.get_time()
-            temp_basal_end_earliest = self.pod.last_enacted_temp_basal_start + \
-                                      (self.pod.last_enacted_temp_basal_duration * 3600) - 60
-            temp_basal_end_latest = self.pod.last_enacted_temp_basal_start + \
-                                      (self.pod.last_enacted_temp_basal_duration * 3660) + 60
-            if now > temp_basal_end_latest:
-                return False
-            elif now < temp_basal_end_earliest:
-                return True
+        # if self.pod.last_enacted_temp_basal_start is not None \
+        #         and self.pod.last_enacted_temp_basal_duration is not None:
+        #     if self.pod.last_enacted_temp_basal_amount < 0:
+        #         return False
+        #     now = self.get_time()
+        #     temp_basal_end_earliest = self.pod.last_enacted_temp_basal_start + \
+        #                               (self.pod.last_enacted_temp_basal_duration * 3600) - 60
+        #     temp_basal_end_latest = self.pod.last_enacted_temp_basal_start + \
+        #                               (self.pod.last_enacted_temp_basal_duration * 3660) + 60
+        #     if now > temp_basal_end_latest:
+        #         return False
+        #     elif now < temp_basal_end_earliest:
+        #         return True
 
         self._internal_update_status()
         return self.pod.state_basal == BasalState.TempBasal

@@ -74,6 +74,7 @@ class Pod:
         self.last_enacted_temp_basal_amount = None
         self.last_enacted_bolus_start = None
         self.last_enacted_bolus_amount = None
+        self.last_enacted_bolus_pulse_interval = None
 
 
     def Save(self, save_as = None):
@@ -160,6 +161,7 @@ class Pod:
             p.last_enacted_temp_basal_amount = d.get("last_enacted_temp_basal_amount", None)
             p.last_enacted_bolus_start = d.get("last_enacted_bolus_start", None)
             p.last_enacted_bolus_amount = d.get("last_enacted_bolus_amount", None)
+            p.last_enacted_bolus_pulse_interval = d.get("last_enacted_bolus_pulse_interval", None)
 
             p.var_utc_offset = d.get("var_utc_offset", None)
             p.var_activation_date = d.get("var_activation_date", None)
