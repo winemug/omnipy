@@ -86,8 +86,8 @@ def _get_pdm():
 
 def _flush_handlers(logger):
     for handler in logger.handlers:
-        if isinstance(handler, MemoryHandler):
-            handler.flush()
+        # if isinstance(handler, MemoryHandler):
+        #     handler.flush()
         if isinstance(handler, FileHandler):
             handler.flush()
             handler.close()
