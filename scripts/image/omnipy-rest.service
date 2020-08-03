@@ -3,7 +3,7 @@ Description=Omnipy Rest API
 After=network.target omnipy-beacon.service omnipy-hotspot.service omnipy-pan.service
 
 [Service]
-ExecStart=/home/pi/omnipy/scripts/start-restapi.sh
+ExecStart=/bin/bash /home/pi/omnipy/scripts/start-restapi.sh
 WorkingDirectory=/home/pi/omnipy
 StandardOutput=inherit
 StandardError=inherit

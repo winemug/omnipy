@@ -3,7 +3,7 @@ Description=Omnipy MQ
 After=network.target
 
 [Service]
-ExecStart=/home/pi/omnipy/scripts/start-mq.sh
+ExecStart=/bin/bash /home/pi/omnipy/scripts/start-mq.sh
 WorkingDirectory=/home/pi/omnipy
 StandardOutput=inherit
 StandardError=inherit
