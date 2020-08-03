@@ -84,6 +84,7 @@ sudo cp /home/pi/omnipy/scripts/image/omnipy-rest.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/image/omnipy-mq.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/image/omnipy-beacon.service /etc/systemd/system/
 sudo cp /home/pi/omnipy/scripts/image/omnipy-pan.service /etc/systemd/system/
+sudo cp /home/pi/omnipy/scripts/image/omnipy-sync.service /etc/systemd/system/
 
 sudo systemctl enable omnipy-rest.service
 sudo systemctl enable omnipy-beacon.service

@@ -1,0 +1,15 @@
+[Unit]
+Description=Omnipy MQ
+After=network.target
+
+[Service]
+ExecStart=/bin/bash /home/pi/omnipy/scripts/start-sync.sh
+WorkingDirectory=/home/pi/omnipy
+StandardOutput=inherit
+StandardError=inherit
+TimeoutStopSec=15
+Restart=on-abort
+User=pi
+
+[Install]
+WantedBy=multi-user.target
