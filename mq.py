@@ -76,37 +76,39 @@ class MqOperator(object):
         self.stop_event = Event()
         self.requests_lock = Lock()
         self.requests = []
+        self.executed_req_ids = []
 
         subscriber = pubsub_v1.SubscriberClient()
         sub_topic_path = subscriber.topic_path('omnicore17', 'py-cmd')
         subscription_path = subscriber.subscription_path('omnicore17', 'sub-pycmd-mqop')
         try:
-            subscriber.create_subscription(subscription_path, sub_topic_path, ack_deadline_seconds=600)
+            subscriber.create_subscription(subscription_path, sub_topic_path, ack_deadline_seconds=10)
         except AlreadyExists:
             pass
 
         publisher = pubsub_v1.PublisherClient(
-            batch_settings=pubsub_v1.types.BatchSettings(
-                max_bytes=4096,
-                max_latency=5,
-            ),
-            client_config={
-                "interfaces": {
-                    "google.pubsub.v1.Publisher": {
-                        "retry_params": {
-                            "messaging": {
-                                'total_timeout_millis': 60000,  # default: 600000
-                            }
-                        }
-                    }
-                }
-            },
-            publisher_options=pubsub_v1.types.PublisherOptions(
-                flow_control=pubsub_v1.types.PublishFlowControl(
-                    message_limit=1000,
-                    byte_limit=1024 * 64,
-                    limit_exceeded_behavior=pubsub_v1.types.LimitExceededBehavior.BLOCK,
-                )))
+            # batch_settings=pubsub_v1.types.BatchSettings(
+            #     max_bytes=4096,
+            #     max_latency=5,
+            # ),
+            # client_config={
+            #     "interfaces": {
+            #         "google.pubsub.v1.Publisher": {
+            #             "retry_params": {
+            #                 "messaging": {
+            #                     'total_timeout_millis': 60000,  # default: 600000
+            #                 }
+            #             }
+            #         }
+            #     }
+            # },
+            # publisher_options=pubsub_v1.types.PublisherOptions(
+            #     flow_control=pubsub_v1.types.PublishFlowControl(
+            #         message_limit=1000,
+            #         byte_limit=1024 * 64,
+            #         limit_exceeded_behavior=pubsub_v1.types.LimitExceededBehavior.BLOCK,
+            #     ))
+        )
 
         self.subscriber = subscriber
         self.publisher = publisher
@@ -127,9 +129,7 @@ class MqOperator(object):
                                                                  #     executor=ThreadPoolExecutor(max_workers=2))
                                                                  )
             while True:
-                if self.message_event.wait(5):
-                    time.sleep(5)
-
+                self.message_event.wait(10)
                 if self.exit_event.is_set():
                     break
                 if self.message_event.is_set():
@@ -148,39 +148,47 @@ class MqOperator(object):
             new_request['message'] = message
 
             with self.requests_lock:
-                for request in self.requests:
-                    if request['message'].message_id == message.message_id\
-                            or request['id'] == new_request['id']:
-                        message.ack()
-                        break
+                if new_request['id'] in self.executed_req_ids:
+                    message.ack()
                 else:
-                    self.requests.append(new_request)
-                    self.message_event.set()
+                    for request in self.requests:
+                        if request['message'].message_id == message.message_id\
+                                or request['id'] == new_request['id']:
+                            message.ack()
+                            break
+                    else:
+                        self.logger.debug(f'new request received, type: {new_request["type"]}, id: {new_request["id"]}')
+                        self.requests.append(new_request)
+                        self.message_event.set()
         except Exception as e:
             self.logger.error("Error parsing message in callback", e)
             message.nack()
 
     def process_requests(self):
-        with self.requests_lock:
-            self.message_event.clear()
-            self.filter_expired()
-            self.filter_outdated()
-            self.filter_redundant()
-            self.sort_requests()
+        while True:
+            req = None
+            with self.requests_lock:
+                self.message_event.clear()
+                self.filter_expired()
+                self.filter_outdated()
+                self.filter_redundant()
+                self.sort_requests()
 
-            if len(self.requests) > 0:
-                req = self.requests[0]
-                msg = req['message']
-                try:
-                    self.perform_request(req)
-                except Exception as e:
-                    self.logger.error("Error performing request", e)
-                    msg.nack()
-                    self.send_response(req, "fail")
-                    return
+                if len(self.requests) > 0:
+                    req = self.requests[0]
+                    self.requests = self.requests[1:]
+                    self.executed_req_ids.append(req['id'])
 
-                msg.ack()
+            if req is None:
+                break
+            msg = req['message']
+            msg.ack()
+            try:
+                self.perform_request(req)
                 self.send_response(req, "success")
+            except Exception as e:
+                self.logger.error("Error performing request", e)
+                self.send_response(req, "fail")
 
     def filter_expired(self):
         not_expired = []
