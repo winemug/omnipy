@@ -1,15 +1,48 @@
 #!/home/pi/v/bin/python3
-import asyncio
-import glob
-import sqlite3
 import time
+import signal
+from threading import Event, Lock
+from google.api_core.exceptions import AlreadyExists
+from google.cloud import pubsub_v1
+from google.cloud.pubsub_v1.proto.pubsub_pb2 import PubsubMessage
 from podcomm.pdm import Pdm
 from podcomm.pod import Pod
 from podcomm.definitions import *
 import simplejson as json
 from decimal import *
-from hbmqtt.client import MQTTClient, ClientException
-from hbmqtt.mqtt.constants import QOS_1, QOS_2
+
+
+def get_now():
+    return int(time.time() * 1000)
+
+
+def get_ticks(d: Decimal) -> int:
+    return int(round(d / Decimal("0.05")))
+
+
+def ticks_to_decimal(ticks: int) -> Decimal:
+    return Decimal("0.05") * ticks
+
+
+def seconds_to_hours(minutes: int) -> Decimal:
+    return Decimal(minutes) / Decimal("3600")
+
+
+def is_expired(req):
+    if "expiration" in req and req["expiration"] is not None:
+        expiration = int(req["expiration"])
+        if get_now() > expiration:
+            return True
+    return False
+
+
+def status_match(req, pod):
+    if "pod_updated" in req and req["pod_updated"] is not None:
+        return req["pod_updated"] == int(pod["state_last_updated"] * 1000)
+
+
+def get_json(message_data):
+    return json.loads(bytes.decode(message_data, encoding='UTF-8'))
 
 
 class MqOperator(object):
@@ -21,8 +54,6 @@ class MqOperator(object):
 
         with open("settings.json", "r") as stream:
             self.settings = json.load(stream)
-
-        self.mqtt_client = None
 
         self.i_pdm = None
         self.i_pod = None
@@ -38,327 +69,223 @@ class MqOperator(object):
 
         self.started = time.time()
         self.insulin_bolus_pulse_interval = 4
-        self.clock_updated = time.time()
         self.next_pdm_run = time.time()
 
-        self.msg_to_send = []
+        self.message_event = Event()
+        self.exit_event = Event()
+        self.stop_event = Event()
+        self.requests_lock = Lock()
+        self.requests = []
 
-    async def run(self):
-        self.ntp_update()
-        self.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
-        self.i_pdm = Pdm(self.i_pod)
-        self.i_pdm.start_radio()
-        #time.sleep(10)
-        not_yet_connected = True
-
-        config = {
-            'keep_alive': 15,
-            'ping_delay': 5,
-            'default_qos': 1,
-            'default_retain': False,
-            'auto_reconnect': False,
-            'reconnect_max_interval': 5,
-            'reconnect_retries': 10000
-        }
-        self.mqtt_client = MQTTClient(config=config, client_id=self.settings["mqtt_client_id"])
-        while True:
-            try:
-                await self.mqtt_client.connect(f'mqtts://{self.settings["mqtt_host"]}:{self.settings["mqtt_port"]}'
-                                               ,cleansession=not_yet_connected)
-                not_yet_connected = False
-                await self.mqtt_client.subscribe([
-                    (self.settings['mqtt_command_topic'], QOS_1),
-                    (self.settings['mqtt_sync_request_topic'], QOS_1),
-
-                ])
-                self.logger.info("Subscribed")
-
-                while True:
-                    if self.next_pdm_run <= time.time():
-                        await self.run_pdm()
-                    else:
-                        while True:
-                            try:
-                                await self.try_send_messages()
-                                message = await self.mqtt_client.deliver_message(timeout=5)
-                                if message is None:
-                                    break
-                                packet = message.publish_packet
-                                topic = packet.variable_header.topic_name
-                                payload = packet.payload.data.decode()
-                                self.logger.info(f"Incoming message on topic: {topic}")
-                                await self.on_message(topic, payload)
-                            except asyncio.TimeoutError:
-                                break
-            except Exception as e:
-                self.logger.error("Connection error", e)
-                time.sleep(5)
-
-    async def on_message(self, topic, message):
+        subscriber = pubsub_v1.SubscriberClient()
+        sub_topic_path = subscriber.topic_path('omnicore17', 'py-cmd')
+        subscription_path = subscriber.subscription_path('omnicore17', 'sub-pycmd-mqop')
         try:
-            if topic == self.settings["mqtt_command_topic"]:
-                cmd_split = message.split(' ')
-                if cmd_split[0] == "temp" or cmd_split[0] == "t":
-                    temp_rate = self.fix_decimal(cmd_split[1])
-                    temp_duration = None
-                    if len(cmd_split) > 2:
-                        temp_duration = self.fix_decimal(cmd_split[2])
-                    await self.set_insulin_rate(temp_rate, temp_duration)
-                    self.next_pdm_run = time.time()
-                elif cmd_split[0] == "bolus" or cmd_split[0] == "b":
-                    pulse_interval = None
-                    bolus = self.fix_decimal(cmd_split[1])
-                    if len(cmd_split) > 2:
-                        pulse_interval = int(cmd_split[2])
-                    await self.set_insulin_bolus(bolus, pulse_interval)
-                    self.next_pdm_run = time.time()
-                elif cmd_split[0] == "status" or cmd_split[0] == "s":
-                    self.next_pdm_run = time.time()
-                elif cmd_split[0] == "reboot" or cmd_split[0] == "r":
-                    await self.send_msg("sir yes sir")
-                    os.system('sudo shutdown -r now')
-                # elif cmd_split[0] == "halt" or cmd_split[0] == "h":
-                #     await self.send_msg("sir bye sir")
-                #     os.system('sudo shutdown -h now')
-                else:
-                    await self.send_msg("lol what?")
-            elif topic == self.settings["mqtt_sync_request_topic"]:
-                if message == "latest":
-                    await self.send_result(self.i_pod)
-                else:
-                    spl = message.split(' ')
-                    pod_id = spl[0]
-                    req_ids = spl[1:]
-                    await self.fill_request(pod_id, req_ids)
-        except Exception as e:
-            self.logger.error(e)
-            await self.send_msg("that didn't seem right")
+            subscriber.create_subscription(subscription_path, sub_topic_path, ack_deadline_seconds=600)
+        except AlreadyExists:
+            pass
 
-    async def set_insulin_rate(self, rate: Decimal, duration_hours: Decimal):
-        if duration_hours is None:
-            await self.send_msg("Rate request: Insulin %02.2fU/h" % rate)
-        else:
-            await self.send_msg("Rate request: Insulin {:02.2f}U/h Duration: {:02.2f}h".format(rate, duration_hours))
-        self.i_rate_requested = rate
-        if duration_hours is not None:
-            self.i_rate_duration_requested = duration_hours
-        else:
-            self.i_rate_duration_requested = Decimal("3.0")
+        publisher = pubsub_v1.PublisherClient(
+            batch_settings=pubsub_v1.types.BatchSettings(
+                max_bytes=4096,
+                max_latency=5,
+            ),
+            client_config={
+                "interfaces": {
+                    "google.pubsub.v1.Publisher": {
+                        "retry_params": {
+                            "messaging": {
+                                'total_timeout_millis': 60000,  # default: 600000
+                            }
+                        }
+                    }
+                }
+            },
+            publisher_options=pubsub_v1.types.PublisherOptions(
+                flow_control=pubsub_v1.types.PublishFlowControl(
+                    message_limit=1000,
+                    byte_limit=1024 * 64,
+                    limit_exceeded_behavior=pubsub_v1.types.LimitExceededBehavior.BLOCK,
+                )))
 
-        await self.send_msg("Rate request submitted")
+        self.subscriber = subscriber
+        self.publisher = publisher
+        self.subscription_path = subscription_path
+        self.subscription_future = None
+        self.publish_future = None
+        self.publish_path = self.publisher.topic_path('omnicore17', 'py-rsp')
 
-    async def set_insulin_bolus(self, bolus: Decimal, pulse_interval: int):
-        await self.send_msg("Bolus request: Insulin %02.2fU" % bolus)
-        self.i_bolus_requested = bolus
-        if pulse_interval is not None:
-            await self.send_msg("Pulse interval set: %d" % pulse_interval)
-            self.insulin_bolus_pulse_interval = pulse_interval
-        else:
-            self.insulin_bolus_pulse_interval = 6
-        await self.send_msg("Bolus request submitted")
-
-    async def run_pdm(self):
-        self.next_pdm_run = time.time() + 1800
-        if not await self.check_running():
-            return
-
-        if not await self.deactivate_on_err():
-            return
-
-        if not await self.update_status():
-            return
-
-        if not await self.schedule_request():
-            return
-
-        if not await self.bolus_request():
-            return
-
-    async def check_running(self):
-        progress = self.i_pod.state_progress
-        if 0 <= progress < 8 or progress == 15:
-            self.next_pdm_run = time.time() + 300
-            return False
-        return True
-
-    async def deactivate_on_err(self):
-        if self.i_pod.state_faulted:
-            await self.send_msg("deactivating pod")
-            try:
-                self.i_pdm.deactivate_pod()
-                await self.send_msg("all is well, all is good")
-                self.next_pdm_run = time.time() + 300
-                return False
-            except:
-                await self.send_msg("deactivation failed")
-                self.next_pdm_run = time.time()
-                return False
-            finally:
-                await self.send_result(self.i_pod)
-        return True
-
-    async def update_status(self):
-        await self.send_msg("checking pod status")
+    def run(self):
         try:
-            self.i_pdm.update_status()
-            await self.send_msg("pod reservoir remaining: %02.2fU" % self.i_pod.insulin_reservoir)
+            self.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
+            self.i_pdm = Pdm(self.i_pod)
+            self.i_pdm.start_radio()
 
-            if self.i_pod.insulin_reservoir > 20:
-                self.next_pdm_run = time.time() + 1800
-            elif self.i_pod.insulin_reservoir > 10:
-                self.next_pdm_run = time.time() + 600
-            else:
-                self.next_pdm_run = time.time() + 300
-            return True
-        except:
-            await self.send_msg("failed to get pod status")
-            self.next_pdm_run = time.time() + 60
-            return False
+            self.subscription_future = self.subscriber.subscribe(self.subscription_path,
+                                                                 callback=self.subscription_callback,
+                                                                 # scheduler=ThreadScheduler(
+                                                                 #     executor=ThreadPoolExecutor(max_workers=2))
+                                                                 )
+            while True:
+                if self.message_event.wait(5):
+                    time.sleep(5)
+
+                if self.exit_event.is_set():
+                    break
+                if self.message_event.is_set():
+                    self.process_requests()
+
+        except Exception:
+            raise
         finally:
-            await self.send_result(self.i_pod)
+            self.subscriber.close()
+            self.publisher.stop()
+            self.stop_event.set()
 
-    async def schedule_request(self):
-        if self.i_rate_requested is not None:
-            rate = self.i_rate_requested
-            duration = self.i_rate_duration_requested
-
-            await self.send_msg("setting temp %02.2fU/h for %02.2f hours" % (rate, duration))
-            try:
-                self.i_pdm.set_temp_basal(rate, duration)
-            except:
-                await self.send_msg("failed to set tb")
-                self.next_pdm_run = time.time()
-                return False
-            finally:
-                await self.send_result(self.i_pod)
-
-            await self.send_msg("temp set")
-            self.i_rate_requested = None
-        return True
-
-    async def bolus_request(self):
-        if self.i_bolus_requested is not None and self.i_bolus_requested > self.decimal_zero:
-            await self.send_msg("Bolusing %02.2fU" % self.i_bolus_requested)
-            try:
-                self.i_pdm.bolus(self.i_bolus_requested, self.insulin_bolus_pulse_interval)
-                self.i_bolus_requested = None
-            except:
-                await self.send_msg("failed to execute bolus")
-                self.next_pdm_run = time.time() + 60
-                return False
-            finally:
-                await self.send_result(self.i_pod)
-
-            self.i_bolus_requested = None
-            await self.send_msg("bolus is bolus")
-        return True
-
-    def fix_decimal(self, f):
-        i_ticks = round(float(f) * 20.0)
-        d_val = Decimal(i_ticks) / Decimal("20")
-        return d_val
-
-    async def send_result(self, pod):
-        msg = pod.GetString()
-        if pod.pod_id is None:
-            return
-        self.msg_to_send.append((self.settings["mqtt_json_topic"],
-                            bytearray(msg, encoding='ascii'), False))
-
-        self.msg_to_send.append((self.settings["mqtt_status_topic"],
-                            bytearray(msg, encoding='ascii'), True))
-
-        await self.try_send_messages()
-
-    async def send_msg(self, msg):
-        self.logger.info(msg)
-        self.msg_to_send.append((self.settings["mqtt_response_topic"],
-                                 bytearray(msg, encoding='ascii'), True))
-        await self.try_send_messages()
-
-    async def try_send_messages(self):
-        while len(self.msg_to_send) > 0:
-            try:
-                topic, msg, retain = self.msg_to_send[0]
-                self.mqtt_client.publish(topic,
-                                               msg,
-                                               retain=retain,
-                                               qos=QOS_1)
-                if len(self.msg_to_send) > 1:
-                    self.msg_to_send = self.msg_to_send[1:-1]
-                else:
-                    self.msg_to_send = []
-            except:
-                break
-
-    def ntp_update(self):
-        if self.clock_updated is not None:
-            if time.time() - self.clock_updated < 3600:
-                return
-
-        self.logger.info("Synchronizing clock with network time")
+    def subscription_callback(self, message: PubsubMessage):
         try:
-            os.system('sudo systemctl stop ntp')
-            os.system('sudo ntpd -gq')
-            os.system('sudo systemctl start ntp')
-            self.logger.info("update successful")
-            self.clock_updated = time.time()
-        except:
-            self.logger.info("update failed")
+            new_request = get_json(message.data)
+            new_request['message'] = message
 
-    async def fill_request(self, pod_id, req_ids):
-        db_path = self.find_db_path(pod_id)
-        if db_path is None:
-            await self.send_msg("but I can't?")
-            return
-
-        with sqlite3.connect(db_path) as conn:
-            for req_id in req_ids:
-                req_id = int(req_id)
-                cursor = conn.execute("SELECT rowid, timestamp, pod_json FROM pod_history WHERE rowid = " + str(req_id))
-                row = cursor.fetchone()
-                if row is not None:
-                    js = json.loads(row[2])
-                    js["pod_id"] = pod_id
-                    js["last_command_db_id"] = row[0]
-                    js["last_command_db_ts"] = row[1]
-
-                    await self.mqtt_client.publish(self.settings["mqtt_json_topic"],
-                                        bytearray(json.dumps(js), encoding='ascii'), QOS_1)
-                cursor.close()
-
-    def find_db_path(self, pod_id):
-        self.i_pod._fix_pod_id()
-        if self.i_pod.pod_id == pod_id:
-            return "/home/pi/omnipy/data/pod.db"
-
-        found_db_path=None
-        for db_path in glob.glob("/home/pi/omnipy/data/*.db"):
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.execute("SELECT pod_json FROM pod_history WHERE pod_state > 0 LIMIT 1")
-                row = cursor.fetchone()
-                if row is not None:
-                    js = json.loads(row[0])
-                    if "pod_id" not in js or js["pod_id"] is None:
-                        found_id = "L" + str(js["id_lot"]) + "T" + str(js["id_t"])
-                    else:
-                        found_id = js["pod_id"]
-
-                    if found_id == pod_id:
-                        found_db_path = db_path
+            with self.requests_lock:
+                for request in self.requests:
+                    if request['message'].message_id == message.message_id\
+                            or request['id'] == new_request['id']:
+                        message.ack()
                         break
-            cursor.close()
-        return found_db_path
+                else:
+                    self.requests.append(new_request)
+                    self.message_event.set()
+        except Exception as e:
+            self.logger.error("Error parsing message in callback", e)
+            message.nack()
+
+    def process_requests(self):
+        with self.requests_lock:
+            self.message_event.clear()
+            self.filter_expired()
+            self.filter_outdated()
+            self.filter_redundant()
+            self.sort_requests()
+
+            if len(self.requests) > 0:
+                req = self.requests[0]
+                msg = req['message']
+                try:
+                    self.perform_request(req)
+                except Exception as e:
+                    self.logger.error("Error performing request", e)
+                    msg.nack()
+                    self.send_response(req, "fail")
+                    return
+
+                msg.ack()
+                self.send_response(req, "success")
+
+    def filter_expired(self):
+        not_expired = []
+        for req in self.requests:
+            msg = req['message']
+            if "expiration" in req and req["expiration"] is not None:
+                expiration = int(req["expiration"])
+            else:
+                expiration = int(msg.publish_time.timestamp() * 1000) + 60 * 1000
+            if get_now() > expiration:
+                msg.ack()
+                self.send_response(req, "expired")
+            else:
+                not_expired.append(req)
+        self.requests = not_expired
+
+    def filter_outdated(self):
+        up_to_date = []
+        pod = self.i_pod.__dict__
+        for req in self.requests:
+            msg = req['message']
+            if "state" in req and req["state"] is not None:
+                last_state = int(pod["state_last_updated"] * 1000)
+                if req["state"] != last_state:
+                    msg.ack()
+                    self.send_response(req, "outdated")
+                    continue
+
+            up_to_date.append(req)
+        self.requests = up_to_date
+
+    def filter_redundant(self):
+        non_redundant = []
+        types = {}
+
+        self.requests.sort(key=lambda r: r['message'].publish_time.timestamp(), reverse=True)
+        for req in self.requests:
+            msg = req['message']
+            req_type = req["type"]
+            if req_type in types:
+                msg.ack()
+                self.send_response(req, "redundant")
+                continue
+
+            non_redundant.append(req)
+            types[req_type] = None
+        self.requests = non_redundant
+
+    def sort_requests(self):
+        for req in self.requests:
+            if "priority" not in req:
+                req["priority"] = -1
+
+        self.requests.sort(key=lambda r: r['priority'], reverse=True)
+
+    def send_response(self, request: dict, result: str):
+        self.logger.debug(f'responding to request {request["id"]}: {result}')
+        request_copy = request.copy()
+        request_copy.pop('message')
+        response = {
+            'request': request_copy,
+            'result': result,
+            'state': int(self.i_pod.__dict__["state_last_updated"] * 1000),
+            'pod': self.i_pod.__dict__
+        }
+        self.publisher.publish(self.publish_path, json.dumps(response).encode('UTF-8'))
+
+    def perform_request(self, req):
+        self.logger.debug(f"performing request {req}")
+        req_type = req["type"]
+
+        if req_type == "last_status":
+            return
+        elif req_type == "update_status":
+            self.i_pdm.update_status()
+        elif req_type == "bolus":
+            rp = req["parameters"]
+            bolus_amount = ticks_to_decimal(int(rp["ticks"]))
+            bolus_tick_interval = int(rp["interval"])
+            self.i_pdm.bolus(bolus_amount, bolus_tick_interval)
+        elif req_type == "temp_basal":
+            rp = req["parameters"]
+            basal_rate = ticks_to_decimal(int(rp["ticks"]))
+            basal_duration = seconds_to_hours(int(rp["duration"]))
+            self.i_pdm.set_temp_basal(basal_rate, basal_duration)
+        else:
+            raise InvalidOperation
+
+
+def _exit_with_grace(operator: MqOperator):
+    operator.exit_event.set()
+    operator.stop_event.wait()
 
 
 if __name__ == '__main__':
-    while True:
+    exited = False
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/pi/omnipy/google-settings.json"
+    while not exited:
         operator = MqOperator()
-        loop = asyncio.get_event_loop()
         try:
-            loop.run_until_complete(operator.run())
+            signal.signal(signal.SIGTERM, lambda a, b: _exit_with_grace(operator))
+            operator.run()
+            exited = True
         except Exception as e:
-            print("force stopping async io loop due error: %s" % e)
-        finally:
-            loop.run_until_complete(loop.shutdown_asyncgens())
-            loop.close()
+            print(f'error while running operator\n{e}')
+            operator.exit_event.set()
+            operator.stop_event.wait()
+            time.sleep(10)
