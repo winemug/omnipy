@@ -41,10 +41,12 @@ class MqOperator(object):
         self.clock_updated = time.time()
         self.next_pdm_run = time.time()
 
+        self.msg_to_send = []
+
     async def run(self):
+        self.ntp_update()
         self.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
         self.i_pdm = Pdm(self.i_pod)
-
         self.i_pdm.start_radio()
         #time.sleep(10)
         not_yet_connected = True
@@ -62,9 +64,8 @@ class MqOperator(object):
         while True:
             try:
                 await self.mqtt_client.connect(f'mqtts://{self.settings["mqtt_host"]}:{self.settings["mqtt_port"]}'
-                                               , cleansession=not_yet_connected)
+                                               ,cleansession=not_yet_connected)
                 not_yet_connected = False
-                self.ntp_update()
                 await self.mqtt_client.subscribe([
                     (self.settings['mqtt_command_topic'], QOS_1),
                     (self.settings['mqtt_sync_request_topic'], QOS_1),
@@ -78,7 +79,10 @@ class MqOperator(object):
                     else:
                         while True:
                             try:
+                                await self.try_send_messages()
                                 message = await self.mqtt_client.deliver_message(timeout=5)
+                                if message is None:
+                                    break
                                 packet = message.publish_packet
                                 topic = packet.variable_header.topic_name
                                 payload = packet.payload.data.decode()
@@ -94,25 +98,28 @@ class MqOperator(object):
         try:
             if topic == self.settings["mqtt_command_topic"]:
                 cmd_split = message.split(' ')
-                if cmd_split[0] == "temp":
+                if cmd_split[0] == "temp" or cmd_split[0] == "t":
                     temp_rate = self.fix_decimal(cmd_split[1])
                     temp_duration = None
                     if len(cmd_split) > 2:
                         temp_duration = self.fix_decimal(cmd_split[2])
                     await self.set_insulin_rate(temp_rate, temp_duration)
                     self.next_pdm_run = time.time()
-                elif cmd_split[0] == "bolus":
+                elif cmd_split[0] == "bolus" or cmd_split[0] == "b":
                     pulse_interval = None
                     bolus = self.fix_decimal(cmd_split[1])
                     if len(cmd_split) > 2:
                         pulse_interval = int(cmd_split[2])
                     await self.set_insulin_bolus(bolus, pulse_interval)
                     self.next_pdm_run = time.time()
-                elif cmd_split[0] == "status":
+                elif cmd_split[0] == "status" or cmd_split[0] == "s":
                     self.next_pdm_run = time.time()
-                elif cmd_split[0] == "reboot":
+                elif cmd_split[0] == "reboot" or cmd_split[0] == "r":
                     await self.send_msg("sir yes sir")
                     os.system('sudo shutdown -r now')
+                # elif cmd_split[0] == "halt" or cmd_split[0] == "h":
+                #     await self.send_msg("sir bye sir")
+                #     os.system('sudo shutdown -h now')
                 else:
                     await self.send_msg("lol what?")
             elif topic == self.settings["mqtt_sync_request_topic"]:
@@ -255,21 +262,34 @@ class MqOperator(object):
         msg = pod.GetString()
         if pod.pod_id is None:
             return
-        try:
-            await self.mqtt_client.publish(self.settings["mqtt_json_topic"],
-                                bytearray(msg, encoding='ascii'), QOS_1)
-            await self.mqtt_client.publish(self.settings["mqtt_status_topic"],
-                                      bytearray(msg, encoding='ascii'), QOS_1, retain=True)
-        except:
-            pass
+        self.msg_to_send.append((self.settings["mqtt_json_topic"],
+                            bytearray(msg, encoding='ascii'), False))
+
+        self.msg_to_send.append((self.settings["mqtt_status_topic"],
+                            bytearray(msg, encoding='ascii'), True))
+
+        await self.try_send_messages()
 
     async def send_msg(self, msg):
         self.logger.info(msg)
-        try:
-            await self.mqtt_client.publish(self.settings["mqtt_response_topic"],
-                                bytearray(msg, encoding='ascii'), QOS_1)
-        except:
-            pass
+        self.msg_to_send.append((self.settings["mqtt_response_topic"],
+                                 bytearray(msg, encoding='ascii'), True))
+        await self.try_send_messages()
+
+    async def try_send_messages(self):
+        while len(self.msg_to_send) > 0:
+            try:
+                topic, msg, retain = self.msg_to_send[0]
+                self.mqtt_client.publish(topic,
+                                               msg,
+                                               retain=retain,
+                                               qos=QOS_1)
+                if len(self.msg_to_send) > 1:
+                    self.msg_to_send = self.msg_to_send[1:-1]
+                else:
+                    self.msg_to_send = []
+            except:
+                break
 
     def ntp_update(self):
         if self.clock_updated is not None:
@@ -341,4 +361,4 @@ if __name__ == '__main__':
             print("force stopping async io loop due error: %s" % e)
         finally:
             loop.run_until_complete(loop.shutdown_asyncgens())
-            #loop.close()
+            loop.close()
