@@ -279,6 +279,8 @@ class MqOperator(object):
             basal_rate = ticks_to_decimal(int(rp["ticks"]))
             basal_duration = seconds_to_hours(int(rp["duration"]))
             self.i_pdm.set_temp_basal(basal_rate, basal_duration)
+        elif req_type == "cancel_temp_basal":
+            self.i_pdm.cancel_temp_basal()
         elif req_type == "deactivate":
             self.i_pdm.deactivate_pod()
         elif req_type == "update_time":
