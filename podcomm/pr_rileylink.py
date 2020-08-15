@@ -1,5 +1,4 @@
 import re
-import subprocess
 import struct
 import time
 from .packet_radio import PacketRadio, TxPower
@@ -8,7 +7,7 @@ from enum import IntEnum
 from threading import Event
 from .exceptions import PacketRadioError
 from .manchester import ManchesterCodec
-
+import simplejson as json
 from bluepy.btle import Peripheral, Scanner, BTLEException
 
 XGATT_BATTERYSERVICE_UUID = "180f"
@@ -40,57 +39,69 @@ class Response(IntEnum):
     COMMAND_INTERRUPTED = 0xbb
     COMMAND_SUCCESS = 0xdd
 
-
-class Register(IntEnum):
-    SYNC1 = 0x00
-    SYNC0 = 0x01
-    PKTLEN = 0x02
-    PKTCTRL1 = 0x03
-    PKTCTRL0 = 0x04
-    FSCTRL0 = 0x08
-    FSCTRL1 = 0x07
-    FREQ2 = 0x09
-    FREQ1 = 0x0a
-    FREQ0 = 0x0b
-    MDMCFG4 = 0x0c
-    MDMCFG3 = 0x0d
-    MDMCFG2 = 0x0e
-    MDMCFG1 = 0x0f
-    MDMCFG0 = 0x10
-    DEVIATN = 0x11
-    MCSM0 = 0x14
-    MCSM1 = 0x13
-    MCSM2 = 0x12
-    FOCCFG = 0x15
-    AGCCTRL2 = 0x17
-    AGCCTRL1 = 0x18
-    AGCCTRL0 = 0x19
-    FREND1 = 0x1a
-    FREND0 = 0x1b
-    FSCAL3 = 0x1c
-    FSCAL2 = 0x1d
-    FSCAL1 = 0x1e
-    FSCAL0 = 0x1f
-    TEST1 = 0x24
-    TEST0 = 0x25
-    PATABLE0 = 0x2e
-
+def get_fw_reg_id(reg: str) -> int:
+    reg_dict = {
+    "SYNC1": 0,
+    "SYNC0": 1,
+    "PKTLEN": 2,
+    "PKTCTRL1": 3,
+    "PKTCTRL0": 4,
+    "ADDR": 5,
+    "CHANNR": 6,
+    "FSCTRL1": 7,
+    "FSCTRL0": 8,
+    "FREQ2": 9,
+    "FREQ1": 10,
+    "FREQ0": 11,
+    "MDMCFG4": 12,
+    "MDMCFG3": 13,
+    "MDMCFG2": 14,
+    "MDMCFG1": 15,
+    "MDMCFG0": 16,
+    "DEVIATN": 17,
+    "MCSM2": 18,
+    "MCSM1": 19,
+    "MCSM0": 20,
+    "FOCCFG": 21,
+    "BSCFG": 22,
+    "AGCCTRL2": 23,
+    "AGCCTRL1": 24,
+    "AGCCTRL0": 25,
+    "FREND1": 26,
+    "FREND0": 27,
+    "FSCAL3": 28,
+    "FSCAL2": 29,
+    "FSCAL1": 30,
+    "FSCAL0": 31,
+    "TEST2": None,
+    "TEST1": 36,
+    "TEST0": 37,
+    "PA_TABLE7": None,
+    "PA_TABLE6": None,
+    "PA_TABLE5": None,
+    "PA_TABLE4": None,
+    "PA_TABLE3": None,
+    "PA_TABLE2": None,
+    "PA_TABLE1": None,
+    "PA_TABLE0": 46
+    }
+    return reg_dict[reg]
 
 class Encoding(IntEnum):
     NONE = 0
     MANCHESTER = 1
     FOURBSIXB = 2
 
-
-PA_LEVELS = [
-                 0x0E,
-                 0x1D,
-                 0x34, 0x34,
-                 0x2C, 0x2C, 0x2C,
-                 0x60, 0x60, 0x60, 0x60, 0x60, 0x60,
-                 0x84, 0x84, 0x84, 0x84, 0x84, 0x84,
-                 0xC8, 0xC8, 0xC8
-             ]
+# 0xC0 +10
+# 0xC8 +7
+# 0x84 +5
+# 0x60 0
+# 0x62 -1
+# 0x2C -5
+# 0x34 -10
+# 0x1D -15
+# 0x0E -20
+# 0x12 -30
 
 g_rl_address = None
 g_rl_version = None
@@ -100,7 +111,6 @@ g_rl_v_minor = None
 class RileyLink(PacketRadio):
     def __init__(self):
         self.peripheral = None
-        self.pa_level_index = PA_LEVELS.index(0x84)
         self.data_handle = None
         self.logger = getLogger()
         self.packet_logger = get_packet_logger()
@@ -262,9 +272,9 @@ class RileyLink(PacketRadio):
 
             if not force_init:
                 if v_major == 2 and v_minor < 3:
-                    response = self._command(Command.READ_REGISTER, bytes([Register.PKTLEN, 0x00]))
+                    response = self._command(Command.READ_REGISTER, bytes([get_fw_reg_id("PKTLEN"), 0x00]))
                 else:
-                    response = self._command(Command.READ_REGISTER, bytes([Register.PKTLEN]))
+                    response = self._command(Command.READ_REGISTER, bytes([get_fw_reg_id("PKTLEN")]))
                     if response is not None and len(response) > 0 and response[0] == 0x50:
                         self.initialized = True
                         return
@@ -273,114 +283,28 @@ class RileyLink(PacketRadio):
             self._command(Command.SET_SW_ENCODING, bytes([Encoding.NONE]))
             self._command(Command.SET_PREAMBLE, bytes([0x66, 0x65]))
 
-            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
+            with open("/home/pi/omnipy/cc1110.json", "r") as ocj:
+                js = json.load(ocj)
 
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTLEN, 0x50]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL1, 0x20]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL0, 0x00]))
+            common_regs = js['common']
+            for reg in common_regs:
+                self._command(Command.UPDATE_REGISTER, bytes([get_fw_reg_id(reg), int(common_regs[reg], base=16)]))
 
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL1, 0x0F]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL0, 0x00]))
+            tx = js['tx']
+            tx_mode = [0x01]
+            for reg in tx:
+                tx_mode.append(get_fw_reg_id(reg))
+                tx_mode.append(int(tx[reg], base=16))
+            tx_mode = bytes(tx_mode)
+            self._command(Command.SET_MODE_REGISTERS, tx_mode)
 
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, 0x12]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ1, 0x14]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, 0x66]))
-
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG4, 0xCA]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG3, 0xBC])) #AE #BC
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG2, 0x02])) #02 #06
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG1, 0x40])) #40 #70
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG0, 0x11]))
-
-            self._command(Command.UPDATE_REGISTER, bytes([Register.DEVIATN, 0x54]))
-
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM2, 0x07]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM1, 0x30]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM0, 0x19]))
-
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FOCCFG, 0x17]))
-
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x00]))
-
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL3, 0xEA]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL2, 0x2A]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL1, 0x00]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))
-
-            #self._command(Command.UPDATE_REGISTER, bytes([Register.TEST2, 0x81]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 0x35]))
-            self._command(Command.UPDATE_REGISTER, bytes([Register.TEST0, 0x09]))
-
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
-
-# -----------------------------------
-# -----------------------------------
-# -----------------------------------
-            tx_mode = bytes([0x01,
-                             Register.SYNC1, 0xA5,
-                             Register.SYNC0, 0x5A,
-#                             Register.PKTLEN, 0x50,
-                             Register.PKTCTRL1, 0x20,
-                             Register.PKTCTRL0, 0x00,
-                             Register.FSCTRL1, 0x1E,
-                             Register.FSCTRL0, 0x00,
-                             Register.FREQ2, 0x12,
-                             Register.FREQ1, 0x14,
-                             Register.FREQ0, 0x66,
-                             Register.MDMCFG4, 0x3A,
-                             Register.MDMCFG3, 0xBC,
-                             Register.MDMCFG2, 0x12,
-                             Register.MDMCFG1, 0x43,
-                             Register.MDMCFG0, 0x46,
-                             Register.DEVIATN, 0x50,
-                             Register.MCSM2, 0x07,
-                             Register.MCSM1, 0x30,
-                             Register.MCSM0, 0x19,
-                             Register.FOCCFG, 0x17,
-                             Register.FREND0, 0x00,
-                             Register.FSCAL3, 0xE9,
-                             Register.FSCAL2, 0x2A,
-                             Register.FSCAL1, 0x00,
-                             Register.FSCAL0, 0x1F,
-                             Register.TEST1, 0x31,
-                             Register.TEST0, 0x09,
-                             Register.PATABLE0, 0x84
-                             ])
-
-            rx_mode = bytes([0x02,
-                             Register.SYNC1, 0xA5,
-                             Register.SYNC0, 0x5A,
- #                            Register.PKTLEN, 0x50,
-                             Register.PKTCTRL1, 0x20,
-                             Register.PKTCTRL0, 0x00,
-                             Register.FSCTRL1, 0x1E,
-                             Register.FSCTRL0, 0x00,
-                             Register.FREQ2, 0x12,
-                             Register.FREQ1, 0x14,
-                             Register.FREQ0, 0x66,
-                             Register.MDMCFG4, 0x3A,
-                             Register.MDMCFG3, 0xBC,
-                             Register.MDMCFG2, 0x12,
-                             Register.MDMCFG1, 0x43,
-                             Register.MDMCFG0, 0x46,
-                             Register.DEVIATN, 0x50,
-                             Register.MCSM2, 0x07,
-                             Register.MCSM1, 0x30,
-                             Register.MCSM0, 0x19,
-                             Register.FOCCFG, 0x17,
-                             Register.FREND0, 0x00,
-                             Register.FSCAL3, 0xE9,
-                             Register.FSCAL2, 0x2A,
-                             Register.FSCAL1, 0x00,
-                             Register.FSCAL0, 0x1F,
-                             Register.TEST1, 0x31,
-                             Register.TEST0, 0x09,
-                             Register.PATABLE0, 0x84
-                             ])
-
-            # self._command(Command.SET_MODE_REGISTERS, tx_mode)
-            # self._command(Command.SET_MODE_REGISTERS, rx_mode)
+            rx = js['rx']
+            rx_mode = [0x02]
+            for reg in rx:
+                rx_mode.append(get_fw_reg_id(reg))
+                rx_mode.append(int(rx[reg], base=16))
+            rx_mode = bytes(rx_mode)
+            self._command(Command.SET_MODE_REGISTERS, rx_mode)
 
             response = self._command(Command.GET_STATE)
             if response != b"OK":
@@ -391,43 +315,30 @@ class RileyLink(PacketRadio):
         except Exception as e:
             raise PacketRadioError("Error while initializing rileylink radio: %s", e)
 
+    # def set_f(self, cf, ifb, of):
+    #     self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, cf >> 16 & 0xFF]))
+    #     self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ1, cf >> 8 & 0xFF]))
+    #     self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, cf & 0xFF]))
+    #     self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL1, ifb]))
+    #     self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL0, of & 0xFF]))
+    #     self.freq_c = cf
+    #     self.freq_if = ifb
+    #     self.freq_of = of
+    #     e_cf = cf*366.2109375
+    #     e_ifb = ifb*23437.5
+    #     e_of = of*1464.84375
+    #     e_rx = e_cf + e_ifb + e_of
+    #     self.logger.debug(f"Setting cf: {cf}, if: {ifb}, of: {of}")
+    #     self.logger.debug(f"Parameters TX: {e_cf:.0f} RX: {e_rx:.0f} (IF: {e_ifb:.0f} OF: {e_of:.0f})")
+
     def tx_up(self):
-        return
-        try:
-            if self.pa_level_index < len(PA_LEVELS) - 1:
-                self.pa_level_index += 1
-                self._set_amp(self.pa_level_index)
-        except Exception as e:
-            raise PacketRadioError("Error while setting tx up") from e
+        pass
 
     def tx_down(self):
-        return
-        try:
-            if self.pa_level_index > 0:
-                self.pa_level_index -= 1
-                self._set_amp(self.pa_level_index)
-        except Exception as e:
-            raise PacketRadioError("Error while setting tx down") from e
+        pass
 
     def set_tx_power(self, tx_power):
-        return
-        try:
-            if tx_power is None:
-                return
-            elif tx_power == TxPower.Lowest:
-                self._set_amp(0x1D)
-            elif tx_power == TxPower.Low:
-                self._set_amp(PA_LEVELS.index(0x34))
-            elif tx_power == TxPower.Lower:
-                self._set_amp(PA_LEVELS.index(0x2C))
-            elif tx_power == TxPower.Normal:
-                self._set_amp(PA_LEVELS.index(0x60))
-            elif tx_power == TxPower.High:
-                self._set_amp(PA_LEVELS.index(0x84))
-            elif tx_power == TxPower.Highest:
-                self._set_amp(PA_LEVELS.index(0xC8))
-        except Exception as e:
-            raise PacketRadioError("Error while setting tx level") from e
+        pass
 
     def get_packet(self, timeout=5.0):
         try:
@@ -475,19 +386,7 @@ class RileyLink(PacketRadio):
             raise PacketRadioError("Error while sending data") from e
 
     def _set_amp(self, index=None):
-        try:
-            if index is not None:
-                previous_level = self.pa_level_index
-                self.pa_level_index = index
-                if PA_LEVELS[previous_level] == PA_LEVELS[index]:
-                    return
-            self.connect()
-            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, PA_LEVELS[self.pa_level_index]]))
-            self.packet_logger.debug("Setting pa to %02X (%d of %d)" % (PA_LEVELS[self.pa_level_index], self.pa_level_index, len(PA_LEVELS)))
-        except PacketRadioError:
-            self.logger.exception("Error while setting tx amplification")
-            raise
-
+        pass
 
     def _findRileyLink(self):
         global g_rl_address
