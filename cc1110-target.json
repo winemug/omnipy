@@ -1,0 +1,48 @@
+{
+  "common": 
+  {
+    "SYNC1": "0xD3",
+    "SYNC0": "0x91",
+    "PKTLEN": "0x28",
+    "PKTCTRL1": "0x20",
+    "PKTCTRL0": "0x00",
+    "ADDR": "0x00",
+    "CHANNR": "0x00",
+    "FSCTRL1": "0x0F",
+    "FSCTRL0": "0x00",
+    "FREQ2": "0x12",
+    "FREQ1": "0x14",
+    "FREQ0": "0x60",
+    "MDMCFG4": "0xFA",
+    "MDMCFG3": "0xB9",
+    "MDMCFG2": "0x12",
+    "MDMCFG1": "0x41",
+    "MDMCFG0": "0xF0",
+    "DEVIATN": "0x36",
+    "MCSM2": "0x07",
+    "MCSM1": "0x30",
+    "MCSM0": "0x19",
+    "FOCCFG": "0x17",
+    "BSCFG": "0x6C",
+    "AGCCTRL2": "0x43",
+    "AGCCTRL1": "0x40",
+    "AGCCTRL0": "0x91",
+    "FREND1": "0x56",
+    "FREND0": "0x10",
+    "FSCAL3": "0xE9",
+    "FSCAL2": "0x2A",
+    "FSCAL1": "0x00",
+    "FSCAL0": "0x1F",
+    "TEST1": "0x31",
+    "TEST0": "0x09",
+    "PA_TABLE0": "0x60"
+  },
+  "rx": 
+  {
+    
+  },
+  "tx": 
+  {
+    
+  }
+}

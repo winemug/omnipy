@@ -1,20 +1,69 @@
 #!/home/pi/v/bin/python3
-
-import glob
-import sqlite3
+import requests
 import time
-from podcomm.pdm import Pdm, PdmLock
-from podcomm.pod import Pod
-from podcomm.pr_rileylink import RileyLink
-from podcomm.definitions import *
-from logging import FileHandler
-import simplejson as json
-from threading import Thread
 import signal
-import base64
+import sys
+from threading import Event, Lock
+from google.api_core.exceptions import AlreadyExists, DeadlineExceeded
+from google.cloud import pubsub_v1
+from google.cloud.pubsub_v1.proto.pubsub_pb2 import PubsubMessage, ReceivedMessage
+
+from omnipy_messenger import OmniPyMessengerClient
+from podcomm.pdm import Pdm
+from podcomm.pod import Pod
+from podcomm.definitions import *
+import simplejson as json
 from decimal import *
-from threading import Lock, Event
-import paho.mqtt.client as mqtt
+
+
+def get_now():
+    return int(time.time() * 1000)
+
+
+def get_ticks(d: Decimal) -> int:
+    return int(round(d / Decimal("0.05")))
+
+
+def ticks_to_decimal(ticks: int) -> Decimal:
+    return Decimal("0.05") * ticks
+
+
+def seconds_to_hours(minutes: int) -> Decimal:
+    return Decimal(minutes) / Decimal("3600")
+
+
+def is_expired(req):
+    if "expiration" in req and req["expiration"] is not None:
+        expiration = int(req["expiration"])
+        if get_now() > expiration:
+            return True
+    return False
+
+
+def status_match(req, pod):
+    if "pod_updated" in req and req["pod_updated"] is not None:
+        return req["pod_updated"] == int(pod["state_last_updated"] * 1000)
+
+
+def get_json(message_data):
+    return json.loads(bytes.decode(message_data, encoding='UTF-8'))
+
+
+def ntp_update():
+    os.system('sudo systemctl stop ntp')
+    try:
+        if os.system('sudo ntpd -gq') != 0:
+            raise OSError()
+    finally:
+        os.system('sudo systemctl start ntp')
+
+
+def restart():
+    os.system('shutdown -r now')
+
+
+def shutdown():
+    os.system('shutdown -h now')
 
 
 class MqOperator(object):
@@ -26,334 +75,262 @@ class MqOperator(object):
 
         with open("settings.json", "r") as stream:
             self.settings = json.load(stream)
-        self.client = mqtt.Client(client_id=self.settings["mqtt_clientid"], protocol=mqtt.MQTTv311)
-        self.client.on_connect = self.on_connect
-        self.client.on_disconnect = self.on_disconnect
-        self.client.on_message = self.on_message
-        self.client.tls_set(ca_certs="/etc/ssl/certs/DST_Root_CA_X3.pem")
-        self.i_pdm = None
-        self.i_pod = None
-        self.g_pdm = None
-        self.g_pod = None
 
-        self.decimal_zero = Decimal("0")
-        self.i_rate_requested = None
-        self.i_rate_duration_requested = None
-        self.i_bolus_requested = self.decimal_zero
-        self.g_rate_requested = None
-        self.g_bolus_requested = self.decimal_zero
-        self.pod_request_lock = Lock()
-        self.pod_check_event = Event()
+        self.i_pdm: Pdm = None
+        self.i_pod: Pod = None
+        self.g_pdm: Pdm = None
+        self.g_pod: Pod = None
 
-        self.started = time.time()
-        self.insulin_max_bolus_at_once = Decimal("20.00")
-        self.insulin_bolus_interval = 180
         self.insulin_bolus_pulse_interval = 4
+        self.next_pdm_run = time.time()
 
-        self.insulin_long_temp_rate_threshold = Decimal("1.6")
-        self.insulin_long_temp_duration = Decimal("3.0")
-        self.insulin_short_temp_duration = Decimal("1.0")
+        self.exit_event = Event()
+        self.stop_event = Event()
+        self.requests = []
+        self.executed_req_ids = []
+        self.omc: OmniPyMessengerClient = None
 
-        self.glucagon_long_temp_rate_threshold = Decimal("4.0")
-        self.glucagon_long_temp_duration = Decimal("6.0")
-        self.glucagon_short_temp_duration = Decimal("1.0")
-        self.dry_run = False
-        self.clock_updated = None
+        self.clock_updated = False
 
     def run(self):
-        self.ntp_update()
-        t = Thread(target=self.pdm_loop)
+        t = threading.Thread(target=self.main)
         t.start()
+        t.join()
+
+    def main(self):
         time.sleep(5)
-
-        connected = False
-        while not connected:
-            try:
-                self.client.connect(self.settings["mqtt_host"],
-                                    self.settings["mqtt_port"], clean_start=mqtt.MQTT_CLEAN_START_FIRST_ONLY)
-                connected = True
-            except:
-                time.sleep(30)
-
-        self.client.loop_forever(retry_first_connection=True)
-
-    def on_connect(self, client: mqtt.Client, userdata, flags, rc):
-        self.send_msg("Well hello there")
-        client.subscribe(self.settings["mqtt_command_topic"], qos=2)
-        client.subscribe(self.settings["mqtt_sync_request_topic"], qos=1)
-        self.ntp_update()
-
-    def on_message(self, client, userdata, message: mqtt.MQTTMessage):
         try:
-            cmd_str = message.payload.decode()
-            if message.topic == self.settings["mqtt_command_topic"]:
-                cmd_split = cmd_str.split(' ')
-                if cmd_split[0] == "temp":
-                    temp_rate = self.fix_decimal(cmd_split[1])
-                    temp_duration = None
-                    if len(cmd_split) > 2:
-                        temp_duration = self.fix_decimal(cmd_split[2])
-                    self.set_insulin_rate(temp_rate, temp_duration)
-                elif cmd_split[0] == "bolus":
-                    pulse_interval = None
-                    bolus = self.fix_decimal(cmd_split[1])
-                    if len(cmd_split) > 2:
-                        pulse_interval = int(cmd_split[2])
-                    self.set_insulin_bolus(bolus, pulse_interval)
-                elif cmd_split[0] == "status":
-                    self.pod_check_event.set()
-                elif cmd_split[0] == "reboot":
-                    self.send_msg("sir yes sir")
-                    os.system('sudo shutdown -r now')
-                else:
-                    self.send_msg("lol what?")
-            elif message.topic == self.settings["mqtt_sync_request_topic"]:
-                if cmd_str == "latest":
-                    self.send_result(self.i_pod)
-                else:
-                    spl = cmd_str.split(' ')
-                    pod_id = spl[0]
-                    req_ids = spl[1:]
-                    self.fill_request(pod_id, req_ids)
-        except:
-            self.send_msg("that didn't seem right")
-
-    def on_disconnect(self, client, userdata, rc):
-        self.logger.info("Disconnected from mqtt server")
-
-    def set_insulin_rate(self, rate: Decimal, duration_hours: Decimal):
-        if duration_hours is None:
-            self.send_msg("Rate request: Insulin %02.2fU/h" % rate)
-        else:
-            self.send_msg("Rate request: Insulin {:02.2f}U/h Duration: {:02.2f}h".format(rate, duration_hours))
-        with self.pod_request_lock:
-            self.i_rate_requested = rate
-            self.i_rate_duration_requested = duration_hours
-        self.send_msg("Rate request submitted")
-        self.pod_check_event.set()
-
-    def set_insulin_bolus(self, bolus: Decimal, pulse_interval: int):
-        self.send_msg("Bolus request: Insulin %02.2fU" % bolus)
-        with self.pod_request_lock:
-            previous = self.i_bolus_requested
-            self.i_bolus_requested = bolus
-            if pulse_interval is not None:
-                self.send_msg("Pulse interval set: %d" % pulse_interval)
-                self.insulin_bolus_pulse_interval = pulse_interval
-        if previous > self.decimal_zero:
-            self.send_msg("Warning: %03.2fU bolus remains undelivered from previous requested" % previous)
-        self.send_msg("Bolus request submitted")
-        self.pod_check_event.set()
-
-    def pdm_loop(self):
-        self.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
-        self.i_pdm = Pdm(self.i_pod)
-
-        if not self.dry_run:
+            self.omc = OmniPyMessengerClient('/home/pi/omnipy/data/messenger.db')
+            self.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
+            self.i_pdm = Pdm(self.i_pod)
             self.i_pdm.start_radio()
-        time.sleep(2)
 
-        try:
-            self.pdm_loop_main()
-        except:
-            os.system('sudo shutdown -r now')
+            while True:
+                time.sleep(3)
+                self.pull_messages()
+                if self.exit_event.is_set():
+                    break
+                self.process_requests()
 
-    def pdm_loop_main(self):
-        check_wait = 1
+        except Exception:
+            raise
+        finally:
+            self.stop_event.set()
+
+    def pull_messages(self):
+        last_ping = None
         while True:
-            if self.pod_check_event.wait(check_wait):
-                self.pod_check_event.clear()
-                time.sleep(5)
-
-            progress = self.i_pod.state_progress
-
-            if 0 <= progress < 8 or progress == 15:
-                check_wait = 3600
-                continue
-
-            if progress > 9:
-                self.send_msg("deactivating pod")
+            time.sleep(3)
+            messages = self.omc.get_messages()
+            if self.exit_event.is_set():
+                break
+            for message in messages:
+                self.process_message(message)
+                if self.exit_event.is_set():
+                    break
+            self.process_requests()
+            if last_ping is None or last_ping + 300 < time.time():
                 try:
-                    if not self.dry_run:
-                        self.i_pdm.deactivate_pod()
-                    self.send_msg("all is well, all is good")
-                    check_wait = 3600
+                    requests.get("https://hc-ping.com/0a575069-cdf8-417b-abad-bb9d32acd5ea", timeout=10)
+                    last_ping = time.time()
                 except:
-                    self.send_msg("deactivation failed")
-                    check_wait = 1
-                finally:
-                    self.send_result(self.i_pod)
+                    pass
+
+    def process_message(self, message: {}):
+        try:
+            new_request = get_json(message['message'])
+            new_request['req_msg_id'] = message['id']
+            new_request['req_msg_publish_time'] = message['publish_time']
+
+            if new_request['req_msg_id'] in self.executed_req_ids\
+                    or new_request['id'] in [r['id'] for r in self.requests]:
+                self.omc.mark_as_read(message['id'])
+            else:
+                self.logger.debug(f'new request received, type: {new_request["type"]}, id: {new_request["id"]}')
+                self.requests.append(new_request)
+
+        except Exception as e:
+            self.logger.error("Error parsing message in callback", e)
+            self.omc.mark_as_read(message['id'])
+
+    def process_requests(self):
+        while True:
+            self.filter_expired()
+            self.filter_outdated()
+            self.filter_redundant()
+            self.sort_requests()
+
+            if len(self.requests) > 0:
+                req = self.requests[0]
+                self.requests = self.requests[1:]
+                self.executed_req_ids.append(req['id'])
+            else:
+                break
+
+            self.omc.mark_as_read(req["req_msg_id"])
+            try:
+                self.perform_request(req)
+                self.send_response(req, "success")
+            except Exception as e:
+                self.logger.error("Error performing request", e)
+                self.send_response(req, "fail")
+
+    def filter_expired(self):
+        not_expired = []
+        for req in self.requests:
+            if "expiration" in req and req["expiration"] is not None:
+                expiration = int(req["expiration"])
+            else:
+                expiration = int(req["req_msg_publish_time"]) + 90 * 1000
+            if get_now() > expiration:
+                self.omc.mark_as_read(req["req_msg_id"])
+                self.send_response(req, "expired")
+            else:
+                not_expired.append(req)
+        self.requests = not_expired
+
+    def filter_outdated(self):
+        up_to_date = []
+        pod = self.i_pod.__dict__
+        for req in self.requests:
+            if "state" in req and req["state"] is not None:
+                last_state = int(pod["state_last_updated"] * 1000)
+                if req["state"] != last_state:
+                    self.omc.mark_as_read(req["req_msg_id"])
+                    self.send_response(req, "outdated")
+                    continue
+
+            up_to_date.append(req)
+        self.requests = up_to_date
+
+    def filter_redundant(self):
+        non_redundant = []
+        types = {}
+
+        self.requests.sort(key=lambda r: r['req_msg_publish_time'],
+                           reverse=True)
+        for req in self.requests:
+            req_type = req["type"]
+            if req_type in types:
+                self.omc.mark_as_read(req["req_msg_id"])
+                self.send_response(req, "redundant")
                 continue
 
+            non_redundant.append(req)
+            types[req_type] = None
+        self.requests = non_redundant
+
+    def sort_requests(self):
+        for req in self.requests:
+            if "priority" not in req:
+                req["priority"] = -1
+
+        self.requests.sort(key=lambda r: r['priority'], reverse=True)
+
+    def send_response(self, request: dict, result: str):
+        self.logger.debug(f'responding to request {request["id"]}: {result}')
+        request_copy = request.copy()
+        request_copy.pop('req_msg_id')
+        request_copy.pop('req_msg_publish_time')
+        response = {
+            'request': request_copy,
+            'result': result,
+            'state': int(self.i_pod.__dict__["state_last_updated"] * 1000),
+            'pod': self.i_pod.__dict__
+        }
+        self.omc.publish_bin(json.dumps(response).encode('UTF-8'))
+
+    def perform_request(self, req):
+        self.logger.debug(f"performing request {req}")
+        req_type = req["type"]
+
+        if req_type == "last_status":
+            return
+        elif req_type == "update_status":
+            self.i_pdm.update_status(2)
+        elif req_type == "bolus":
+            rp = req["parameters"]
+            bolus_amount = ticks_to_decimal(int(rp["ticks"]))
+            bolus_tick_interval = int(rp["interval"])
+            self.i_pdm.bolus(bolus_amount, bolus_tick_interval)
+        elif req_type == "temp_basal":
+            rp = req["parameters"]
+            basal_rate = ticks_to_decimal(int(rp["ticks"]))
+            basal_duration = seconds_to_hours(int(rp["duration"]))
+            self.i_pdm.set_temp_basal(basal_rate, basal_duration)
+        elif req_type == "cancel_temp_basal":
+            self.i_pdm.cancel_temp_basal()
+        elif req_type == "deactivate":
+            self.i_pdm.deactivate_pod()
+        elif req_type == "update_time":
+            ntp_update()
+        elif req_type == "restart":
+            restart()
+        elif req_type == "shutdown":
+            shutdown()
+        elif req_type == "run":
+            rp = req["parameters"]
+            ret = os.system(rp["command"])
+            if ret != 0:
+                raise InvalidOperation
+        else:
+            raise InvalidOperation
+
+import sys
+import threading
+
+
+def setup_thread_excepthook():
+    """
+    Workaround for `sys.excepthook` thread bug from:
+    http://bugs.python.org/issue1230540
+
+    Call once from the main thread before creating any threads.
+    """
+
+    init_original = threading.Thread.__init__
+
+    def init(self, *args, **kwargs):
+
+        init_original(self, *args, **kwargs)
+        run_original = self.run
+
+        def run_with_except_hook(*args2, **kwargs2):
             try:
-                self.send_msg("checking pod status")
-                if not self.dry_run:
-                    try:
-                        self.i_pdm.update_status()
-                    except:
-                        self.send_msg("failed to get pod status")
-                        check_wait = 60
-                        continue
-                    finally:
-                        self.send_result(self.i_pod)
+                run_original(*args2, **kwargs2)
+            except Exception:
+                sys.excepthook(*sys.exc_info())
 
-                if self.i_pod.state_faulted:
-                    self.send_msg("pod is faulted! oh my")
-                    check_wait = 1
-                    continue
-                self.send_msg("pod reservoir remaining: %02.2fU" % self.i_pod.insulin_reservoir)
+        self.run = run_with_except_hook
 
-                if self.i_pod.insulin_reservoir > 20:
-                    check_wait = 1800
-                elif self.i_pod.insulin_reservoir > 10:
-                    check_wait = 600
-                else:
-                    check_wait = 300
-            except:
-                self.send_msg("couldn't reach pod I guess?")
-                check_wait = 300
-            finally:
-                self.send_result(self.i_pod)
+    threading.Thread.__init__ = init
 
-            with self.pod_request_lock:
-                if self.i_rate_requested is not None:
-                    rate = self.i_rate_requested
-                    duration = self.i_rate_duration_requested
-                    if duration is None:
-                        if rate <= self.insulin_long_temp_rate_threshold:
-                            duration = self.insulin_long_temp_duration
-                        else:
-                            duration = self.insulin_short_temp_duration
 
-                    self.send_msg("setting temp %02.2fU/h for %02.2f hours" % (rate, duration))
-                    try:
-                        if not self.dry_run:
-                            self.i_pdm.set_temp_basal(rate, duration)
-                    except:
-                        self.send_msg("failed to set tb")
-                        check_wait = 1
-                        continue
-                    finally:
-                        self.send_result(self.i_pod)
+def _exit_with_grace(mqo: MqOperator):
+    mqo.exit_event.set()
+    mqo.stop_event.wait(15)
+    exit(0)
 
-                    self.send_msg("temp set")
-                    self.i_rate_requested = None
 
-            time.sleep(5)
-            with self.pod_request_lock:
-                bolus_request = self.i_bolus_requested
-                if bolus_request > self.decimal_zero:
-                    _, last_bolus_time = self.i_pod.get_bolus_total()
-                    time_since_last_bolus = time.time() - last_bolus_time
-                    self.send_msg("Active bolus request of %02.2fU" % bolus_request)
-                    if time_since_last_bolus < self.insulin_bolus_interval:
-                        check_wait = self.insulin_bolus_interval - time_since_last_bolus
-                        self.send_msg("Postponing bolus request for %d seconds" % check_wait)
-                    else:
-                        if bolus_request > self.insulin_max_bolus_at_once:
-                            to_bolus = self.insulin_max_bolus_at_once
-                        else:
-                            to_bolus = bolus_request
+def err_exit(type, value, tb):
+    exit(1)
 
-                        self.send_msg("Bolusing %02.2fU" % to_bolus)
-                        self.i_bolus_requested -= to_bolus
-                        try:
-                            if not self.dry_run:
-                                self.i_pdm.bolus(to_bolus, self.insulin_bolus_pulse_interval)
-                        except:
-                            self.i_bolus_requested += to_bolus
-                            self.send_msg("failed to execute bolus")
-                            check_wait = 1
-                            continue
-                        finally:
-                            self.send_result(self.i_pod)
-
-                        if self.i_bolus_requested > self.decimal_zero:
-                            check_wait = self.insulin_bolus_interval
-                            self.send_msg("donesies, remaining to bolus: %03.2fU" % self.i_bolus_requested)
-                        else:
-                            self.send_msg("bolus is bolus")
-
-    def fix_decimal(self, f):
-        i_ticks = round(float(f) * 20.0)
-        d_val = Decimal(i_ticks) / Decimal("20")
-        return d_val
-
-    def send_result(self, pod):
-        msg = pod.GetString()
-        if pod.pod_id is None:
-            return
-        self.client.publish(self.settings["mqtt_json_topic"],
-                            payload=msg, qos=1)
-        self.client.publish(self.settings["mqtt_status_topic"], payload=msg, qos=1, retain=True)
-
-    def send_msg(self, msg):
-        self.logger.info(msg)
-        self.client.publish(self.settings["mqtt_response_topic"],
-                            payload=msg, qos=1)
-
-    def ntp_update(self):
-        if self.dry_run:
-            return
-
-        if self.clock_updated is not None:
-            if time.time() - self.clock_updated < 3600:
-                return
-
-        self.logger.info("Synchronizing clock with network time")
-        try:
-            os.system('sudo systemctl stop ntp')
-            os.system('sudo ntpd -gq')
-            os.system('sudo systemctl start ntp')
-            self.logger.info("update successful")
-            self.clock_updated = time.time()
-        except:
-            self.logger.info("update failed")
-
-    def fill_request(self, pod_id, req_ids):
-        db_path = self.find_db_path(pod_id)
-        if db_path is None:
-            self.send_msg("but I can't?")
-            return
-
-        with sqlite3.connect(db_path) as conn:
-            for req_id in req_ids:
-                req_id = int(req_id)
-                cursor = conn.execute("SELECT rowid, timestamp, pod_json FROM pod_history WHERE rowid = " + str(req_id))
-                row = cursor.fetchone()
-                if row is not None:
-                    js = json.loads(row[2])
-                    js["pod_id"] = pod_id
-                    js["last_command_db_id"] = row[0]
-                    js["last_command_db_ts"] = row[1]
-
-                    self.client.publish(self.settings["mqtt_json_topic"],
-                                        payload=json.dumps(js), qos=0)
-                cursor.close()
-
-    def find_db_path(self, pod_id):
-        self.i_pod._fix_pod_id()
-        if self.i_pod.pod_id == pod_id:
-            return "/home/pi/omnipy/data/pod.db"
-
-        found_db_path=None
-        for db_path in glob.glob("/home/pi/omnipy/data/*.db"):
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.execute("SELECT pod_json FROM pod_history WHERE pod_state > 0 LIMIT 1")
-                row = cursor.fetchone()
-                if row is not None:
-                    js = json.loads(row[0])
-                    if "pod_id" not in js or js["pod_id"] is None:
-                        found_id = "L" + str(js["id_lot"]) + "T" + str(js["id_t"])
-                    else:
-                        found_id = js["pod_id"]
-
-                    if found_id == pod_id:
-                        found_db_path = db_path
-                        break
-            cursor.close()
-        return found_db_path
 
 if __name__ == '__main__':
+    setup_thread_excepthook()
+    sys.excepthook = err_exit
+    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/pi/omnipy/google-settings.json"
     operator = MqOperator()
-    operator.run()
+    try:
+        signal.signal(signal.SIGTERM, lambda a, b: _exit_with_grace(operator))
+        signal.signal(signal.SIGABRT, lambda a, b: _exit_with_grace(operator))
+        operator.run()
+    except KeyboardInterrupt:
+        operator.exit_event.set()
+        operator.stop_event.wait()
+        exit(0)
+    except Exception as e:
+        print(f'error while running operator\n{e}')
+        operator.exit_event.set()
+        operator.stop_event.wait(15)
+        exit(1)

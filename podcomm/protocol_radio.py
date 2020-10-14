@@ -264,6 +264,7 @@ class PdmRadio:
                     if self.debug_cut_msg_after is None or self.debug_cut_msg_after != part:
                         received = self._exchange_packets(packet.with_sequence(self.packet_sequence),
                                                           expected_type=expected_type,
+                                                          force_extend_preamble=part == 0,
                                                           timeout=timeout)
                         break
                     else:
@@ -366,8 +367,8 @@ class PdmRadio:
         self.packet_sequence = (received.sequence + 1) % 32
         return pod_response
 
-    def _send_get(self, send_data):
-        if self.last_sync_timestamp is None or time.time() - self.last_sync_timestamp > 5:
+    def _send_get(self, send_data, force_ext_preamble=False):
+        if force_ext_preamble or self.last_sync_timestamp is None or time.time() - self.last_sync_timestamp > 5:
             received = self._send_get_with_ext(send_data)
         else:
             received = self._send_get_no_ext(send_data)
@@ -380,16 +381,12 @@ class PdmRadio:
         return received
 
     def _send_get_with_ext(self, send_data):
-        received = self.packet_radio.send_and_receive_packet(send_data, 0, 0, 150, 4, 150)
-        if received is None:
-            return self._send_get_no_ext(send_data)
-        return received
+        return self.packet_radio.send_and_receive_packet(send_data, 0, 0, 150, 10, 150)
 
     def _send_get_no_ext(self, send_data):
         return self.packet_radio.send_and_receive_packet(send_data, 5, 15, 145, 2, 5)
 
-    def _exchange_packets(self, packet_to_send, expected_type, timeout=30):
-        #self.packet_radio.channel += 1
+    def _exchange_packets(self, packet_to_send, expected_type, force_extend_preamble=False, timeout=30):
         start_time = None
         first = True
         while start_time is None or time.time() - start_time < timeout:
@@ -398,7 +395,7 @@ class PdmRadio:
             else:
                 self.current_exchange.repeated_sends += 1
 
-            received = self._send_get(packet_to_send.get_data())
+            received = self._send_get(packet_to_send.get_data(), force_extend_preamble)
 
             if start_time is None:
                 start_time = time.time()

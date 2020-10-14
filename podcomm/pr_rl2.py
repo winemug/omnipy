@@ -1,4 +1,5 @@
-import re
+pr_rileylink.pyimport re
+import subprocess
 import struct
 import time
 from .packet_radio import PacketRadio, TxPower
@@ -7,7 +8,7 @@ from enum import IntEnum
 from threading import Event
 from .exceptions import PacketRadioError
 from .manchester import ManchesterCodec
-import simplejson as json
+
 from bluepy.btle import Peripheral, Scanner, BTLEException
 
 XGATT_BATTERYSERVICE_UUID = "180f"
@@ -39,53 +40,44 @@ class Response(IntEnum):
     COMMAND_INTERRUPTED = 0xbb
     COMMAND_SUCCESS = 0xdd
 
-def get_fw_reg_id(reg: str) -> int:
-    reg_dict = {
-    "SYNC1": 0,
-    "SYNC0": 1,
-    "PKTLEN": 2,
-    "PKTCTRL1": 3,
-    "PKTCTRL0": 4,
-    "ADDR": 5,
-    "CHANNR": 6,
-    "FSCTRL1": 7,
-    "FSCTRL0": 8,
-    "FREQ2": 9,
-    "FREQ1": 10,
-    "FREQ0": 11,
-    "MDMCFG4": 12,
-    "MDMCFG3": 13,
-    "MDMCFG2": 14,
-    "MDMCFG1": 15,
-    "MDMCFG0": 16,
-    "DEVIATN": 17,
-    "MCSM2": 18,
-    "MCSM1": 19,
-    "MCSM0": 20,
-    "FOCCFG": 21,
-    "BSCFG": 22,
-    "AGCCTRL2": 23,
-    "AGCCTRL1": 24,
-    "AGCCTRL0": 25,
-    "FREND1": 26,
-    "FREND0": 27,
-    "FSCAL3": 28,
-    "FSCAL2": 29,
-    "FSCAL1": 30,
-    "FSCAL0": 31,
-    "TEST2": None,
-    "TEST1": 36,
-    "TEST0": 37,
-    "PA_TABLE7": None,
-    "PA_TABLE6": None,
-    "PA_TABLE5": None,
-    "PA_TABLE4": None,
-    "PA_TABLE3": None,
-    "PA_TABLE2": None,
-    "PA_TABLE1": None,
-    "PA_TABLE0": 46
-    }
-    return reg_dict[reg]
+
+class Register(IntEnum):
+    SYNC1 = 0x00
+    SYNC0 = 0x01
+    PKTLEN = 0x02
+    PKTCTRL1 = 0x03
+    PKTCTRL0 = 0x04
+    ADDR = 0x05
+    CHANNR = 0x06
+    FSCTRL1 = 0x07
+    FSCTRL0 = 0x08
+    FREQ2 = 0x09
+    FREQ1 = 0x0a
+    FREQ0 = 0x0b
+    MDMCFG4 = 0x0c
+    MDMCFG3 = 0x0d
+    MDMCFG2 = 0x0e
+    MDMCFG1 = 0x0f
+    MDMCFG0 = 0x10
+    DEVIATN = 0x11
+    MCSM2 = 0x12
+    MCSM1 = 0x13
+    MCSM0 = 0x14
+    FOCCFG = 0x15
+    BSCFG = 0x16
+    AGCCTRL2 = 0x17
+    AGCCTRL1 = 0x18
+    AGCCTRL0 = 0x19
+    FREND1 = 0x1a
+    FREND0 = 0x1b
+    FSCAL3 = 0x1c
+    FSCAL2 = 0x1d
+    FSCAL1 = 0x1e
+    FSCAL0 = 0x1f
+    TEST1 = 0x24
+    TEST0 = 0x25
+    PATABLE0 = 0x2e
+
 
 class Encoding(IntEnum):
     NONE = 0
@@ -272,9 +264,9 @@ class RileyLink(PacketRadio):
 
             if not force_init:
                 if v_major == 2 and v_minor < 3:
-                    response = self._command(Command.READ_REGISTER, bytes([get_fw_reg_id("PKTLEN"), 0x00]))
+                    response = self._command(Command.READ_REGISTER, bytes([Register.PKTLEN, 0x00]))
                 else:
-                    response = self._command(Command.READ_REGISTER, bytes([get_fw_reg_id("PKTLEN")]))
+                    response = self._command(Command.READ_REGISTER, bytes([Register.PKTLEN]))
                     if response is not None and len(response) > 0 and response[0] == 0x50:
                         self.initialized = True
                         return
@@ -283,28 +275,57 @@ class RileyLink(PacketRadio):
             self._command(Command.SET_SW_ENCODING, bytes([Encoding.NONE]))
             self._command(Command.SET_PREAMBLE, bytes([0x66, 0x65]))
 
-            with open("/home/pi/omnipy/cc1110.json", "r") as ocj:
-                js = json.load(ocj)
+            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC1, 0xA5]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.SYNC0, 0x5A]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTLEN, 0x50]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL1, 0x20]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PKTCTRL0, 0x00]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.ADDR, 0x00]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.CHANNR, 0x00]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL1, 0x0F]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCTRL0, 0x00]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ2, 0x12]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ1, 0x14]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREQ0, 0x50]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG4, 0xFA])) # CA
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG3, 0xB9])) # BC
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG2, 0x12])) # 02
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG1, 0x41])) # 40
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MDMCFG0, 0xF0])) # 11
+            self._command(Command.UPDATE_REGISTER, bytes([Register.DEVIATN, 0x36])) # 54
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM2, 0x07]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM1, 0x30]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.MCSM0, 0x19])) # 19
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FOCCFG, 0x00])) # 17
+            self._command(Command.UPDATE_REGISTER, bytes([Register.BSCFG, 0x6C]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.AGCCTRL2, 0x43]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.AGCCTRL1, 0x40]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.AGCCTRL0, 0x91]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREND1, 0x56]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FREND0, 0x10])) # 0x00
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL3, 0xE9])) # 0xEA
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL2, 0x2A]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL1, 0x00]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.FSCAL0, 0x1F]))
+            #self._command(Command.UPDATE_REGISTER, bytes([Register.TEST2, 0x88]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.TEST1, 0x31])) # 0x35
+            self._command(Command.UPDATE_REGISTER, bytes([Register.TEST0, 0x09]))
+            self._command(Command.UPDATE_REGISTER, bytes([Register.PATABLE0, 0x60])) # ?C8
 
-            common_regs = js['common']
-            for reg in common_regs:
-                self._command(Command.UPDATE_REGISTER, bytes([get_fw_reg_id(reg), int(common_regs[reg], base=16)]))
+            tx_mode = bytes([0x01,
+                             Register.FREQ2, 0x12,
+                             Register.FREQ1, 0x14,
+                             Register.FREQ0, 0x56,
+                             ])
 
-            tx = js['tx']
-            tx_mode = [0x01]
-            for reg in tx:
-                tx_mode.append(get_fw_reg_id(reg))
-                tx_mode.append(int(tx[reg], base=16))
-            tx_mode = bytes(tx_mode)
-            self._command(Command.SET_MODE_REGISTERS, tx_mode)
+            rx_mode = bytes([0x02,
+                             Register.FREQ2, 0x12,
+                             Register.FREQ1, 0x14,
+                             Register.FREQ0, 0x71,
+                             ])
 
-            rx = js['rx']
-            rx_mode = [0x02]
-            for reg in rx:
-                rx_mode.append(get_fw_reg_id(reg))
-                rx_mode.append(int(rx[reg], base=16))
-            rx_mode = bytes(rx_mode)
-            self._command(Command.SET_MODE_REGISTERS, rx_mode)
+            # self._command(Command.SET_MODE_REGISTERS, tx_mode)
+            # self._command(Command.SET_MODE_REGISTERS, rx_mode)
 
             response = self._command(Command.GET_STATE)
             if response != b"OK":

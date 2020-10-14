@@ -1,13 +1,16 @@
 [Unit]
-Description=Omnipy UDP broadcast receiver
+Description=Omnipy Sync
 After=network.target
 
 [Service]
-ExecStart=/home/pi/v/bin/python -u /home/pi/omnipy/omnipy_beacon.py
+ExecStart=/home/pi/v/bin/python -u /home/pi/omnipy/dbsync.py
 WorkingDirectory=/home/pi/omnipy
 StandardOutput=inherit
 StandardError=inherit
+TimeoutStopSec=15
+TimeoutStopSec=15
 Restart=on-failure
+RestartSec=90
 User=pi
 
 [Install]

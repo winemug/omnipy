@@ -2,7 +2,7 @@
 
 
 get_wlan_connection() {
-  wlan_config=`iwconfig 2>&1 | grep ESSID`
+  wlan_config=`iwconfig 2>&1 | grep ESSID:off/any`
 }
 
 get_paired_devices() {
@@ -18,7 +18,7 @@ try_pair()
 
         echo "Waiting for remote request"
         counter=1
-        while [ $counter -le 12 ]
+        while [ $counter -le 19 ]
         do
                 ((counter++))
                 sleep 10
@@ -38,13 +38,13 @@ try_pair()
 try_connect_bt() {
   get_paired_devices
 
-  if [[ -z "${paired_devices}" ]] || [[ $bt_connection_retries -ge 6 ]]; then
-    echo "starting remote initiated pairing procedure"
-    bt_connection_retries=0
-    try_pair
-  fi
-
-  get_paired_devices
+#  if [[ -z "${paired_devices}" ]] || [[ $bt_connection_retries -ge 6 ]]; then
+#    echo "starting remote initiated pairing procedure"
+#    bt_connection_retries=0
+#    try_pair
+#  fi
+#
+#  get_paired_devices
 
   if [[ -z "${paired_devices}" ]]; then
     echo "no paired devices"
@@ -72,11 +72,11 @@ wlan_config=
 while true;
 do
   get_wlan_connection
-  if [[ -z "${wlan_config}" ]]; then
+  if [[ ! -z "${wlan_config}" ]]; then
     echo "no wlan connection, trying bt"
     try_connect_bt
-    sleep 10
   else
+    echo "wlan connection active, bt-nap postponed"
     sleep 120
   fi
 done

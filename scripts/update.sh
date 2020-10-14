@@ -6,6 +6,7 @@ sudo systemctl stop omnipy-beacon.service
 sudo systemctl stop omnipy-mq.service
 sudo systemctl stop omnipy-rest.service
 sudo systemctl stop omnipy-pan.service
+sudo systemctl stop omnipy-sync.service
 
 echo "Updating omnipy"
 cd /home/pi/omnipy
