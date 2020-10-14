@@ -199,20 +199,19 @@ class Pod:
 
         with self._get_conn() as conn:
             try:
+                sql = "PRAGMA journal_mode=WAL;"
+                conn.execute(sql)
+
                 sql = """ CREATE TABLE IF NOT EXISTS pod_history (
                           timestamp real, 
                           pod_state integer, pod_minutes integer, pod_last_command text,
                           insulin_delivered real, insulin_canceled real, insulin_reservoir real, pod_json text
                           ) """
-                c = conn.cursor()
-                c.execute(sql)
+                conn.execute(sql)
                 sql = "ALTER TABLE pod_history ADD COLUMN pod_json text"
-                c.execute(sql)
+                conn.execute(sql)
             except:
                 pass
-            finally:
-                if c:
-                    c.close()
 
         self.db_migrated = True
 
