@@ -27,10 +27,12 @@ class OmniPyMessengerService:
             self.stopped = Event()
             self.logger = Logger('omnipy_messenger_service', level=DEBUG)
             subscriber = pubsub_v1.SubscriberClient()
-            sub_topic_path = subscriber.topic_path(project_id, sub_topic)
-            subscription_path = subscriber.subscription_path(project_id, f'sub-{sub_topic}-{client_id}')
+            pub_topic_path = f'projects/{project_id}/topics/{pub_topic}'
+            sub_topic_path = f'projects/{project_id}/topics/{sub_topic}'
+            subscription_path = f'projects/{project_id}/subscriptions/sub-{sub_topic}-{client_id}'
+
             try:
-                subscriber.create_subscription(subscription_path, sub_topic_path, ack_deadline_seconds=30)
+                subscriber.create_subscription(name=subscription_path, topic=sub_topic_path)
             except AlreadyExists:
                 pass
 
@@ -38,31 +40,10 @@ class OmniPyMessengerService:
             self.subscription_path = subscription_path
             self.subscription_future = None
 
-            self.publisher = pubsub_v1.PublisherClient(
-                client_config={
-                    "interfaces": {
-                        "google.pubsub.v1.Publisher": {
-                            "retry_params": {
-                                "messaging": {
-                                    'total_timeout_millis': 60000,  # default: 600000
-                                }
-                            }
-                        }
-                    }
-                },
-                publisher_options=pubsub_v1.types.PublisherOptions(
-                    flow_control=pubsub_v1.types.PublishFlowControl(
-                        message_limit=1000,
-                        byte_limit=1024 * 64,
-                        limit_exceeded_behavior=pubsub_v1.types.LimitExceededBehavior.BLOCK,
-                    )),
-                batch_settings=pubsub_v1.types.BatchSettings(
-                    max_bytes=1024,  # One kilobyte
-                    max_latency=1,  # One second
-                ))
+            self.publisher = pubsub_v1.PublisherClient()
 
-            self.pub_topic_path = self.publisher.topic_path(project_id, pub_topic)
-            self.project_id = project_id
+            self.pub_topic_path = pub_topic_path
+
             self.path_db = path_db
             self.publisher_thread = None
             self.main_thread = None
@@ -100,10 +81,7 @@ class OmniPyMessengerService:
 
         try:
             self.subscription_future = self.subscriber.subscribe(self.subscription_path,
-                                                                 callback=self.subscription_callback,
-                                                                 scheduler=ThreadScheduler(
-                                                                     executor=ThreadPoolExecutor(max_workers=2)
-                                                                 ))
+                                                                 callback=self.subscription_callback)
         except Exception as ex:
             self.errored = True
             self.logger.error("Failed to init subscriber", ex)
@@ -112,14 +90,27 @@ class OmniPyMessengerService:
         self.publisher_thread = threading.Thread(target=self.publisher_main)
         self.publisher_thread.start()
 
+        restart_subscription = time.time() + 120
         while True:
             try:
                 self.subscription_future.result(timeout=5)
+                restart_subscription = time.time() + 120
             except TimeoutError:
                 if self.stop_requested.wait(1):
                     break
                 if self.errored:
                     break
+                if restart_subscription < time.time():
+                    self.subscription_future.cancel()
+                    try:
+                        self.subscription_future = self.subscriber.subscribe(self.subscription_path,
+                                                                             callback=self.subscription_callback)
+                        restart_subscription = time.time() + 120
+                    except Exception as ex:
+                        self.errored = True
+                        self.logger.error("Failed to init subscriber", ex)
+                        return
+
             except Exception as ex:
                 self.errored = True
                 self.logger.error("subscription pull failure", ex)
