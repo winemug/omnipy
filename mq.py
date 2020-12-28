@@ -291,10 +291,9 @@ class MqOperator(object):
             return dict(executed=True)
         elif req_type == "get_record":
             rp = req["parameters"]
+            pod_id = None
             if "pod_id" in rp:
                 pod_id = rp["pod_id"]
-            else:
-                pod_id = None
             db_id = int(rp["db_id"])
             self.get_record(pod_id, db_id)
         else:
@@ -351,15 +350,16 @@ class MqOperator(object):
                                 pod_archived_ts=archived_ts)
 
                 js = json.loads(row[2])
-                if "data" in js:
-                    js = js["data"]
-                else:
+                if js is None:
                     return dict(executed=False,
                                 reason='record_empty',
                                 pod_id=pod_id,
                                 db_id=db_id,
                                 pod_archived=archived_ts is not None,
                                 pod_archived_ts=archived_ts)
+
+                if "data" in js:
+                    js = js["data"]
 
                 js["last_command_db_id"] = row[0]
                 js["last_command_db_ts"] = row[1]
