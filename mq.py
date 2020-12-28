@@ -154,6 +154,7 @@ class MqOperator(object):
                 result = None
                 try:
                     result = self.perform_request(request)
+                    self.logger.debug("Request executed")
                 except Exception as ex:
                     self.logger.error("Error performing request", ex)
                     result = dict(error=str(ex))
@@ -292,10 +293,12 @@ class MqOperator(object):
         elif req_type == "get_record":
             rp = req["parameters"]
             pod_id = None
+            db_id = None
             if "pod_id" in rp:
                 pod_id = rp["pod_id"]
-            db_id = int(rp["db_id"])
-            self.get_record(pod_id, db_id)
+            if "db_id" in rp:
+                db_id = int(rp["db_id"])
+            return self.get_record(pod_id, db_id)
         else:
             return dict(executed=False,
                         reason='unknown_request_type',
@@ -327,48 +330,49 @@ class MqOperator(object):
                 archived_ts = dt.datetime(year=int(ds[0:4]), month=int(ds[4:6]), day=int(ds[6:8]),
                                           hour=int(ds[9:11]), minute=int(ds[11:13]), second=int(ds[13:15])).timestamp()
 
+        response = self.active_pod_state()
+        response['pod_archived'] = archived_ts is not None
+        response['pod_archived_ts'] = archived_ts
+        response['executed'] = False
+
         if db_path is None:
-            return dict(executed=False,
-                        reason='pod_not_found',
-                        pod_id=pod_id,
-                        db_id=db_id,
-                        )
+            response['reason'] = 'pod_not_found'
+            return response
 
         with sqlite3.connect(db_path) as conn:
             cursor = None
             try:
-                sql = """SELECT rowid, timestamp, pod_json FROM pod_history WHERE rowid = ?"""
-                cursor = conn.execute(sql, str(db_id))
-                row = cursor.fetchone()
+                if db_id is None:
+                    sql = """SELECT rowid, timestamp, pod_json FROM pod_history ORDER BY rowid"""
+                    cursor = conn.execute(sql)
+                else:
+                    sql = """SELECT rowid, timestamp, pod_json FROM pod_history WHERE rowid = ?"""
+                    cursor = conn.execute(sql, str(db_id))
 
-                if row is None:
-                    return dict(executed=False,
-                                reason='record_not_found',
-                                pod_id=pod_id,
-                                db_id=db_id,
-                                pod_archived=archived_ts is not None,
-                                pod_archived_ts=archived_ts)
+                rows = cursor.fetchall()
 
-                js = json.loads(row[2])
-                if js is None:
-                    return dict(executed=False,
-                                reason='record_empty',
-                                pod_id=pod_id,
-                                db_id=db_id,
-                                pod_archived=archived_ts is not None,
-                                pod_archived_ts=archived_ts)
+                if rows is None or len(rows) == 0:
+                    response['reason'] = 'not_found'
+                else:
+                    records = []
+                    for row in rows:
+                        js = json.loads(row[2])
 
-                if "data" in js:
-                    js = js["data"]
+                        if js is None:
+                            records.append(
+                                dict(db_id=db_id,
+                                     record=None)
+                            )
+                        else:
+                            if "data" in js:
+                                js = js["data"]
+                            js["last_command_db_id"] = row[0]
+                            js["last_command_db_ts"] = row[1]
+                            records.append(dict(db_id=row[0], record=js))
+                    response['executed'] = True
+                    response['records'] = records
 
-                js["last_command_db_id"] = row[0]
-                js["last_command_db_ts"] = row[1]
-                return dict(executed=True,
-                            pod_id=pod_id,
-                            db_id=db_id,
-                            record=js,
-                            pod_archived=archived_ts is not None,
-                            pod_archived_ts=archived_ts)
+                return response
 
             finally:
                 if cursor is not None:
