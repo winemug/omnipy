@@ -204,7 +204,7 @@ class MqOperator(object):
                     continue
                 else:
                     last_state = int(self.i_pod.state_last_updated * 1000)
-                    if self.i_pod.state_last_updated != request['required_pod_state']:
+                    if last_state != request['required_pod_state']:
                         self.omc.mark_as_read(message['id'])
                         self.send_response(request, dict(executed=False, reason='state_mismatch',
                                                          required_state=request['required_pod_state'],
