@@ -35,7 +35,6 @@ class Pdm:
         self.nonce = None
         self.radio = None
         self.time_adjustment = 0
-        self.debug_status_skip = False
         self.logger = getLogger()
 
     def stop_radio(self):
@@ -104,8 +103,6 @@ class Pdm:
         return self.get_radio().get_rssi_average()
 
     def _internal_update_status(self, update_type=0):
-        if self.debug_status_skip:
-            return
         self._assert_pod_address_assigned()
         return self.send_request(request_status(update_type))
 
@@ -119,8 +116,9 @@ class Pdm:
                 self.pod.last_command["success"] = True
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            rssi = self._internal_update_status()
-            self.update_status(update_type=update_type)
+            rssi = self._internal_update_status(1)
+            if update_type != 1:
+                self.update_status(update_type=update_type)
         except Exception as e:
             raise PdmError("Unexpected error") from e
         finally:
@@ -149,7 +147,7 @@ class Pdm:
 
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.acknowledge_alerts(alert_mask)
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -221,7 +219,7 @@ class Pdm:
 
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.hf_silence_will_fall()
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -229,15 +227,7 @@ class Pdm:
             self._savePod()
 
     def is_busy(self):
-        try:
-            with PdmLock(0):
-                return self._is_bolus_running(no_live_check=True)
-        except PdmBusyError:
-            return True
-        except OmnipyError:
-            raise
-        except Exception as e:
-            raise PdmError("Unexpected error") from e
+        return False
 
     def bolus(self, bolus_amount, pulse_interval=2):
         try:
@@ -246,7 +236,7 @@ class Pdm:
 
                 self._assert_pod_address_assigned()
                 self._assert_can_generate_nonce()
-                #self._internal_update_status()
+                self._internal_update_status()
                 self._assert_immediate_bolus_not_active()
                 self._assert_not_faulted()
                 self._assert_status_running()
@@ -277,7 +267,7 @@ class Pdm:
                 self.pod.last_command["success"] = True
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.bolus(bolus_amount)
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -297,6 +287,10 @@ class Pdm:
                 self._assert_status_running()
 
                 if self._is_bolus_running():
+                    pi = self.pod.last_enacted_bolus_pulse_interval
+                    if pi is not None and pi > 0:
+                        if self.pod.insulin_canceled * pi < 16:
+                            raise PdmError("Too close to cancel")
                     request = request_cancel_bolus()
                     self.send_request(request, with_nonce=True)
                     if self.pod.state_bolus == BolusState.Immediate:
@@ -311,7 +305,7 @@ class Pdm:
 
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.cancel_bolus()
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -324,15 +318,14 @@ class Pdm:
                 self.logger.debug("Canceling temp basal")
                 self.pod.last_command = {"command": "TEMPBASAL_CANCEL", "success": False}
 
-                if not self.debug_status_skip:
-                    self._assert_pod_address_assigned()
-                    self._assert_can_generate_nonce()
-                    self._internal_update_status()
-                    self._assert_immediate_bolus_not_active()
-                    self._assert_not_faulted()
-                    self._assert_status_running()
+                self._assert_pod_address_assigned()
+                self._assert_can_generate_nonce()
+                self._internal_update_status()
+                self._assert_immediate_bolus_not_active()
+                self._assert_not_faulted()
+                self._assert_status_running()
 
-                if self._is_temp_basal_active() or self.debug_status_skip:
+                if self._is_temp_basal_active():
                     request = request_cancel_temp_basal()
                     self.send_request(request, with_nonce=True)
                     if self.pod.state_basal == BasalState.TempBasal:
@@ -347,7 +340,7 @@ class Pdm:
 
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.cancel_temp_basal()
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -362,29 +355,29 @@ class Pdm:
                                          "duration_hours": hours,
                                          "hourly_rate": basalRate,
                                          "success": False}
-                if not self.debug_status_skip:
-                    self._assert_pod_address_assigned()
-                    self._assert_can_generate_nonce()
-                    self._internal_update_status()
-                    self._assert_immediate_bolus_not_active()
-                    self._assert_not_faulted()
-                    self._assert_status_running()
 
-                    if hours > 12 or hours < 0.5:
-                        raise PdmError("Requested duration is not valid")
+                self._assert_pod_address_assigned()
+                self._assert_can_generate_nonce()
+                self._internal_update_status()
+                self._assert_immediate_bolus_not_active()
+                self._assert_not_faulted()
+                self._assert_status_running()
 
-                    if self.pod.var_maximum_temp_basal_rate is not None and \
-                            basalRate > Decimal(self.pod.var_maximum_temp_basal_rate):
-                        raise PdmError("Requested rate exceeds maximum temp basal setting")
-                    if basalRate > Decimal(45):
-                        raise PdmError("Requested rate exceeds maximum temp basal capability")
+                if hours > 12 or hours < 0.5:
+                    raise PdmError("Requested duration is not valid")
 
-                    if self._is_temp_basal_active():
-                        self.logger.debug("Canceling active temp basal before setting a new temp basal")
-                        request = request_cancel_temp_basal()
-                        self.send_request(request, with_nonce=True)
-                        if self.pod.state_basal == BasalState.TempBasal:
-                            raise PdmError("Failed to cancel running temp basal")
+                if self.pod.var_maximum_temp_basal_rate is not None and \
+                        basalRate > Decimal(self.pod.var_maximum_temp_basal_rate):
+                    raise PdmError("Requested rate exceeds maximum temp basal setting")
+                if basalRate > Decimal(45):
+                    raise PdmError("Requested rate exceeds maximum temp basal capability")
+
+                if self._is_temp_basal_active():
+                    self.logger.debug("Canceling active temp basal before setting a new temp basal")
+                    request = request_cancel_temp_basal()
+                    self.send_request(request, with_nonce=True)
+                    if self.pod.state_basal == BasalState.TempBasal:
+                        raise PdmError("Failed to cancel running temp basal")
 
                 request = request_temp_basal(basalRate, hours)
                 self.send_request(request, with_nonce=True)
@@ -399,7 +392,7 @@ class Pdm:
 
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.set_temp_basal(basalRate=basalRate, hours=hours)
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -443,7 +436,7 @@ class Pdm:
 
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.set_basal_schedule(schedule)
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -468,7 +461,7 @@ class Pdm:
 
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.deactivate_pod()
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -537,7 +530,7 @@ class Pdm:
 
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.pair_pod(candidate_address, utc_offset)
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -612,7 +605,7 @@ class Pdm:
 
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.activate_pod()
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -690,7 +683,7 @@ class Pdm:
 
         except StatusUpdateRequired:
             self.logger.info("Requesting status update first")
-            self._internal_update_status()
+            self._internal_update_status(1)
             self.inject_and_start(basal_schedule)
         except Exception as e:
             raise PdmError("Unexpected error") from e
@@ -714,58 +707,12 @@ class Pdm:
             raise PdmError("Pod status was not saved") from e
 
     def _is_bolus_running(self, no_live_check=False):
-        # if self.pod.state_last_updated is not None and self.pod.state_bolus != BolusState.Immediate:
-        #     return False
-
-        # if self.pod.last_enacted_bolus_amount is not None \
-        #         and self.pod.last_enacted_bolus_start is not None:
-        #
-        #     if self.pod.last_enacted_bolus_amount < 0:
-        #         return False
-        #
-        #     now = self.get_time()
-        #     pi = self.pod.last_enacted_bolus_pulse_interval
-        #     if pi is None:
-        #         pi = 8
-        #     bolus_end_earliest = (self.pod.last_enacted_bolus_amount * (20*pi)-1) + 1 + self.pod.last_enacted_bolus_start
-        #     bolus_end_latest = (self.pod.last_enacted_bolus_amount * (20*pi)+1) + 3 + self.pod.last_enacted_bolus_start
-        #     if now > bolus_end_latest:
-        #         return False
-        #     elif now < bolus_end_earliest:
-        #         return True
-        #
-        # if no_live_check:
-        #     return True
-
-        self._internal_update_status()
         return self.pod.state_bolus == BolusState.Immediate
 
     def _is_basal_schedule_active(self):
-        if self.pod.state_last_updated is not None and self.pod.state_basal == BasalState.NotRunning:
-            return False
-
-        self._internal_update_status()
         return self.pod.state_basal == BasalState.Program
 
     def _is_temp_basal_active(self):
-        # if self.pod.state_last_updated is not None and self.pod.state_basal != BasalState.TempBasal:
-        #     return False
-
-        # if self.pod.last_enacted_temp_basal_start is not None \
-        #         and self.pod.last_enacted_temp_basal_duration is not None:
-        #     if self.pod.last_enacted_temp_basal_amount < 0:
-        #         return False
-        #     now = self.get_time()
-        #     temp_basal_end_earliest = self.pod.last_enacted_temp_basal_start + \
-        #                               (self.pod.last_enacted_temp_basal_duration * 3600) - 60
-        #     temp_basal_end_latest = self.pod.last_enacted_temp_basal_start + \
-        #                               (self.pod.last_enacted_temp_basal_duration * 3660) + 60
-        #     if now > temp_basal_end_latest:
-        #         return False
-        #     elif now < temp_basal_end_earliest:
-        #         return True
-
-        self._internal_update_status()
         return self.pod.state_basal == BasalState.TempBasal
 
     def _assert_pod_activate_can_start(self):
