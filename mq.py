@@ -261,6 +261,9 @@ class MqOperator(object):
             bolus_tick_interval = int(rp["interval"])
             self.i_pdm.bolus(bolus_amount, bolus_tick_interval)
             return self.active_pod_state()
+        elif req_type == "cancel_bolus":
+            self.i_pdm.cancel_bolus()
+            return self.active_pod_state()
         elif req_type == "temp_basal":
             rp = req["parameters"]
             basal_rate = ticks_to_decimal(int(rp["ticks"]))
