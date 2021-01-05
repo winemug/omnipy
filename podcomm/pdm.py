@@ -289,7 +289,7 @@ class Pdm:
                 if self._is_bolus_running():
                     pi = self.pod.last_enacted_bolus_pulse_interval
                     if pi is not None and pi > 0:
-                        if self.pod.insulin_canceled * pi < 16:
+                        if self.pod.insulin_canceled * 20 * pi < 16:
                             raise PdmError("Too close to cancel")
                     request = request_cancel_bolus()
                     self.send_request(request, with_nonce=True)
