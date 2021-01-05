@@ -211,7 +211,7 @@ class MqOperator(object):
                                                          active_state=self.i_pod.state_last_updated,
                                                          receive_time=message['receive_time'],
                                                          process_time=get_now()))
-                    continue
+                        continue
             up_to_date.append(message)
         self.messages = up_to_date
 
