@@ -350,7 +350,7 @@ class MqOperator(object):
                     cursor = conn.execute(sql)
                 else:
                     sql = """SELECT rowid, timestamp, pod_json FROM pod_history WHERE rowid = ?"""
-                    cursor = conn.execute(sql, str(db_id))
+                    cursor = conn.execute(sql, [db_id])
 
                 rows = cursor.fetchall()
 
