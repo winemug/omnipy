@@ -1,7 +1,8 @@
 from .exceptions import PacketRadioError, OmnipyTimeoutError, RecoverableProtocolError, StatusUpdateRequired
 from podcomm.packet_radio import TxPower
 from podcomm.protocol_common import *
-from .pr_rileylink import RileyLink
+#from .pr_rileylink import RileyLink
+from .pr_dongle import TIDongle
 from .definitions import *
 from threading import Thread, Event, RLock
 import binascii
@@ -39,7 +40,7 @@ class PdmRadio:
         self.packet_logger = get_packet_logger()
 
         if packet_radio is None:
-            self.packet_radio = RileyLink()
+            self.packet_radio = TIDongle()
         else:
             self.packet_radio = packet_radio
 

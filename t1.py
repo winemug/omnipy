@@ -62,6 +62,7 @@ get_packet_logger(with_console=True)
 
 pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
 pdm = Pdm(pod)
+
 pdm.start_radio()
 while True:
     try:
@@ -69,6 +70,8 @@ while True:
         print(f'********************************RSSI: {pod.radio_rssi} LG: {pod.radio_low_gain}')
     except Exception as e:
         print(e)
+    print('wait 5 secs')
+    time.sleep(5)
 pdm.stop_radio()
 
 
