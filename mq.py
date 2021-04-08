@@ -1,4 +1,4 @@
-#!/home/pi/v/bin/python3
+import simplejson as json
 import datetime as dt
 import glob
 import re
@@ -8,11 +8,11 @@ import time
 import signal
 import sys
 from threading import Event
-from omnipy_messenger import OmniPyMessengerClient
+
+from op_comm import OmnipyCommunicator
 from podcomm.pdm import Pdm
 from podcomm.pod import Pod
 from podcomm.definitions import *
-import simplejson as json
 from decimal import Decimal
 
 
@@ -45,10 +45,6 @@ def status_match(req, pod):
         return req["pod_updated"] == int(pod["state_last_updated"] * 1000)
 
 
-def get_json(message_data):
-    return json.loads(bytes.decode(message_data, encoding='UTF-8'))
-
-
 def ntp_update():
     os.system('sudo systemctl stop ntp')
     try:
@@ -73,9 +69,6 @@ class MqOperator(object):
         get_packet_logger(with_console=True)
         self.logger.info("mq operator is starting")
 
-        with open("settings.json", "r") as stream:
-            self.settings = json.load(stream)
-
         self.i_pdm: Pdm = None
         self.i_pod: Pod = None
 
@@ -84,18 +77,18 @@ class MqOperator(object):
 
         self.exit_requested = Event()
         self.stopped = Event()
-        self.messages = []
-        self.omc: OmniPyMessengerClient = None
+        self.request_ids = dict()
+        self.opc = OmnipyCommunicator(host='localhost', port=1883, client_id='opa-omnipy-mq', tls=False)
         self.db_path_cache = dict()
         self.clock_updated = False
 
     def run(self):
         time.sleep(5)
         try:
-            self.omc = OmniPyMessengerClient('/home/pi/omnipy/data/messenger.db')
             self.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
             self.i_pdm = Pdm(self.i_pod)
             self.i_pdm.start_radio()
+            self.opc.start(on_command_received=self.command_received)
 
             next_ping = time.time() - 10
             while True:
@@ -107,144 +100,63 @@ class MqOperator(object):
                     except Exception as ex:
                         next_ping = ts_now + 60
                         self.logger.error('Failed to ping hc, not online?', ex)
-                self.process_messages()
                 if self.exit_requested.is_set():
                     return
         finally:
             self.stopped.set()
 
-    def pull_messages(self):
-        messages = self.omc.get_messages()
-        if self.exit_requested.is_set():
-            return False
+    def command_received(self, request: dict):
+        if 'id' not in request:
+            print('received request without id')
+            return
 
-        new_request_received = False
-        for message in messages:
-            try:
-                request = get_json(message['message'])
-                if request['id'] in [msg['request']['id'] for msg in self.messages]:
-                    continue
-                new_request_received = True
-                self.logger.debug(f'new request received, type: {request["type"]}, id: {request["id"]}')
-                message['request'] = request
-                self.messages.append(message)
-            except Exception as ex:
-                self.logger.error("Error parsing message, ignoring.", ex)
-                self.omc.mark_as_read(message['id'])
-        return new_request_received
+        if request['id'] in self.request_ids:
+            print('ignoring duplicate request')
+            return
 
-    def process_messages(self):
+        self.request_ids[request['id']] = None
+        self.logger.debug(f'new request received, type: {request["type"]}, id: {request["id"]}')
+
+        if "expiration" in request and request["expiration"] is not None:
+            expiration = int(request["expiration"])
+            t_now = get_now()
+            if t_now > expiration:
+                self.logger.debug(f'this request seems to be expired')
+                self.send_response(request, dict(executed=False, reason='expired',
+                                                 expiration=expiration,
+                                                 process_time=t_now))
+                return
+
+        if "required_pod_state" in request and request["required_pod_state"] is not None:
+            if self.i_pod is None or self.i_pod.state_last_updated is None or self.i_pod.state_last_updated == 0:
+                self.logger.debug(f'this request has incorrect state')
+                self.send_response(request, dict(executed=False, reason='pod_not_found',
+                                                 required_state=request['required_pod_state'],
+                                                 process_time=get_now()))
+                return
+            else:
+                last_state = int(self.i_pod.state_last_updated * 1000)
+                if last_state != request['required_pod_state']:
+                    self.logger.debug(f'this request has incorrect state')
+                    self.send_response(request, dict(executed=False, reason='state_mismatch',
+                                                     required_state=request['required_pod_state'],
+                                                     active_state=self.i_pod.state_last_updated,
+                                                     process_time=get_now()))
+                    return
+
+        result = None
         try:
-            while True:
-                while self.pull_messages():
-                    time.sleep(3)
-
-                if len(self.messages) == 0 or self.exit_requested.is_set():
-                    break
-
-                self.filter_state_outdated()
-                self.filter_expired()
-                self.sort_requests()
-                self.filter_redundant()
-
-                if len(self.messages) == 0:
-                    break
-                message = self.messages[0]
-                request = message['request']
-                result = None
-                try:
-                    result = self.perform_request(request)
-                    self.logger.debug("Request executed")
-                except Exception as ex:
-                    self.logger.error("Error performing request", ex)
-                    result = dict(error=str(ex))
-                finally:
-                    self.omc.mark_as_read(message["id"])
-                    self.messages.remove(message)
-                    self.send_response(request, result)
-
+            result = self.perform_request(request)
+            self.logger.debug("Request executed")
         except Exception as ex:
-            self.logger.error("Error performing requests", ex)
+            self.logger.error("Error performing request")
+            result = dict(error=str(ex))
+        finally:
+            self.send_response(request, result)
 
     def send_response(self, request: dict, result: dict):
         response = dict(request_id=request['id'], result=result)
-        self.omc.publish_bin(json.dumps(response, ensure_ascii=False).encode('UTF-8'))
-
-    def filter_expired(self):
-        not_expired = []
-        for message in self.messages:
-            request = message['request']
-            if "expiration" in request and request["expiration"] is not None:
-                expiration = int(request["expiration"])
-            else:
-                expiration = int(message['publish_time']) + 180 * 1000
-            t_now = get_now()
-            if t_now > expiration:
-                self.omc.mark_as_read(message['id'])
-                self.send_response(request, dict(executed=False, reason='expired',
-                                                 expiration=expiration,
-                                                 reported_publish_time=message['publish_time'],
-                                                 receive_time=message['receive_time'],
-                                                 process_time=t_now))
-            else:
-                not_expired.append(message)
-        self.messages = not_expired
-
-    def filter_state_outdated(self):
-        up_to_date = []
-        for message in self.messages:
-            request = message['request']
-            if "required_pod_state" in request and request["required_pod_state"] is not None:
-                if self.i_pod is None or self.i_pod.state_last_updated is None or self.i_pod.state_last_updated == 0:
-                    self.omc.mark_as_read(message['id'])
-                    self.send_response(request, dict(executed=False, reason='pod_not_found',
-                                                     required_state=request['required_pod_state'],
-                                                     receive_time=message['receive_time'],
-                                                     process_time=get_now()))
-                    continue
-                else:
-                    last_state = int(self.i_pod.state_last_updated * 1000)
-                    if last_state != request['required_pod_state']:
-                        self.omc.mark_as_read(message['id'])
-                        self.send_response(request, dict(executed=False, reason='state_mismatch',
-                                                         required_state=request['required_pod_state'],
-                                                         active_state=self.i_pod.state_last_updated,
-                                                         receive_time=message['receive_time'],
-                                                         process_time=get_now()))
-                        continue
-            up_to_date.append(message)
-        self.messages = up_to_date
-
-    def filter_redundant(self):
-        non_redundant = []
-        type_ids = {}
-
-        self.messages.sort(key=lambda m: m['publish_time'],
-                           reverse=True)
-        for message in self.messages:
-            request = message['request']
-            req_type = request["type"]
-            if req_type not in ["last_status", "run", "get_record"]:
-                if req_type in type_ids:
-                    self.omc.mark_as_read(message["id"])
-                    self.send_response(request, dict(executed=False, reason='made_redundant',
-                                                     surpassing_request_id=type_ids[req_type],
-                                                     active_state=self.i_pod.state_last_updated,
-                                                     receive_time=message['receive_time'],
-                                                     process_time=get_now()))
-                    continue
-
-            non_redundant.append(message)
-            type_ids[req_type] = request['id']
-
-        self.messages = non_redundant
-
-    def sort_requests(self):
-        for req in [msg['request'] for msg in self.messages]:
-            if "priority" not in req:
-                req["priority"] = -1
-
-        self.messages.sort(key=lambda m: m['request']['priority'], reverse=True)
+        self.opc.send_response(response)
 
     def perform_request(self, req) -> dict:
         self.logger.debug(f"performing request {req}")
@@ -350,7 +262,7 @@ class MqOperator(object):
                     cursor = conn.execute(sql)
                 else:
                     sql = """SELECT rowid, timestamp, pod_json FROM pod_history WHERE rowid = ?"""
-                    cursor = conn.execute(sql, str(db_id))
+                    cursor = conn.execute(sql, [db_id])
 
                 rows = cursor.fetchall()
 
@@ -429,7 +341,6 @@ def err_exit(type, value, tb):
 
 if __name__ == '__main__':
     sys.excepthook = err_exit
-    os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "/home/pi/omnipy/google-settings.json"
     operator = MqOperator()
     try:
         signal.signal(signal.SIGTERM, lambda a, b: _exit_with_grace(operator))
