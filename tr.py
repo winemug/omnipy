@@ -10,7 +10,9 @@ logger = getLogger(with_console=True)
 get_packet_logger(with_console=True)
 
 radio = PdmRadio(0x0)
+
 while True:
+    print('listening')
     pkt = radio.get_packet(10.0)
     if pkt is not None:
         print(pkt)

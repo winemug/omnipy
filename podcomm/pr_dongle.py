@@ -121,7 +121,7 @@ class TIDongle(PacketRadio):
                                 xonxoff=0,
                                 rtscts=0)
         if force_initialize:
-            self.ser.flush()
+            self.init_radio(True)
 
     def disconnect(self, ignore_errors=True):
         if self.ser is not None:
@@ -137,7 +137,7 @@ class TIDongle(PacketRadio):
                 self.initialized = False
                 self.logger.debug("force initialize, resetting RL")
                 #TODO: reset pin
-                time.sleep(3)
+                time.sleep(0.5)
                 self.logger.debug("reconnecting")
             self._command(Command.RADIO_RESET_CONFIG)
             self._command(Command.SET_SW_ENCODING, bytes([Encoding.NONE]))
@@ -188,7 +188,7 @@ class TIDongle(PacketRadio):
         try:
             self.connect()
             result = self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)),
-                                 timeout=float(timeout)+0.5)
+                                 timeout=float(timeout)+5)
             if result is not None:
                 return result[0:2] + self.manchester.decode(result[2:])
             else:
@@ -232,7 +232,12 @@ class TIDongle(PacketRadio):
     def _set_amp(self, index=None):
         pass
 
+
+
     def _command(self, command_type, command_data=None, timeout=10.0):
+        def pb(b):
+            return ("".join(["%02x" % x for x in b]))
+
         try:
             self.connect()
             if command_data is None:
@@ -240,6 +245,7 @@ class TIDongle(PacketRadio):
             else:
                 data = bytes([len(command_data) + 1, command_type]) + command_data
 
+            #print('req: ' + pb(data))
             self.ser.write(data)
             self.ser.flush()
 
@@ -251,6 +257,8 @@ class TIDongle(PacketRadio):
                 response_len = x[0]
                 if response_len > 0:
                     response = self.ser.read(response_len)
+
+            #print('rsp len: ' + x + ' data: ' + pb(response))
 
             if response_len is None:
                 raise PacketRadioError("Timed out while waiting for a response from RileyLink")
