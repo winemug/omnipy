@@ -201,23 +201,9 @@ class PdmRadio:
                 return True
             except:
                 self.logger.exception("Error during radio initialization")
-                self._kill_btle_subprocess()
                 time.sleep(2)
                 retry += 1
         return False
-
-    def _kill_btle_subprocess(self):
-        try:
-            os.system("sudo killall -9 bluepy-helper")
-            # p = subprocess.Popen(["ps", "-A"], stdout=subprocess.PIPE)
-            # out, err = p.communicate()
-            # for line in out.splitlines():
-            #     if "bluepy-helper" in line:
-            #         pid = int(line.split(None, 1)[0])
-            #         os.kill(pid, 9)
-            #         break
-        except:
-            self.logger.warning("Failed to kill bluepy-helper")
 
     def _reset_sequences(self):
         self.packet_sequence = 0
@@ -309,7 +295,6 @@ class PdmRadio:
                             continue
                         elif repeat_count < 4:
                             self._disconnect()
-                            self._kill_btle_subprocess()
                             timeout = 10
                             time.sleep(2)
                             continue
@@ -319,7 +304,6 @@ class PdmRadio:
                     elif part < packet_count - 1:
                         if repeat_count < 6:
                             self._disconnect()
-                            self._kill_btle_subprocess()
                             timeout = 10
                             time.sleep(2)
                             continue
@@ -329,7 +313,6 @@ class PdmRadio:
                     else:
                         if repeat_count < 10:
                             self._disconnect()
-                            self._kill_btle_subprocess()
                             timeout = 10
                             time.sleep(2)
                             continue

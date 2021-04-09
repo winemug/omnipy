@@ -124,8 +124,9 @@ class TIDongle(PacketRadio):
             self.ser.flush()
 
     def disconnect(self, ignore_errors=True):
-        self.ser.close()
-        self.ser = None
+        if self.ser is not None:
+            self.ser.close()
+            self.ser = None
 
     def get_info(self):
         return ""
