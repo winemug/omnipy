@@ -107,6 +107,8 @@ g_rl_version = None
 g_rl_v_major = None
 g_rl_v_minor = None
 
+from gpiozero import OutputDevice
+
 class TIDongle(PacketRadio):
     def __init__(self):
         self.logger = getLogger()
@@ -114,10 +116,11 @@ class TIDongle(PacketRadio):
         self.initialized = False
         self.manchester = ManchesterCodec()
         self.ser : serial.Serial = None
+        self.reset = OutputDevice(23, active_high=False, initial_value=True)
 
     def connect(self, force_initialize=False):
         if self.ser is None:
-            self.ser = serial.Serial('/dev/ttyS0', baudrate=35600, bytesize=8, parity='N', stopbits=1,
+            self.ser = serial.Serial('/dev/ttyAMA0', baudrate=35600, bytesize=8, parity='N', stopbits=1,
                                 xonxoff=0,
                                 rtscts=0)
         if force_initialize:
@@ -132,13 +135,24 @@ class TIDongle(PacketRadio):
         return ""
 
     def init_radio(self, force_init=False):
+        from gpiozero import OutputDevice
         try:
             if force_init:
                 self.initialized = False
-                self.logger.debug("force initialize, resetting RL")
-                #TODO: reset pin
+                self.ser.flush()
+                self.disconnect()
+                self.connect(False)
                 time.sleep(0.5)
+                self.logger.debug("force initialize, resetting RL")
+                self.reset.on()
+                time.sleep(1.0)
+                self.reset.off()
+                time.sleep(2.5)
                 self.logger.debug("reconnecting")
+                #self.connect(False)
+                self.ser.timeout=1.0
+                self.ser.flush()
+                self.ser.read(512)
             self._command(Command.RADIO_RESET_CONFIG)
             self._command(Command.SET_SW_ENCODING, bytes([Encoding.NONE]))
             self._command(Command.SET_PREAMBLE, bytes([0x66, 0x65]))
@@ -188,7 +202,7 @@ class TIDongle(PacketRadio):
         try:
             self.connect()
             result = self._command(Command.GET_PACKET, struct.pack(">BL", 0, int(timeout * 1000)),
-                                 timeout=float(timeout)+5)
+                                 timeout=float(timeout)+0.5)
             if result is not None:
                 return result[0:2] + self.manchester.decode(result[2:])
             else:
@@ -246,12 +260,11 @@ class TIDongle(PacketRadio):
                 data = bytes([len(command_data) + 1, command_type]) + command_data
 
             #print('req: ' + pb(data))
+            self.ser.timeout = timeout
             self.ser.write(data)
-            self.ser.flush()
 
             response = None
             response_len = None
-            self.ser.timeout = timeout
             x = self.ser.read(1)
             if len(x) > 0:
                 response_len = x[0]
@@ -264,8 +277,10 @@ class TIDongle(PacketRadio):
                 raise PacketRadioError("Timed out while waiting for a response from RileyLink")
 
 
-            if response is None or len(response) == 0:
-                raise PacketRadioError("RileyLink returned no response")
+            if response is None:
+                if response_len > 0:
+                    raise PacketRadioError("RileyLink returned no response")
+                return None
             else:
                 if response[0] == Response.COMMAND_SUCCESS:
                     return response[1:]
