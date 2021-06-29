@@ -222,7 +222,7 @@ class MqOperator(object):
 
 
     def active_pod_state(self):
-        record = get_record(pod_uuid=None, db_id=-1)['records'][0]
+        record = self.get_record(pod_uuid=None, db_id=-1)['records'][0]
         return dict(executed=True,
                     pod_uuid=record['uuid'],
                     last_record_id=record['last_command_db_id'],
