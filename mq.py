@@ -239,6 +239,7 @@ class MqOperator(object):
                     last_record_id=db_id,
                     status_ts=status_ts)
 
+
     def get_record(self, pod_uuid: uuid, db_id: int):
         archived_ts = None
         if pod_uuid is None:
@@ -356,3 +357,9 @@ if __name__ == '__main__':
         operator.exit_requested.set()
         operator.stopped.wait(15)
         exit(1)
+
+
+def test():
+    op = MqOperator()
+    op.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
+    op.i_pdm = Pdm(op.i_pod)
