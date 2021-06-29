@@ -214,7 +214,7 @@ class MqOperator(object):
                 pod_uuid = uuid.UUID(rp["pod_uuid"])
             if "db_id" in rp:
                 db_id = int(rp["db_id"])
-            return self.get_records(pod_uuid, db_id)
+            return self.get_record(pod_uuid, db_id)
         else:
             return dict(executed=False,
                         reason='unknown_request_type',
