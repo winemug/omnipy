@@ -214,7 +214,7 @@ class MqOperator(object):
                 pod_uuid = uuid.UUID(rp["pod_uuid"])
             if "db_id" in rp:
                 db_id = int(rp["db_id"])
-            return self.get_record(pod_uuid, db_id)
+            return self.get_records(pod_uuid, db_id)
         else:
             return dict(executed=False,
                         reason='unknown_request_type',
@@ -222,23 +222,22 @@ class MqOperator(object):
 
 
     def active_pod_state(self):
-        record_response = self.get_records(pod_uuid=None, db_id=-1)
+        record_response = self.get_record(pod_uuid=None, db_id=-1)
         db_id = None
         status_ts = None
 
         if 'records' in record_response:
-            records = record_response['records']
-            if records is not None and len(records) == 1:
-                record = records[0]
-                db_id = record['db_id']
-                status_ts = record['record']['state_last_updated'] * 1000
+            record = record_response['record']
+            if record is not None:
+                db_id = record['last_command_db_id']
+                status_ts = int(record['record']['state_last_updated'] * 1000)
         return dict(executed=True,
                     pod_uuid=record_response['uuid'],
                     last_record_id=db_id,
                     status_ts=status_ts)
 
 
-    def get_records(self, pod_uuid: uuid, db_id: int):
+    def get_record(self, pod_uuid: uuid, db_id: int):
         archived_ts = None
         if pod_uuid is None:
             pod_uuid = uuid.UUID(self.i_pod.uuid)
@@ -271,30 +270,27 @@ class MqOperator(object):
                     cursor = conn.execute(sql)
                 else:
                     sql = """SELECT rowid, timestamp, pod_json FROM pod_history WHERE rowid = ?"""
-                    cursor = conn.execute(sql, [db_id])
+                    cursor = conn.execute(sql, (db_id,))
 
-                rows = cursor.fetchall()
+                row = cursor.fetchone()
 
-                if rows is None or len(rows) == 0:
+                if row is None:
                     record_response['reason'] = 'not_found'
                 else:
-                    records = []
-                    for row in rows:
-                        js = json.loads(row[2])
+                    js = json.loads(row[2])
 
-                        if js is None:
-                            records.append(
-                                dict(db_id=db_id,
-                                     record=None)
-                            )
-                        else:
-                            if "data" in js:
-                                js = js["data"]
-                            js["last_command_db_id"] = row[0]
-                            js["last_command_db_ts"] = row[1]
-                            records.append(dict(db_id=row[0], record=js))
+                    if js is None:
+                        records.append(
+                            dict(db_id=db_id,
+                                 record=None)
+                        )
+                    else:
+                        if "data" in js:
+                            js = js["data"]
+                        js["last_command_db_id"] = row[0]
+                        js["last_command_db_ts"] = row[1]
                     record_response['executed'] = True
-                    record_response['records'] = records
+                    record_response['record'] = js
 
                 return record_response
 
