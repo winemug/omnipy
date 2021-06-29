@@ -231,7 +231,9 @@ class MqOperator(object):
 
     def get_record(self, pod_uuid: uuid, db_id: int):
         archived_ts = None
-        if pod_uuid is None or pod_uuid == uuid.UUID(self.i_pod.uuid):
+        if pod_uuid is None:
+            pod_uuid = uuid.UUID(self.i_pod.uuid)
+        if pod_uuid == uuid.UUID(self.i_pod.uuid):
             db_path = "/home/pi/omnipy/data/pod.db"
         else:
             db_path = self.find_db_path(pod_uuid)
@@ -240,7 +242,7 @@ class MqOperator(object):
                 archived_ts = dt.datetime(year=int(ds[0:4]), month=int(ds[4:6]), day=int(ds[6:8]),
                                           hour=int(ds[9:11]), minute=int(ds[11:13]), second=int(ds[13:15])).timestamp()
 
-        record_response = dict()
+        record_response = dict(uuid=str(pod_uuid))
         record_response['pod_archived'] = archived_ts is not None
         record_response['pod_archived_ts'] = archived_ts
         record_response['executed'] = False
