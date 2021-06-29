@@ -222,7 +222,7 @@ class MqOperator(object):
 
 
     def active_pod_state(self):
-        record_response = self.get_record(pod_uuid=None, db_id=-1)
+        record_response = self.get_records(pod_uuid=None, db_id=-1)
         db_id = None
         status_ts = None
 
@@ -230,17 +230,15 @@ class MqOperator(object):
             records = record_response['records']
             if records is not None and len(records) == 1:
                 record = records[0]
-                if 'db_id' in record:
-                    db_id = record['db_id']
-                if 'state_last_updated' in record:
-                    status_ts = record['state_last_updated'] * 1000
+                db_id = record['db_id']
+                status_ts = record['record']['state_last_updated'] * 1000
         return dict(executed=True,
                     pod_uuid=record_response['uuid'],
                     last_record_id=db_id,
                     status_ts=status_ts)
 
 
-    def get_record(self, pod_uuid: uuid, db_id: int):
+    def get_records(self, pod_uuid: uuid, db_id: int):
         archived_ts = None
         if pod_uuid is None:
             pod_uuid = uuid.UUID(self.i_pod.uuid)
