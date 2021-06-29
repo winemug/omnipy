@@ -207,13 +207,13 @@ class MqOperator(object):
             return dict(executed=True)
         elif req_type == "get_record":
             rp = req["parameters"]
-            pod_id = None
+            pod_uuid = None
             db_id = None
-            if "pod_id" in rp:
-                pod_id = rp["pod_id"]
+            if "pod_uuid" in rp:
+                pod_uuid = rp["pod_uuid"]
             if "db_id" in rp:
                 db_id = int(rp["db_id"])
-            return self.get_record(pod_id, db_id)
+            return self.get_record(pod_uuid, db_id)
         else:
             return dict(executed=False,
                         reason='unknown_request_type',
@@ -222,24 +222,24 @@ class MqOperator(object):
     def active_pod_state(self):
         if self.i_pod is None or self.i_pod.state_last_updated is None or self.i_pod.state_last_updated == 0:
             return dict(executed=True,
-                        pod_id=None,
+                        pod_uuid=None,
                         last_record_id=None,
                         status_ts=None,
                         status=None)
         else:
             last_status_ts = int(self.i_pod.__dict__["state_last_updated"] * 1000)
             return dict(executed=True,
-                        pod_id=self.i_pod.pod_id,
+                        pod_uuid=self.i_pod.uuid,
                         last_record_id=self.i_pod.last_command_db_id,
                         status_ts=last_status_ts,
                         status=self.i_pod.__dict__)
 
-    def get_record(self, pod_id: str, db_id: int):
+    def get_record(self, pod_uuid: str, db_id: int):
         archived_ts = None
-        if pod_id is None or pod_id == self.i_pod.pod_id:
+        if pod_uuid is None or pod_uuid == self.i_pod.uuid:
             db_path = "/home/pi/omnipy/data/pod.db"
         else:
-            db_path = self.find_db_path(pod_id)
+            db_path = self.find_db_path(pod_uuid)
             if db_path is not None:
                 ds = re.findall('.+pod_(.+).db', db_path)[0]
                 archived_ts = dt.datetime(year=int(ds[0:4]), month=int(ds[4:6]), day=int(ds[6:8]),
@@ -293,38 +293,29 @@ class MqOperator(object):
                 if cursor is not None:
                     cursor.close()
 
-    def find_db_path(self, pod_id: str):
-        if pod_id in self.db_path_cache:
-            return self.db_path_cache[pod_id]
+    def find_db_path(self, pod_uuid: uuid):
+        if pod_uuid in self.db_path_cache:
+            return self.db_path_cache[pod_uuid]
 
         db_path = None
-        for path in glob.glob("/home/pi/omnipy/data/*.db"):
-            if path.endswith("pod.db"):
+        for path in glob.glob("/home/pi/omnipy/data/*.json"):
+            if path.endswith("pod.json"):
                 continue
 
             if path in self.db_path_cache.keys():
                 continue
 
-            with sqlite3.connect(path) as conn:
-                cursor = None
+            with open(path, 'r') as fd:
                 try:
-                    sql = "SELECT pod_json FROM pod_history WHERE pod_state > 2 AND pod_json IS NOT NULL"
-                    cursor = conn.execute(sql)
-                    row = cursor.fetchone()
+                    candidate_pod = json.load(fd)
+                except:
+                    candidate_pod = None
 
-                    if row is None:
-                        continue
-
-                    js = json.loads(row[2])
-                    if "pod_id" not in js or js["pod_id"] is None:
-                        continue
-                    self.db_path_cache[js["pod_id"]] = db_path
-                    if pod_id == js["pod_id"]:
-                        db_path = path
-                        break
-                finally:
-                    if cursor is not None:
-                        cursor.close()
+            if candidate_pod is not None and 'uuid' in candidate_pod:
+                if pod_uuid == candidate_pod['uuid']:
+                    db_path = path[:path.rindex('.json')] + '.db'
+                    self.db_path_cache[pod_uuid] = db_path
+                    break
 
         return db_path
 

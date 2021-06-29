@@ -5,6 +5,7 @@ import sqlite3
 
 class Pod:
     def __init__(self):
+        self.uuid = uuid.uuid4()
         self.db_migrated = False
 
         self.pod_id = None
@@ -113,6 +114,7 @@ class Pod:
             p.path = path
             p.path_db = db_path
 
+            p.uuid = d.get('uuid', None)
             p.id_lot = d.get("id_lot", None)
             p.id_t = d.get("id_t", None)
             p.pod_id = d.get("pod_id", None)
