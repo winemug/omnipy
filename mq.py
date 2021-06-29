@@ -1,3 +1,4 @@
+import uuid
 import simplejson as json
 import datetime as dt
 import glob
@@ -210,7 +211,7 @@ class MqOperator(object):
             pod_uuid = None
             db_id = None
             if "pod_uuid" in rp:
-                pod_uuid = rp["pod_uuid"]
+                pod_uuid = uuid.UUID(rp["pod_uuid"])
             if "db_id" in rp:
                 db_id = int(rp["db_id"])
             return self.get_record(pod_uuid, db_id)
@@ -234,9 +235,9 @@ class MqOperator(object):
                         status_ts=last_status_ts,
                         status=self.i_pod.__dict__)
 
-    def get_record(self, pod_uuid: str, db_id: int):
+    def get_record(self, pod_uuid: uuid, db_id: int):
         archived_ts = None
-        if pod_uuid is None or pod_uuid == self.i_pod.uuid:
+        if pod_uuid is None or pod_uuid == uuid.UUID(self.i_pod.uuid):
             db_path = "/home/pi/omnipy/data/pod.db"
         else:
             db_path = self.find_db_path(pod_uuid)
@@ -312,7 +313,7 @@ class MqOperator(object):
                     candidate_pod = None
 
             if candidate_pod is not None and 'uuid' in candidate_pod:
-                if pod_uuid == candidate_pod['uuid']:
+                if pod_uuid == uuid.UUID(candidate_pod['uuid']):
                     db_path = path[:path.rindex('.json')] + '.db'
                     self.db_path_cache[pod_uuid] = db_path
                     break
