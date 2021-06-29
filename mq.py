@@ -220,20 +220,14 @@ class MqOperator(object):
                         reason='unknown_request_type',
                         request_type=req_type)
 
+
     def active_pod_state(self):
-        if self.i_pod is None or self.i_pod.state_last_updated is None or self.i_pod.state_last_updated == 0:
-            return dict(executed=True,
-                        pod_uuid=None,
-                        last_record_id=None,
-                        status_ts=None,
-                        status=None)
-        else:
-            last_status_ts = int(self.i_pod.__dict__["state_last_updated"] * 1000)
-            return dict(executed=True,
-                        pod_uuid=self.i_pod.uuid,
-                        last_record_id=self.i_pod.last_command_db_id,
-                        status_ts=last_status_ts,
-                        status=self.i_pod.__dict__)
+        record = get_record(pod_uuid=None, db_id=-1)['records'][0]
+        return dict(executed=True,
+                    pod_uuid=record['uuid'],
+                    last_record_id=record['last_command_db_id'],
+                    status_ts=record['last_status_ts'] * 1000)
+
 
     def get_record(self, pod_uuid: uuid, db_id: int):
         archived_ts = None
@@ -246,13 +240,13 @@ class MqOperator(object):
                 archived_ts = dt.datetime(year=int(ds[0:4]), month=int(ds[4:6]), day=int(ds[6:8]),
                                           hour=int(ds[9:11]), minute=int(ds[11:13]), second=int(ds[13:15])).timestamp()
 
-        response = self.active_pod_state()
-        response['pod_archived'] = archived_ts is not None
-        response['pod_archived_ts'] = archived_ts
-        response['executed'] = False
+        record_response = dict()
+        record_response['pod_archived'] = archived_ts is not None
+        record_response['pod_archived_ts'] = archived_ts
+        record_response['executed'] = False
 
         if db_path is None:
-            response['reason'] = 'pod_not_found'
+            record_response['reason'] = 'pod_not_found'
             return response
 
         with sqlite3.connect(db_path) as conn:
@@ -261,6 +255,9 @@ class MqOperator(object):
                 if db_id is None:
                     sql = """SELECT rowid, timestamp, pod_json FROM pod_history ORDER BY rowid"""
                     cursor = conn.execute(sql)
+                elif db_id == -1:
+                    sql = """SELECT rowid, timestamp, pod_json FROM pod_history ORDER BY rowid DESC LIMIT 1"""
+                    cursor = conn.execute(sql)
                 else:
                     sql = """SELECT rowid, timestamp, pod_json FROM pod_history WHERE rowid = ?"""
                     cursor = conn.execute(sql, [db_id])
@@ -268,7 +265,7 @@ class MqOperator(object):
                 rows = cursor.fetchall()
 
                 if rows is None or len(rows) == 0:
-                    response['reason'] = 'not_found'
+                    record_response['reason'] = 'not_found'
                 else:
                     records = []
                     for row in rows:
@@ -285,10 +282,10 @@ class MqOperator(object):
                             js["last_command_db_id"] = row[0]
                             js["last_command_db_ts"] = row[1]
                             records.append(dict(db_id=row[0], record=js))
-                    response['executed'] = True
-                    response['records'] = records
+                    record_response['executed'] = True
+                    record_response['records'] = records
 
-                return response
+                return record_response
 
             finally:
                 if cursor is not None:
