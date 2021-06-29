@@ -2,6 +2,7 @@ from .definitions import *
 import simplejson as json
 import time
 import sqlite3
+import uuid
 
 class Pod:
     def __init__(self):
