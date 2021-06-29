@@ -223,10 +223,21 @@ class MqOperator(object):
 
     def active_pod_state(self):
         record_response = self.get_record(pod_uuid=None, db_id=-1)
+        db_id = None
+        status_ts = None
+
+        if 'records' in record_response:
+            records = record_response['records']
+            if records is not None and len(records) == 1:
+                record = records[0]
+                if 'last_command_db_id' in record:
+                    db_id = record['last_command_db_id']
+                if 'last_status_ts' in record:
+                    status_ts = record['last_status_ts'] * 1000
         return dict(executed=True,
                     pod_uuid=record_response['uuid'],
-                    last_record_id=record_response['records'][0]['last_command_db_id'],
-                    status_ts=record_response['records'][0]['last_status_ts'] * 1000)
+                    last_record_id=db_id,
+                    status_ts=status_ts)
 
 
     def get_record(self, pod_uuid: uuid, db_id: int):
