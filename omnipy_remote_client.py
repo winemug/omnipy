@@ -39,7 +39,6 @@ def client_main():
 
                 try:
                     self.record_response(response)
-                    self.
                 except Exception as e:
                     pass
 

@@ -261,7 +261,11 @@ class RileyLink(PacketRadio):
                 time.sleep(3)
                 self.logger.debug("reconnecting")
                 self._connect_internal()
-
+                try:
+                    self._zeroout()
+                    #self._command(command_type=Command.RADIO_RESET_CONFIG, timeout=3)
+                except:
+                    pass
             if self.version is None:
                 self.version = self._read_version()
 
@@ -429,6 +433,9 @@ class RileyLink(PacketRadio):
                 except:
                     self.logger.warning("Failed to kill bluepy-helper")
                 time.sleep(1)
+
+    def _zeroout(self):
+        self.peripheral.writeCharacteristic(self.data_handle, bytes([0]*16), withResponse=False)
 
     def _command(self, command_type, command_data=None, timeout=10.0):
         try:
