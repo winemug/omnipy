@@ -363,3 +363,4 @@ def test():
     op = MqOperator()
     op.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
     op.i_pdm = Pdm(op.i_pod)
+    return op
