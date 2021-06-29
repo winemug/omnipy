@@ -226,11 +226,11 @@ class MqOperator(object):
         db_id = None
         status_ts = None
 
-        if 'records' in record_response:
+        if 'record' in record_response:
             record = record_response['record']
             if record is not None:
                 db_id = record['last_command_db_id']
-                status_ts = int(record['record']['state_last_updated'] * 1000)
+                status_ts = int(record['state_last_updated'] * 1000)
         return dict(executed=True,
                     pod_uuid=record_response['uuid'],
                     last_record_id=db_id,
