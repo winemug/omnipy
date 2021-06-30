@@ -225,16 +225,25 @@ class MqOperator(object):
         record_response = self.get_record(pod_uuid=None, db_id=-1)
         db_id = None
         status_ts = None
-
+        insulin_delivered = None
+        insulin_canceled = None
+        insulin_reservoir = None
         if 'record' in record_response:
             record = record_response['record']
             if record is not None:
                 db_id = record['last_command_db_id']
                 status_ts = int(record['state_last_updated'] * 1000)
+                insulin_delivered = record['insulin_delivered']
+                insulin_canceled = record['insulin_canceled']
+                insulin_reservoir = record['insulin_reservoir']
+
         return dict(executed=True,
                     pod_uuid=record_response['uuid'],
                     last_record_id=db_id,
-                    status_ts=status_ts)
+                    status_ts=status_ts,
+                    insulin_delivered=insulin_delivered,
+                    insulin_canceled=insulin_canceled,
+                    insulin_reservoir=insulin_reservoir)
 
 
     def get_record(self, pod_uuid: uuid, db_id: int):
