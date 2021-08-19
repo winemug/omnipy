@@ -1,4 +1,9 @@
+import datetime
+import random
+import traceback
 import uuid
+from logging import FileHandler
+
 import simplejson as json
 import datetime as dt
 import glob
@@ -20,6 +25,13 @@ from decimal import Decimal
 def get_now():
     return int(time.time() * 1000)
 
+
+def get_ticks_from_float(f: float) -> int:
+    if f is None:
+        return None
+
+    fr = round(f, 2)
+    return int(round(fr * 20))
 
 def get_ticks(d: Decimal) -> int:
     return int(round(d / Decimal("0.05")))
@@ -150,8 +162,9 @@ class MqOperator(object):
             result = self.perform_request(request)
             self.logger.debug("Request executed")
         except Exception as ex:
+            exc_type, exc_value, exc_traceback = sys.exc_info()
             self.logger.error("Error performing request")
-            result = dict(error=str(ex))
+            result = dict(error=str(ex), trace=traceback.format_exception(exc_type, exc_value, exc_traceback))
         finally:
             self.send_response(request, result)
 
@@ -215,11 +228,24 @@ class MqOperator(object):
             if "db_id" in rp:
                 db_id = int(rp["db_id"])
             return self.get_record(pod_uuid, db_id)
+        elif req_type == "newpod":
+            self.new_pod()
+            return self.active_pod_state()
+        elif req_type == "pair":
+            self.pair_pod()
+            return self.active_pod_state()
+        elif req_type == "activate":
+            self.activate_pod()
+            return self.active_pod_state()
+        elif req_type == "start":
+            rp = req["parameters"]
+            basal_ticks = int(rp["basal_ticks"])
+            self.start_pod(basal_ticks)
+            return self.active_pod_state()
         else:
             return dict(executed=False,
                         reason='unknown_request_type',
                         request_type=req_type)
-
 
     def active_pod_state(self):
         record_response = self.get_record(pod_uuid=None, db_id=-1)
@@ -232,10 +258,14 @@ class MqOperator(object):
             record = record_response['record']
             if record is not None:
                 db_id = record['last_command_db_id']
-                status_ts = int(record['state_last_updated'] * 1000)
-                insulin_delivered = record['insulin_delivered']
-                insulin_canceled = record['insulin_canceled']
-                insulin_reservoir = record['insulin_reservoir']
+                if record['state_last_updated'] is None:
+                    status_ts = 0
+                else:
+                    status_ts = int(record['state_last_updated'] * 1000)
+                insulin_delivered = get_ticks_from_float(record['insulin_delivered'])
+                insulin_canceled = get_ticks_from_float(record['insulin_canceled'])
+                insulin_reservoir = get_ticks_from_float(record['insulin_reservoir'])
+                pod_progress = record['state_progress']
 
         return dict(executed=True,
                     pod_uuid=record_response['uuid'],
@@ -243,8 +273,8 @@ class MqOperator(object):
                     status_ts=status_ts,
                     insulin_delivered=insulin_delivered,
                     insulin_canceled=insulin_canceled,
-                    insulin_reservoir=insulin_reservoir)
-
+                    insulin_reservoir=insulin_reservoir,
+                    pod_progress=pod_progress)
 
     def get_record(self, pod_uuid: uuid, db_id: int):
         archived_ts = None
@@ -266,7 +296,7 @@ class MqOperator(object):
 
         if db_path is None:
             record_response['reason'] = 'pod_not_found'
-            return response
+            return record_response
 
         with sqlite3.connect(db_path) as conn:
             cursor = None
@@ -289,10 +319,7 @@ class MqOperator(object):
                     js = json.loads(row[2])
 
                     if js is None:
-                        records.append(
-                            dict(db_id=db_id,
-                                 record=None)
-                        )
+                        record_response['record'] = None
                     else:
                         if "data" in js:
                             js = js["data"]
@@ -333,6 +360,47 @@ class MqOperator(object):
 
         return db_path
 
+    def start_pod(self, hourly_ticks: int):
+        decimal_rate = ticks_to_decimal(hourly_ticks)
+        schedule = []
+        for _ in range(0, 48):
+            schedule.append(decimal_rate)
+
+        self.i_pdm.inject_and_start(schedule)
+
+    def activate_pod(self):
+        self.i_pdm.activate_pod()
+
+    def pair_pod(self):
+        req_address = 0x34000000 + random.randint(0, 0x1000000)
+        self.i_pdm.pair_pod(req_address, utc_offset=0)
+
+    def new_pod(self):
+        self.i_pod.Save()
+        self.i_pdm.stop_radio()
+        self.i_pdm = None
+        self.i_pod = None
+
+        archive_suffix = datetime.datetime.utcnow().strftime("_%Y%m%d_%H%M%S")
+        pod_prefix = '/home/pi/omnipy/data/pod'
+
+        if os.path.isfile(pod_prefix + '.json'):
+            os.rename(pod_prefix + '.json', pod_prefix + archive_suffix + '.json')
+        if os.path.isfile(pod_prefix + '.db'):
+            os.rename(pod_prefix + '.db', pod_prefix + archive_suffix + '.db')
+
+        self.i_pod = Pod()
+        self.i_pod.path = '/home/pi/omnipy/data/pod.json'
+        self.i_pod.path_db = '/home/pi/omnipy/data/pod.db'
+        self.i_pod.Save()
+        if self.i_pdm is not None:
+            self.i_pdm.stop_radio()
+            self.i_pdm = None
+        time.sleep(5)
+        self.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
+        self.i_pdm = Pdm(self.i_pod)
+
+
 
 def _exit_with_grace(mqo: MqOperator):
     mqo.exit_requested.set()
@@ -344,7 +412,7 @@ def err_exit(type, value, tb):
     exit(1)
 
 
-if __name__ == '__main__':
+def main():
     sys.excepthook = err_exit
     operator = MqOperator()
     try:
@@ -360,6 +428,10 @@ if __name__ == '__main__':
         operator.exit_requested.set()
         operator.stopped.wait(15)
         exit(1)
+
+
+if __name__ == '__main__':
+    main()
 
 
 def test():
