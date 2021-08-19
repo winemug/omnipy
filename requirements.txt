@@ -1,5 +1,4 @@
-crypto>=1.4.1
-Flask>=1.1.2
 simplejson
-RPi.GPIO
+paho-mqtt
+pyserial
 requests

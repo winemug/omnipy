@@ -1,3 +1,5 @@
+import logging
+import os
 import uuid
 import simplejson as json
 import datetime as dt
@@ -10,10 +12,8 @@ import signal
 import sys
 from threading import Event
 
+from models import PodModel, PodMessage
 from op_comm import OmnipyCommunicator
-from podcomm.pdm import Pdm
-from podcomm.pod import Pod
-from podcomm.definitions import *
 from decimal import Decimal
 
 
@@ -63,30 +63,17 @@ def shutdown():
     os.system('shutdown -h now')
 
 
-class MqOperator(object):
-    def __init__(self, data_path, archive_path):
-        configureLogging()
-        self.logger = getLogger(with_console=True)
-        get_packet_logger(with_console=True)
-        self.data_path = data_path
-        self.archive_path = archive_path
-        self.logger.info("mq operator is starting")
-        self.pdm: Pdm = None
-        self.pods = self.get_pods()
+class OmnipyService(object):
+    def __init__(self, logger, db_path):
+        self.logger = logger
+        self.db_path = db_path
         self.exit_requested = Event()
         self.stopped = Event()
         self.request_ids = dict()
+
+        self.initialize_db()
         self.opc = OmnipyCommunicator(host='localhost', port=1883, client_id='opa-omnipy-mq', tls=False)
         self.db_path_cache = dict()
-        self.clock_updated = False
-
-    def get_pods(self):
-        pods = []
-        for pod_json_path in glob.glob(f'{data_path}/*.json'):
-            pod_db_path = pod_json_path[:pod_json_path.rindex(".json")] + '.db'
-            pod = Pod.Load(pod_json_path, pod_db_path)
-            pods.append(pod)
-        return pods
 
     def archive_pod(self, pod):
         if self.pdm is not None and self.pdm.pod.uuid == pod.uuid:
@@ -130,6 +117,10 @@ class MqOperator(object):
                     break
         finally:
             self.stopped.set()
+
+    def stop(self, timeout=15):
+        self.exit_requested.set()
+        self.stopped.wait(timeout)
 
     def command_received(self, request: dict):
         if 'id' not in request:
@@ -245,7 +236,6 @@ class MqOperator(object):
                         reason='unknown_request_type',
                         request_type=req_type)
 
-
     def active_pod_state(self):
         record_response = self.get_record(pod_uuid=None, db_id=-1)
         db_id = None
@@ -269,7 +259,6 @@ class MqOperator(object):
                     insulin_delivered=insulin_delivered,
                     insulin_canceled=insulin_canceled,
                     insulin_reservoir=insulin_reservoir)
-
 
     def get_record(self, pod_uuid: uuid, db_id: int):
         archived_ts = None
@@ -332,36 +321,98 @@ class MqOperator(object):
                 if cursor is not None:
                     cursor.close()
 
-    def find_db_path(self, pod_uuid: uuid):
-        if pod_uuid in self.db_path_cache:
-            return self.db_path_cache[pod_uuid]
-
-        db_path = None
-        for path in glob.glob("/home/pi/omnipy/data/*.json"):
-            if path.endswith("pod.json"):
-                continue
-
-            if path in self.db_path_cache.keys():
-                continue
-
-            with open(path, 'r') as fd:
-                try:
-                    candidate_pod = json.load(fd)
-                except:
-                    candidate_pod = None
-
-            if candidate_pod is not None and 'uuid' in candidate_pod:
-                if pod_uuid == uuid.UUID(candidate_pod['uuid']):
-                    db_path = path[:path.rindex('.json')] + '.db'
-                    self.db_path_cache[pod_uuid] = db_path
-                    break
-
-        return db_path
+    def find_available_address(self):
+        address_range = list(range(0x34010000, 0x340100ff))
 
 
-def _exit_with_grace(mqo: MqOperator):
-    mqo.exit_requested.set()
-    mqo.stopped.wait(15)
+
+    def new_pod(self) -> PodModel:
+        pod = PodModel()
+        pod.id = uuid
+        pod.active = False
+        pod.radio_address = row[1]
+        pod.message_sequence = row[2]
+        pod.packet_sequence = row[3]
+        pod.nonce = row[4]
+        pod.seed = row[5]
+
+    def load_pod(self, pod_id: uuid) -> PodModel:
+        with sqlite3.connect(self.db_path) as conn:
+            sql = "SELECT active, radio_address, message_sequence, packet_sequence, nonce, seed FROM pods WHERE id = ?"
+            row = conn.execute(sql, (str(pod_id),)).fetchone()
+            if row is None:
+                return None
+
+            pod = PodModel()
+            pod.id = uuid
+            pod.active = row[0] == 1
+            pod.radio_address = row[1]
+            pod.message_sequence = row[2]
+            pod.packet_sequence = row[3]
+            pod.nonce = row[4]
+            pod.seed = row[5]
+            return pod
+
+    def save_pod(self, pod: PodModel):
+        with sqlite3.connect(self.db_path) as conn:
+            sql = "REPLACE INTO pods(id, active, radio_address, message_sequence, packet_sequence, nonce, seed) VALUES(?, ?, ?, ?, ?, ?, ?)"
+            conn.execute(sql, (str(pod.id), 1 if pod.active else 0, pod.radio_address, pod.message_sequence, pod.packet_sequence, pod.nonce, pod.seed))
+
+    def save_message(self, pod_id: uuid, message: PodMessage):
+        with sqlite3.connect(self.db_path) as conn:
+            record_msg_id = message.id
+            if message.id is None:
+                sql = "SELECT message_id FROM messages WHERE pod_id = ? ORDER BY message_id DESC LIMIT 1"
+                row = conn.execute(sql, (str(pod_id),)).fetchone()
+                if row is None:
+                    record_msg_id = 0
+                else:
+                    record_msg_id = row[0] + 1
+
+            if record_msg_id is None:
+                sql = "INSERT INTO messages(pod_id, message_id, request_ts, request_text, request_data, response_ts, response_text, response_data) VALUES(?, ?, ?, ?, ?, ?, ?, ?)"
+                conn.execute(sql, (str(pod_id), record_msg_id,
+                                   message.request_ts, message.request_text, message.request_data,
+                                   message.response_ts, message.response_text, message.response_data))
+            else:
+                sql = "UPDATE messages SET request_ts = ?, request_text = ?, request_data = ?, response_ts = ?, response_text = ?, response_data = ? WHERE pod_id = ? AND message_id = ?"
+                conn.execute(sql, (message.request_ts, message.request_text, message.request_data,
+                                   message.response_ts, message.response_text, message.response_data,
+                                   str(pod_id), record_msg_id))
+
+            message.id = record_msg_id
+
+    def initialize_db(self):
+        with sqlite3.connect(self.db_path) as conn:
+            sql = "PRAGMA journal_mode=WAL;"
+            conn.execute(sql)
+
+            sql = """ CREATE TABLE IF NOT EXISTS pods (
+                      id TEXT PRIMARY KEY,
+                      active INTEGER NOT NULL,
+                      radio_address INTEGER,
+                      message_sequence INTEGER,
+                      packet_sequence INTEGER,
+                      nonce INTEGER,
+                      seed INTEGER)
+                      """
+            conn.execute(sql)
+
+            sql = """ CREATE TABLE IF NOT EXISTS messages (
+                      pod_id TEXT NOT NULL,
+                      message_id INTEGER NOT NULL,
+                      request_ts REAL,
+                      request_text TEXT,
+                      request_data BLOB,
+                      response_ts REAL,
+                      response_text TEXT,
+                      response_data BLOB
+                      ) """
+            conn.execute(sql)
+
+
+def _exit_with_grace(service: OmnipyService):
+    service.stop()
     exit(0)
 
 
@@ -369,26 +420,42 @@ def err_exit(type, value, tb):
     exit(1)
 
 
-if __name__ == '__main__':
+def setup_logging(path: str = None, console: bool = True):
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+
+    if path is not None:
+        fh = logging.FileHandler(path)
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(formatter)
+        logger.addHandler(fh)
+
+    if console:
+        ch = logging.StreamHandler()
+        ch.setLevel(logging.INFO)
+        ch.setFormatter(formatter)
+        logger.addHandler(ch)
+
+    return logger
+
+def main():
     sys.excepthook = err_exit
-    operator = MqOperator('/home/pi/omnipy/data', '/home/pi/omnipy/data/archive')
+    logger = setup_logging('service.log')
+    db_path = '/home/pi/omnipy/data/omnipy.db'
+    service = OmnipyService(logger, db_path)
     try:
-        signal.signal(signal.SIGTERM, lambda a, b: _exit_with_grace(operator))
-        signal.signal(signal.SIGABRT, lambda a, b: _exit_with_grace(operator))
-        operator.run()
+        signal.signal(signal.SIGTERM, lambda a, b: _exit_with_grace(service))
+        signal.signal(signal.SIGABRT, lambda a, b: _exit_with_grace(service))
+        service.run()
     except KeyboardInterrupt:
-        operator.exit_requested.set()
-        operator.stopped.wait()
+        service.stop()
         exit(0)
     except Exception as e:
         print(f'error while running operator\n{e}')
-        operator.exit_requested.set()
-        operator.stopped.wait(15)
+        service.stop()
         exit(1)
 
 
-def test():
-    op = MqOperator()
-    op.i_pod = Pod.Load("/home/pi/omnipy/data/pod.json", "/home/pi/omnipy/data/pod.db")
-    op.i_pdm = Pdm(op.i_pod)
-    return op
+if __name__ == '__main__':
+    main()
