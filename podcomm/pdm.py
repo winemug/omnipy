@@ -115,7 +115,13 @@ class Pdm:
                 rssi = self._internal_update_status(update_type)
                 self.pod.last_command["success"] = True
         except StatusUpdateRequired:
-            self.logger.info("Requesting status update first")
+            self.logger.info("Fix update request")
+            self.stop_radio()
+            self.pod.radio_message_sequence += 2
+            self.pod.radio_message_sequence %= 16
+            self.pod.Save()
+            self.start_radio()
+            self.logger.info("Requesting status update again")
             rssi = self._internal_update_status(1)
             if update_type != 1:
                 self.update_status(update_type=update_type)

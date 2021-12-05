@@ -116,9 +116,12 @@ class TIDongle(PacketRadio):
         self.initialized = False
         self.manchester = ManchesterCodec()
         self.ser : serial.Serial = None
-        self.reset = OutputDevice(23, active_high=False, initial_value=True)
+        self.reset: OutputDevice = None
 
     def connect(self, force_initialize=False):
+        if self.reset is None:
+            self.reset = OutputDevice(23, active_high=False, initial_value=True)
+
         if self.ser is None:
             self.ser = serial.Serial('/dev/ttyAMA0', baudrate=35600, bytesize=8, parity='N', stopbits=1,
                                 xonxoff=0,
@@ -127,6 +130,10 @@ class TIDongle(PacketRadio):
             self.init_radio(True)
 
     def disconnect(self, ignore_errors=True):
+        if self.reset is not None:
+            self.reset.close()
+            self.reset = None
+
         if self.ser is not None:
             self.ser.close()
             self.ser = None

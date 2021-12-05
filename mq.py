@@ -242,6 +242,13 @@ class MqOperator(object):
             basal_ticks = int(rp["basal_ticks"])
             self.start_pod(basal_ticks)
             return self.active_pod_state()
+        elif req_type == "mx":
+            self.i_pod.radio_message_sequence += 2
+            self.i_pod.radio_message_sequence %= 16
+            with open(self.i_pod.path, "w") as stream:
+                json.dump(self.i_pod.__dict__, stream, indent=4, sort_keys=True)
+            os.system("sudo systemctl restart omnipy-mq")
+            return dict(executed=True)
         else:
             return dict(executed=False,
                         reason='unknown_request_type',
