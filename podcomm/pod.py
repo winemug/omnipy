@@ -78,6 +78,8 @@ class Pod:
         self.last_enacted_bolus_amount = None
         self.last_enacted_bolus_pulse_interval = None
 
+        self.iu_per_ml = None
+
 
     def Save(self, save_as = None):
         self._fix_pod_id()
@@ -180,6 +182,8 @@ class Pod:
             p.var_notify_temp_basal_set = d.get("var_notify_temp_basal_set", None)
             p.var_notify_temp_basal_cancel = d.get("var_notify_temp_basal_cancel", None)
             p.var_notify_basal_schedule_change = d.get("var_notify_basal_schedule_change", None)
+
+            p.iu_per_ml = d.get("iu_per_ml", None)
 
         return p
 

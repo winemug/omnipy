@@ -229,7 +229,9 @@ class MqOperator(object):
                 db_id = int(rp["db_id"])
             return self.get_record(pod_uuid, db_id)
         elif req_type == "newpod":
-            self.new_pod()
+            rp = req["parameters"]
+            iu_per_ml = int(rp["iu_per_ml"])
+            self.new_pod(iu_per_ml)
             return self.active_pod_state()
         elif req_type == "pair":
             self.pair_pod()
@@ -376,13 +378,13 @@ class MqOperator(object):
         self.i_pdm.inject_and_start(schedule)
 
     def activate_pod(self):
-        self.i_pdm.activate_pod()
+        self.i_pdm.activate_pod(iu_per_ml)
 
     def pair_pod(self):
         req_address = 0x34000000 + random.randint(0, 0x1000000)
         self.i_pdm.pair_pod(req_address, utc_offset=0)
 
-    def new_pod(self):
+    def new_pod(self, iu_per_ml: int):
         self.i_pod.Save()
         self.i_pdm.stop_radio()
         self.i_pdm = None
@@ -397,6 +399,7 @@ class MqOperator(object):
             os.rename(pod_prefix + '.db', pod_prefix + archive_suffix + '.db')
 
         self.i_pod = Pod()
+        self.i_pod.iu_per_ml = iu_per_ml
         self.i_pod.path = '/home/pi/omnipy/data/pod.json'
         self.i_pod.path_db = '/home/pi/omnipy/data/pod.db'
         self.i_pod.Save()
