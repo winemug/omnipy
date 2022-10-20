@@ -26,6 +26,17 @@ def get_now():
     return int(time.time() * 1000)
 
 
+def get_ticks_from_float(f: float) -> int:
+    if f is None:
+        return None
+
+    fr = round(f, 2)
+    return int(round(fr * 20))
+
+def get_ticks(d: Decimal) -> int:
+    return int(round(d / Decimal("0.05")))
+
+
 def ticks_to_decimal(ticks: int) -> Decimal:
     return Decimal("0.05") * ticks
 
@@ -268,9 +279,9 @@ class MqOperator(object):
                     status_ts = 0
                 else:
                     status_ts = int(record['state_last_updated'] * 1000)
-                insulin_delivered = record['insulin_delivered']
-                insulin_canceled = record['insulin_canceled']
-                insulin_reservoir = record['insulin_reservoir']
+                insulin_delivered = get_ticks_from_float(record['insulin_delivered'])
+                insulin_canceled = get_ticks_from_float(record['insulin_canceled'])
+                insulin_reservoir = get_ticks_from_float(record['insulin_reservoir'])
                 pod_progress = record['state_progress']
 
         return dict(executed=True,
